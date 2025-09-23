@@ -87,6 +87,37 @@
           <span id="fileSize" class="value"></span>
         </div>
       </div>
+
+      <div class="advanced-analysis-section">
+        <button id="advancedAnalysisBtn" class="advanced-btn">
+          🔍 Advanced Audio Level Analysis
+        </button>
+        <div id="advancedProgress" class="progress-section" style="display: none;">
+          <div class="progress-bar">
+            <div id="progressFill" class="progress-fill"></div>
+          </div>
+          <p id="progressText">Analyzing audio levels...</p>
+          <button id="cancelAnalysis" class="cancel-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="advanced-results-section" id="advancedResultsSection" style="display: none;">
+      <h3>Audio Level Analysis</h3>
+      <div class="advanced-results-grid">
+        <div class="result-item" id="peakLevelRow">
+          <span class="label">Peak Level:</span>
+          <span id="peakLevel" class="value"></span>
+        </div>
+        <div class="result-item" id="noiseFloorRow">
+          <span class="label">Noise Floor:</span>
+          <span id="noiseFloor" class="value"></span>
+        </div>
+        <div class="result-item" id="normalizationRow">
+          <span class="label">Normalization:</span>
+          <span id="normalization" class="value"></span>
+        </div>
+      </div>
     </div>
   </div>
 
