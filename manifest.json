@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Audio File Analyzer",
+  "version": "1.0",
+  "description": "Analyze audio files for format, sample rate, bit depth, and channel configuration",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "identity"
+  ],
+  "host_permissions": [
+    "https://www.googleapis.com/*",
+    "https://drive.google.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://drive.google.com/*"],
+      "js": ["content-script.js"],
+      "css": ["content-script.css"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Audio File Analyzer"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["popup.html", "file-handler.html", "*.css", "*.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "oauth2": {
+    "client_id": "708688597317-ei91tvc64m0frinfukr1cct9g7h1uril.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/drive.readonly",
+      "https://www.googleapis.com/auth/drive.metadata.readonly"
+    ]
+  }
+}
