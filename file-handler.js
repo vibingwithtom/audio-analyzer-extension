@@ -23,6 +23,14 @@ class FileHandlerAnalyzer {
     this.audioPlayer.addEventListener('play', () => this.updatePlayButton());
     this.audioPlayer.addEventListener('pause', () => this.updatePlayButton());
 
+    // Advanced analysis event listeners
+    document.getElementById('advancedAnalysisBtn').addEventListener('click', () => {
+      this.startAdvancedAnalysis();
+    });
+    document.getElementById('cancelAnalysis').addEventListener('click', () => {
+      this.cancelAdvancedAnalysis();
+    });
+
     // Add listeners for criteria changes
     document.getElementById('targetSampleRate').addEventListener('change', () => {
       this.saveCriteria();
@@ -802,6 +810,233 @@ class FileHandlerAnalyzer {
       // Process the file
       await this.processFile(file);
     }
+  }
+
+  // Advanced Audio Level Analysis Methods
+  async startAdvancedAnalysis() {
+    if (!this.audioBuffer && !this.audioFile) {
+      alert('No audio file loaded for analysis');
+      return;
+    }
+
+    // Show progress, hide button
+    document.getElementById('advancedAnalysisBtn').style.display = 'none';
+    document.getElementById('advancedProgress').style.display = 'block';
+
+    this.analysisInProgress = true;
+
+    try {
+      // If we don't have audioBuffer, create it from the file
+      let audioBuffer = this.audioBuffer;
+      if (!audioBuffer && this.audioFile) {
+        await this.loadAudioBufferForAnalysis();
+        audioBuffer = this.audioBuffer;
+      }
+
+      if (!audioBuffer) {
+        throw new Error('Unable to load audio data for analysis');
+      }
+
+      const results = await this.performLevelAnalysis(audioBuffer);
+      this.displayAdvancedResults(results);
+
+      // Hide progress, show results
+      document.getElementById('advancedProgress').style.display = 'none';
+      document.getElementById('advancedResultsSection').style.display = 'block';
+
+    } catch (error) {
+      console.error('Advanced analysis failed:', error);
+      alert('Advanced analysis failed: ' + error.message);
+      this.resetAdvancedAnalysis();
+    }
+
+    this.analysisInProgress = false;
+  }
+
+  async loadAudioBufferForAnalysis() {
+    if (!this.audioFile) return;
+
+    // Initialize audio context if needed
+    if (!this.audioContext) {
+      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    // Read and decode the audio file
+    const arrayBuffer = await this.audioFile.arrayBuffer();
+    this.audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+  }
+
+  async performLevelAnalysis(audioBuffer) {
+    const sampleRate = audioBuffer.sampleRate;
+    const channels = audioBuffer.numberOfChannels;
+    const length = audioBuffer.length;
+
+    // Get all channel data
+    const channelData = [];
+    for (let channel = 0; channel < channels; channel++) {
+      channelData.push(audioBuffer.getChannelData(channel));
+    }
+
+    let progress = 0;
+    const progressElement = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
+
+    // 1. Peak Level Analysis
+    progressText.textContent = 'Analyzing peak levels...';
+    let globalPeak = 0;
+
+    for (let channel = 0; channel < channels; channel++) {
+      const data = channelData[channel];
+      for (let i = 0; i < length; i++) {
+        if (this.analysisInProgress === false) {
+          throw new Error('Analysis cancelled');
+        }
+
+        const sample = Math.abs(data[i]);
+        if (sample > globalPeak) {
+          globalPeak = sample;
+        }
+
+        // Update progress every 10000 samples
+        if (i % 10000 === 0) {
+          progress = (channel * length + i) / (channels * length) * 0.5; // First 50% for peak
+          progressElement.style.width = (progress * 100) + '%';
+
+          // Allow UI to update
+          if (i % 100000 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 1));
+          }
+        }
+      }
+    }
+
+    // Convert peak to dB
+    const peakDb = globalPeak > 0 ? 20 * Math.log10(globalPeak) : -Infinity;
+
+    // 2. Noise Floor Analysis
+    progressText.textContent = 'Analyzing noise floor...';
+    const noiseFloorDb = await this.analyzeNoiseFloor(channelData, channels, length, progressElement, progress);
+
+    // 3. Normalization Check
+    progressText.textContent = 'Checking normalization...';
+    const normalizationStatus = this.checkNormalization(peakDb);
+
+    progressElement.style.width = '100%';
+    progressText.textContent = 'Analysis complete!';
+
+    return {
+      peakDb: peakDb,
+      noiseFloorDb: noiseFloorDb,
+      normalizationStatus: normalizationStatus
+    };
+  }
+
+  async analyzeNoiseFloor(channelData, channels, length, progressElement, startProgress) {
+    // Collect samples from quieter sections (bottom 20% of RMS values)
+    const windowSize = Math.floor(length / 100); // 1% windows
+    const rmsValues = [];
+
+    for (let channel = 0; channel < channels; channel++) {
+      const data = channelData[channel];
+
+      for (let windowStart = 0; windowStart < length - windowSize; windowStart += windowSize) {
+        let sumSquares = 0;
+
+        for (let i = windowStart; i < windowStart + windowSize && i < length; i++) {
+          sumSquares += data[i] * data[i];
+        }
+
+        const rms = Math.sqrt(sumSquares / windowSize);
+        rmsValues.push(rms);
+      }
+    }
+
+    // Sort RMS values and take bottom 20% as quiet sections
+    rmsValues.sort((a, b) => a - b);
+    const quietSectionCount = Math.floor(rmsValues.length * 0.2);
+    const quietRmsValues = rmsValues.slice(0, quietSectionCount);
+
+    // Calculate average noise floor from quiet sections
+    const avgQuietRms = quietRmsValues.reduce((sum, rms) => sum + rms, 0) / quietRmsValues.length;
+    const noiseFloorDb = avgQuietRms > 0 ? 20 * Math.log10(avgQuietRms) : -Infinity;
+
+    // Update progress to 90%
+    progressElement.style.width = '90%';
+
+    return noiseFloorDb;
+  }
+
+  checkNormalization(peakDb) {
+    const targetDb = -6.0;
+    const tolerance = 0.1;
+
+    if (Math.abs(peakDb - targetDb) <= tolerance) {
+      return { status: 'normalized', message: 'Properly normalized to -6dB' };
+    } else if (peakDb > targetDb) {
+      return { status: 'too_loud', message: `Too loud: ${peakDb.toFixed(1)}dB (target: -6dB)` };
+    } else {
+      return { status: 'too_quiet', message: `Too quiet: ${peakDb.toFixed(1)}dB (target: -6dB)` };
+    }
+  }
+
+  displayAdvancedResults(results) {
+    // Peak Level
+    const peakElement = document.getElementById('peakLevel');
+    const peakRow = document.getElementById('peakLevelRow');
+
+    let peakText = results.peakDb === -Infinity ? 'Silent' : `${results.peakDb.toFixed(1)} dB`;
+    peakElement.textContent = peakText;
+
+    // Color coding for peak level
+    peakRow.classList.remove('level-pass', 'level-warning', 'level-fail');
+    if (results.peakDb <= -6.0) {
+      peakRow.classList.add('level-pass');
+    } else if (results.peakDb <= -3.0) {
+      peakRow.classList.add('level-warning');
+    } else {
+      peakRow.classList.add('level-fail');
+    }
+
+    // Noise Floor
+    const noiseElement = document.getElementById('noiseFloor');
+    const noiseRow = document.getElementById('noiseFloorRow');
+
+    let noiseText = results.noiseFloorDb === -Infinity ? 'Silent' : `${results.noiseFloorDb.toFixed(1)} dB`;
+    noiseElement.textContent = noiseText;
+
+    // Color coding for noise floor
+    noiseRow.classList.remove('level-pass', 'level-warning', 'level-fail');
+    if (results.noiseFloorDb <= -60.0) {
+      noiseRow.classList.add('level-pass');
+    } else {
+      noiseRow.classList.add('level-fail');
+    }
+
+    // Normalization
+    const normElement = document.getElementById('normalization');
+    const normRow = document.getElementById('normalizationRow');
+
+    normElement.textContent = results.normalizationStatus.message;
+
+    // Color coding for normalization
+    normRow.classList.remove('level-pass', 'level-warning', 'level-fail');
+    if (results.normalizationStatus.status === 'normalized') {
+      normRow.classList.add('level-pass');
+    } else {
+      normRow.classList.add('level-fail');
+    }
+  }
+
+  cancelAdvancedAnalysis() {
+    this.analysisInProgress = false;
+    this.resetAdvancedAnalysis();
+  }
+
+  resetAdvancedAnalysis() {
+    document.getElementById('advancedAnalysisBtn').style.display = 'block';
+    document.getElementById('advancedProgress').style.display = 'none';
+    document.getElementById('advancedResultsSection').style.display = 'none';
+    document.getElementById('progressFill').style.width = '0%';
   }
 }
 
