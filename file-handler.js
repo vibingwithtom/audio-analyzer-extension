@@ -64,6 +64,11 @@ class FileHandlerAnalyzer {
   async handleLaunchedFiles() {
     console.log('Checking for launched files...');
 
+    // First check for local file data from popup
+    await this.checkForLocalFile();
+
+    // Then check for Google Drive files
+
     const urlParams = new URLSearchParams(window.location.search);
     const fileId = urlParams.get('fileId');
     const fileName = urlParams.get('fileName');
@@ -1037,6 +1042,71 @@ class FileHandlerAnalyzer {
     document.getElementById('advancedProgress').style.display = 'none';
     document.getElementById('advancedResultsSection').style.display = 'none';
     document.getElementById('progressFill').style.width = '0%';
+  }
+
+  // Local file handling methods
+  async checkForLocalFile() {
+    return new Promise((resolve) => {
+      chrome.storage.session.get(['localFileData'], async (result) => {
+        if (chrome.runtime.lastError) {
+          console.error('Error checking for local file:', chrome.runtime.lastError);
+          resolve();
+          return;
+        }
+
+        if (result.localFileData) {
+          console.log('Found local file data:', result.localFileData.name);
+
+          try {
+            // Convert data URL back to file
+            const file = await this.dataUrlToFile(
+              result.localFileData.dataUrl,
+              result.localFileData.name,
+              result.localFileData.type
+            );
+
+            // Hide manual input section since we have a file
+            const manualSection = document.querySelector('.manual-input-section');
+            if (manualSection) {
+              manualSection.style.display = 'none';
+            }
+
+            // Process the local file
+            await this.processFile(file);
+
+            // Clean up session storage
+            chrome.storage.session.remove(['localFileData']);
+
+          } catch (error) {
+            console.error('Error processing local file:', error);
+            alert('Error processing transferred file: ' + error.message);
+          }
+        }
+
+        resolve();
+      });
+    });
+  }
+
+  dataUrlToFile(dataUrl, filename, mimeType) {
+    return new Promise((resolve, reject) => {
+      try {
+        // Extract base64 data
+        const arr = dataUrl.split(',');
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+
+        const file = new File([u8arr], filename, { type: mimeType });
+        resolve(file);
+      } catch (error) {
+        reject(error);
+      }
+    });
   }
 }
 
