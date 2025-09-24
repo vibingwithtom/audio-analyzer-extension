@@ -1,0 +1,22 @@
+{
+  "name": "@audio-analyzer/web",
+  "version": "1.0.0",
+  "description": "Web-based audio analyzer application",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "serve": "serve dist"
+  },
+  "dependencies": {
+    "@audio-analyzer/core": "^1.0.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "serve": "^14.2.0"
+  },
+  "keywords": ["web", "audio", "analyzer", "progressive-web-app"],
+  "author": "vibingwithtom",
+  "license": "MIT"
+}

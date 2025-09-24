@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio Analyzer - Professional Audio File Analysis</title>
+  <meta name="description" content="Analyze audio file properties, validate against criteria, and perform advanced audio analysis">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#2563eb">
+  <link rel="manifest" href="/manifest.json">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Audio Analyzer">
+  <meta property="og:description" content="Professional audio file analysis tool">
+  <meta property="og:type" content="website">
+
+  <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <div class="container">
+        <div class="header-content">
+          <h1 class="logo">🎵 Audio Analyzer</h1>
+          <p class="subtitle">Professional Audio File Analysis</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="container">
+        <!-- Tab Navigation -->
+        <div class="tabs">
+          <button class="tab-button active" data-tab="local">
+            📁 Local Files
+          </button>
+          <button class="tab-button" data-tab="gdrive">
+            ☁️ Google Drive
+          </button>
+        </div>
+
+        <!-- Target Criteria Section -->
+        <section class="criteria-section">
+          <h2>Analysis Criteria</h2>
+          <div class="criteria-grid">
+            <div class="criteria-item">
+              <label for="targetFileType">File Type</label>
+              <select id="targetFileType">
+                <option value="">Any</option>
+                <option value="wav">WAV</option>
+                <option value="mp3">MP3</option>
+                <option value="flac">FLAC</option>
+                <option value="aac">AAC</option>
+                <option value="m4a">M4A</option>
+                <option value="ogg">OGG</option>
+              </select>
+            </div>
+            <div class="criteria-item">
+              <label for="targetSampleRate">Sample Rate (Hz)</label>
+              <select id="targetSampleRate">
+                <option value="">Any</option>
+                <option value="44100">44,100 Hz</option>
+                <option value="48000">48,000 Hz</option>
+                <option value="96000">96,000 Hz</option>
+                <option value="192000">192,000 Hz</option>
+              </select>
+            </div>
+            <div class="criteria-item">
+              <label for="targetBitDepth">Bit Depth</label>
+              <select id="targetBitDepth">
+                <option value="">Any</option>
+                <option value="16">16-bit</option>
+                <option value="24">24-bit</option>
+                <option value="32">32-bit</option>
+              </select>
+            </div>
+            <div class="criteria-item">
+              <label for="targetChannels">Channels</label>
+              <select id="targetChannels">
+                <option value="">Any</option>
+                <option value="1">Mono (1)</option>
+                <option value="2">Stereo (2)</option>
+                <option value="6">5.1 Surround (6)</option>
+                <option value="8">7.1 Surround (8)</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- File Input Sections -->
+        <div class="tab-content active" data-tab="local">
+          <section class="upload-section">
+            <div class="drop-zone" id="dropZone">
+              <div class="drop-zone-content">
+                <div class="drop-icon">🎵</div>
+                <h3>Drop audio file here</h3>
+                <p>Or click to browse files</p>
+                <button class="browse-btn" id="browseBtn">Choose File</button>
+                <input type="file" id="fileInput" accept="audio/*" style="display: none;">
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="tab-content" data-tab="gdrive">
+          <section class="gdrive-section">
+            <div class="gdrive-input">
+              <label for="driveUrl">Google Drive File URL</label>
+              <div class="input-group">
+                <input
+                  type="url"
+                  id="driveUrl"
+                  placeholder="https://drive.google.com/file/d/FILE_ID/view"
+                  class="gdrive-url-input"
+                >
+                <button id="analyzeUrl" class="analyze-btn">
+                  Analyze
+                </button>
+              </div>
+              <p class="input-hint">
+                Paste a Google Drive file link to analyze audio files stored in your Drive
+              </p>
+            </div>
+          </section>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading" class="loading" style="display: none;">
+          <div class="spinner"></div>
+          <p>Analyzing audio file...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="error" class="error-state" style="display: none;">
+          <div class="error-icon">⚠️</div>
+          <h3>Analysis Error</h3>
+          <p id="errorMessage"></p>
+          <button onclick="location.reload()" class="retry-btn">Try Again</button>
+        </div>
+
+        <!-- Results Section -->
+        <section id="resultsSection" class="results-section" style="display: none;">
+          <h2>Analysis Results</h2>
+
+          <!-- Basic Results -->
+          <div class="results-grid">
+            <div class="result-item" id="fileNameRow">
+              <label>File Name:</label>
+              <span id="fileName">-</span>
+            </div>
+            <div class="result-item" id="fileTypeRow">
+              <label>File Type:</label>
+              <span id="fileType">-</span>
+            </div>
+            <div class="result-item" id="sampleRateRow">
+              <label>Sample Rate:</label>
+              <span id="sampleRate">-</span>
+            </div>
+            <div class="result-item" id="bitDepthRow">
+              <label>Bit Depth:</label>
+              <span id="bitDepth">-</span>
+            </div>
+            <div class="result-item" id="channelsRow">
+              <label>Channels:</label>
+              <span id="channels">-</span>
+            </div>
+            <div class="result-item">
+              <label>Duration:</label>
+              <span id="duration">-</span>
+            </div>
+            <div class="result-item">
+              <label>File Size:</label>
+              <span id="fileSize">-</span>
+            </div>
+          </div>
+
+          <!-- Audio Player -->
+          <div id="playerSection" class="player-section" style="display: none;">
+            <h3>Audio Preview</h3>
+            <div class="audio-player">
+              <audio id="audioPlayer" controls preload="metadata"></audio>
+              <button id="playPause" class="play-pause-btn">Play</button>
+            </div>
+          </div>
+
+          <!-- Advanced Analysis -->
+          <div class="advanced-section">
+            <button id="advancedAnalysisBtn" class="advanced-btn">
+              🔍 Run Advanced Analysis
+            </button>
+
+            <div id="advancedProgress" class="progress-section" style="display: none;">
+              <div class="progress-bar">
+                <div id="progressFill" class="progress-fill"></div>
+              </div>
+              <p id="progressText">Initializing...</p>
+              <button id="cancelAnalysis" class="cancel-btn">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Advanced Results -->
+          <div id="advancedResultsSection" class="advanced-results" style="display: none;">
+            <h3>Advanced Analysis</h3>
+            <div class="advanced-grid">
+              <div class="advanced-item">
+                <label>Peak Level:</label>
+                <span id="peakLevel">-</span>
+              </div>
+              <div class="advanced-item">
+                <label>Noise Floor:</label>
+                <span id="noiseFloor">-</span>
+              </div>
+              <div class="advanced-item">
+                <label>Normalization:</label>
+                <span id="normalization">-</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="container">
+        <p>&copy; 2024 Audio Analyzer. Built with ❤️</p>
+      </div>
+    </footer>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

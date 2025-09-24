@@ -12,7 +12,7 @@
     "lint": "npm run lint --workspaces",
     "test": "npm run test --workspaces"
   },
-  "keywords": ["audio", "analyzer", "chrome-extension", "electron", "desktop"],
+  "keywords": ["audio", "analyzer", "chrome-extension", "electron", "desktop", "web-app"],
   "author": "vibingwithtom",
   "license": "MIT",
   "repository": {
