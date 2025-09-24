@@ -1,0 +1,18 @@
+{
+  "name": "@audio-analyzer/extension",
+  "version": "1.0.0",
+  "description": "Chrome extension for analyzing audio files from Google Drive",
+  "main": "manifest.json",
+  "scripts": {
+    "build": "echo 'Extension build - copy files'",
+    "dev": "echo 'Extension in dev mode'",
+    "lint": "echo 'Extension linting'",
+    "test": "echo 'Extension tests'"
+  },
+  "dependencies": {
+    "@audio-analyzer/core": "^1.0.0"
+  },
+  "keywords": ["chrome-extension", "audio", "google-drive"],
+  "author": "vibingwithtom",
+  "license": "MIT"
+}

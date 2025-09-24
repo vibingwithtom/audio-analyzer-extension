@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio Analyzer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header class="app-header">
+      <h1>🎵 Audio Analyzer</h1>
+      <p class="subtitle">Professional audio file analysis tool</p>
+    </header>
+
+    <!-- File Input Section -->
+    <div class="file-input-section">
+      <div class="input-method-tabs">
+        <button class="tab-button active" data-tab="local">Local File</button>
+        <button class="tab-button" data-tab="drive">Google Drive</button>
+      </div>
+
+      <!-- Local File Tab -->
+      <div class="tab-content active" data-tab="local">
+        <div class="drop-zone" id="dropZone">
+          <div class="drop-zone-content">
+            <div class="drop-icon">📁</div>
+            <p class="drop-text">Drop audio file here or click to browse</p>
+            <button class="browse-btn" id="browseBtn">Choose File</button>
+            <input type="file" id="fileInput" accept="audio/*" style="display: none;">
+          </div>
+        </div>
+      </div>
+
+      <!-- Google Drive Tab -->
+      <div class="tab-content" data-tab="drive">
+        <div class="drive-input">
+          <label for="driveUrl">Google Drive Share Link:</label>
+          <div class="url-input-group">
+            <input type="url" id="driveUrl" placeholder="Paste Google Drive share link here...">
+            <button id="analyzeUrl" class="analyze-btn">Analyze</button>
+          </div>
+          <p class="input-help">Right-click any audio file in Google Drive → Get link → Paste here</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Target Criteria -->
+    <div class="criteria-section">
+      <h3>Target Criteria (Optional)</h3>
+      <div class="criteria-grid">
+        <div class="criteria-item">
+          <label>File Type:</label>
+          <select id="targetFileType">
+            <option value="">Any</option>
+            <option value="WAV (PCM)">WAV (PCM)</option>
+          </select>
+        </div>
+        <div class="criteria-item">
+          <label>Sample Rate:</label>
+          <select id="targetSampleRate">
+            <option value="">Any</option>
+            <option value="44100">44.1 kHz</option>
+            <option value="48000">48 kHz</option>
+            <option value="96000">96 kHz</option>
+            <option value="192000">192 kHz</option>
+          </select>
+        </div>
+        <div class="criteria-item">
+          <label>Bit Depth:</label>
+          <select id="targetBitDepth">
+            <option value="">Any</option>
+            <option value="16">16-bit</option>
+            <option value="24">24-bit</option>
+            <option value="32">32-bit</option>
+          </select>
+        </div>
+        <div class="criteria-item">
+          <label>Channels:</label>
+          <select id="targetChannels">
+            <option value="">Any</option>
+            <option value="1">Mono</option>
+            <option value="2">Stereo</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Audio Player -->
+    <div class="player-section" id="playerSection" style="display: none;">
+      <audio id="audioPlayer" controls></audio>
+      <button id="playPause" class="control-btn">Play</button>
+    </div>
+
+    <!-- Basic Results -->
+    <div class="results-section" id="resultsSection" style="display: none;">
+      <div class="results-header">
+        <h3>File Analysis</h3>
+        <div class="file-info">
+          <span id="fileName" class="file-name"></span>
+        </div>
+      </div>
+
+      <div class="results-grid">
+        <div class="result-item" id="fileTypeRow">
+          <span class="label">File Type:</span>
+          <span id="fileType" class="value"></span>
+        </div>
+        <div class="result-item" id="sampleRateRow">
+          <span class="label">Sample Rate:</span>
+          <span id="sampleRate" class="value"></span>
+        </div>
+        <div class="result-item" id="bitDepthRow">
+          <span class="label">Bit Depth:</span>
+          <span id="bitDepth" class="value"></span>
+        </div>
+        <div class="result-item" id="channelsRow">
+          <span class="label">Channels:</span>
+          <span id="channels" class="value"></span>
+        </div>
+        <div class="result-item">
+          <span class="label">Duration:</span>
+          <span id="duration" class="value"></span>
+        </div>
+        <div class="result-item">
+          <span class="label">File Size:</span>
+          <span id="fileSize" class="value"></span>
+        </div>
+      </div>
+
+      <!-- Advanced Analysis Button -->
+      <div class="advanced-analysis-section">
+        <button id="advancedAnalysisBtn" class="advanced-btn">
+          🔍 Advanced Audio Level Analysis
+        </button>
+        <div id="advancedProgress" class="progress-section" style="display: none;">
+          <div class="progress-bar">
+            <div id="progressFill" class="progress-fill"></div>
+          </div>
+          <p id="progressText">Analyzing audio levels...</p>
+          <button id="cancelAnalysis" class="cancel-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Advanced Results -->
+    <div class="advanced-results-section" id="advancedResultsSection" style="display: none;">
+      <h3>Audio Level Analysis</h3>
+      <div class="advanced-results-grid">
+        <div class="result-item" id="peakLevelRow">
+          <span class="label">Peak Level:</span>
+          <span id="peakLevel" class="value"></span>
+        </div>
+        <div class="result-item" id="noiseFloorRow">
+          <span class="label">Noise Floor:</span>
+          <span id="noiseFloor" class="value"></span>
+        </div>
+        <div class="result-item" id="normalizationRow">
+          <span class="label">Normalization:</span>
+          <span id="normalization" class="value"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div class="loading" id="loading" style="display: none;">
+      <div class="loading-spinner"></div>
+      <p>Loading and analyzing audio file...</p>
+    </div>
+
+    <!-- Error State -->
+    <div class="error" id="error" style="display: none;">
+      <div class="error-icon">⚠️</div>
+      <h3>Error</h3>
+      <p id="errorMessage"></p>
+      <button class="error-retry" onclick="location.reload()">Try Again</button>
+    </div>
+  </div>
+
+  <script type="module" src="renderer.js"></script>
+</body>
+</html>

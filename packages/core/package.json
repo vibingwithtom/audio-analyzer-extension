@@ -1,0 +1,16 @@
+{
+  "name": "@audio-analyzer/core",
+  "version": "1.0.0",
+  "description": "Shared audio analysis engine for Chrome extension and desktop app",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "build": "echo 'Core build completed'",
+    "dev": "echo 'Core in dev mode'",
+    "lint": "echo 'Core linting'",
+    "test": "echo 'Core tests'"
+  },
+  "keywords": ["audio", "analysis", "wav", "mp3", "flac"],
+  "author": "vibingwithtom",
+  "license": "MIT"
+}

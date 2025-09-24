@@ -1,0 +1,62 @@
+{
+  "name": "@audio-analyzer/desktop",
+  "version": "1.0.0",
+  "description": "Desktop audio analyzer application built with Electron",
+  "main": "src/main.js",
+  "homepage": "./",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build-win": "electron-builder --win",
+    "build-mac": "electron-builder --mac",
+    "build-linux": "electron-builder --linux",
+    "pack": "electron-builder --dir",
+    "dist": "npm run build",
+    "clean": "rimraf dist build"
+  },
+  "dependencies": {
+    "@audio-analyzer/core": "^1.0.0",
+    "electron-store": "^8.1.0",
+    "electron-updater": "^6.1.0"
+  },
+  "devDependencies": {
+    "electron": "^26.0.0",
+    "electron-builder": "^24.6.0",
+    "rimraf": "^5.0.0"
+  },
+  "build": {
+    "appId": "com.vibingwithtom.audio-analyzer",
+    "productName": "Audio Analyzer",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "renderer/**/*",
+      "node_modules/**/*",
+      "!node_modules/.cache"
+    ],
+    "mac": {
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.music",
+      "target": ["dmg", "zip"]
+    },
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": ["nsis", "portable"]
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "target": ["AppImage", "deb", "rpm"]
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "vibingwithtom",
+      "repo": "audio-analyzer-extension"
+    }
+  },
+  "keywords": ["electron", "audio", "analyzer", "desktop"],
+  "author": "vibingwithtom",
+  "license": "MIT"
+}

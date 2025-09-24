@@ -1,0 +1,22 @@
+{
+  "name": "audio-analyzer",
+  "version": "1.0.0",
+  "description": "Audio file analyzer with Chrome extension and desktop application",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "dev": "npm run dev --workspaces",
+    "lint": "npm run lint --workspaces",
+    "test": "npm run test --workspaces"
+  },
+  "keywords": ["audio", "analyzer", "chrome-extension", "electron", "desktop"],
+  "author": "vibingwithtom",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vibingwithtom/audio-analyzer-extension.git"
+  }
+}
