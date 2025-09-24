@@ -6,7 +6,8 @@
   "permissions": [
     "storage",
     "activeTab",
-    "identity"
+    "identity",
+    "windows"
   ],
   "host_permissions": [
     "https://www.googleapis.com/*",
