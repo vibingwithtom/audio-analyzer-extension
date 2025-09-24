@@ -299,7 +299,7 @@ ipcMain.handle('start-oauth', async () => {
         isResolved = true;
         setTimeout(() => cleanup(), 2500);
 
-        exchangeCodeForToken(code, `http://localhost:${serverPort}/callback`)
+        exchangeCodeForToken(code, `http://127.0.0.1:${serverPort}/callback`)
           .then(token => {
             store.set('googleAccessToken', token);
             resolve(token);
@@ -330,8 +330,7 @@ ipcMain.handle('start-oauth', async () => {
         const serverPort = server.address().port;
 
         // Send a success page
-        const html = `
-          <!DOCTYPE html>
+        const html = `<!DOCTYPE html>
           <html>
           <head>
             <title>Authentication ${error ? 'Failed' : 'Successful'}</title>
@@ -342,10 +341,8 @@ ipcMain.handle('start-oauth', async () => {
             </style>
           </head>
           <body>
-            <h1 class="${error ? 'error' : 'success'}">
-              ${error ? '❌ Authentication Failed' : '✅ Authentication Successful!'}
-            </h1>
-            <p>${error ? 'Please try again.' : 'You can close this window now.'}</p>
+            <h1 class="${error ? 'error' : 'success'}">${error ? 'Authentication Failed' : 'Authentication Successful!'}</h1>
+            <p>${error ? 'Please try again.' : 'This window will close automatically.'}</p>
             <script>
               setTimeout(() => window.close(), 2000);
             </script>
@@ -398,9 +395,10 @@ ipcMain.handle('start-oauth', async () => {
         const REDIRECT_URI = `http://localhost`;
         const SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
 
-        const authUrl = `https://accounts.google.com/oauth/authorize?` +
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
           `client_id=${CLIENT_ID}&` +
-          `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+          `redirect_uri=${encodeURIComponent(`http://127.0.0.1:${port}/callback`)}&` +
+
           `response_type=code&` +
           `scope=${encodeURIComponent(SCOPE)}&` +
           `access_type=offline`;
