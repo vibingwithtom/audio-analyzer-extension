@@ -10,7 +10,7 @@ class AudioAnalyzer {
 
     this.initializeEventListeners();
     this.loadSavedCriteria();
-    this.loadTogglePreference();
+
   }
 
   initializeEventListeners() {
@@ -29,11 +29,18 @@ class AudioAnalyzer {
     });
 
     // Toggle preference listener
-    document.getElementById('openInNewWindow').addEventListener('change', () => {
-      this.saveTogglePreference();
-    });
 
-    // Add listeners for criteria changes
+
+    document.getElementById('openFileHandlerBtn').addEventListener('click', () => {
+      chrome.windows.create({
+        url: chrome.runtime.getURL('file-handler.html'),
+        type: 'popup',
+        width: 800,
+        height: 700
+      }, (window) => {
+        console.log('Opened file-handler window.');
+      });
+    });
     document.getElementById('targetSampleRate').addEventListener('change', () => {
       this.saveCriteria();
       this.revalidateCriteria();
@@ -65,13 +72,7 @@ class AudioAnalyzer {
     const file = event.target.files[0];
     if (!file) return;
 
-    const openInNewWindow = document.getElementById('openInNewWindow').checked;
-
-    if (openInNewWindow) {
-      // Open in new file-handler window
-      await this.openFileInNewWindow(file);
-    } else {
-      // Analyze in popup
+    // Analyze in popup
       this.audioFile = file;
       try {
         await this.analyzeFile(file);
@@ -81,7 +82,6 @@ class AudioAnalyzer {
         console.error('Error analyzing file:', error);
         alert('Error analyzing audio file. Please try a different file.');
       }
-    }
   }
 
   async analyzeFile(file) {
@@ -639,45 +639,7 @@ class AudioAnalyzer {
   }
 
   // File transfer and toggle preference methods
-  async openFileInNewWindow(file) {
-    try {
-      // Convert file to data URL for transfer
-      const dataUrl = await this.fileToDataUrl(file);
 
-      // Store file data in session storage for the new window
-      const fileData = {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        dataUrl: dataUrl,
-        timestamp: Date.now()
-      };
-
-      chrome.storage.session.set({
-        localFileData: fileData
-      }, () => {
-        if (chrome.runtime.lastError) {
-          console.error('Error storing file data:', chrome.runtime.lastError);
-          alert('Error transferring file to new window');
-          return;
-        }
-
-        // Open file-handler in new window
-        chrome.windows.create({
-          url: chrome.runtime.getURL('file-handler.html'),
-          type: 'popup',
-          width: 500,
-          height: 700
-        }, (window) => {
-          console.log('Opened file-handler window for local file:', file.name);
-        });
-      });
-
-    } catch (error) {
-      console.error('Error opening file in new window:', error);
-      alert('Error opening file in new window: ' + error.message);
-    }
-  }
 
   fileToDataUrl(file) {
     return new Promise((resolve, reject) => {
@@ -688,32 +650,7 @@ class AudioAnalyzer {
     });
   }
 
-  saveTogglePreference() {
-    const openInNewWindow = document.getElementById('openInNewWindow').checked;
-    chrome.storage.local.set({
-      openInNewWindow: openInNewWindow
-    }, () => {
-      if (chrome.runtime.lastError) {
-        console.error('Error saving toggle preference:', chrome.runtime.lastError);
-      } else {
-        console.log('Toggle preference saved:', openInNewWindow);
-      }
-    });
-  }
 
-  loadTogglePreference() {
-    chrome.storage.local.get(['openInNewWindow'], (result) => {
-      if (chrome.runtime.lastError) {
-        console.error('Error loading toggle preference:', chrome.runtime.lastError);
-        return;
-      }
-
-      if (result.openInNewWindow !== undefined) {
-        document.getElementById('openInNewWindow').checked = result.openInNewWindow;
-        console.log('Toggle preference loaded:', result.openInNewWindow);
-      }
-    });
-  }
 }
 
 // Initialize the analyzer when the popup loads
