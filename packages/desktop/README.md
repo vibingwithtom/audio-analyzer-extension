@@ -16,17 +16,32 @@ Desktop audio analyzer application built with Electron. Provides comprehensive a
 ### From Release
 Download the latest release for your platform from the [releases page](https://github.com/vibingwithtom/audio-analyzer-extension/releases).
 
-### Development
-```bash
-# Install dependencies
-npm install
+### Development Setup
 
-# Run in development mode
+1. **Install dependencies**
+```bash
+npm install
+```
+
+2. **Configure Google Drive OAuth (Optional)**
+   - Copy `.env.example` to `.env`
+   - Get Google OAuth credentials from [Google Cloud Console](https://console.cloud.google.com/):
+     - Create or select a project
+     - Enable Google Drive API
+     - Create OAuth 2.0 Client ID (Desktop Application)
+     - Add `http://localhost:8080/oauth/callback` to authorized redirect URIs
+     - Copy Client ID and Client Secret to `.env`
+
+3. **Run the app**
+```bash
+# Development mode with auto-reload
 npm run dev
 
 # Build for production
 npm run build
 ```
+
+**Note**: Google Drive functionality requires OAuth setup. Local file analysis works without any configuration.
 
 ## Usage
 

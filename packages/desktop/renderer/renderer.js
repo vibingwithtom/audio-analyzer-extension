@@ -1,8 +1,6 @@
-import { AudioAnalyzerEngine } from '../../core/index.js';
-
 class DesktopAudioAnalyzer {
   constructor() {
-    this.engine = new AudioAnalyzerEngine();
+    this.engine = new AudioAnalyzerCore.AudioAnalyzerEngine();
     this.currentFile = null;
     this.audioBuffer = null;
     this.isAnalyzing = false;
@@ -196,7 +194,27 @@ class DesktopAudioAnalyzer {
     this.showLoading();
 
     try {
-      const file = await this.engine.downloadGoogleDriveFile(url);
+      // Check if we have a valid access token
+      let token = null;
+      if (window.electronAPI) {
+        token = await window.electronAPI.getOAuthToken();
+      }
+
+      // If no token, start OAuth flow
+      if (!token) {
+        try {
+          console.log('Starting OAuth flow...');
+          token = await window.electronAPI.startOAuth();
+          console.log('OAuth flow completed, got token:', !!token);
+        } catch (error) {
+          console.error('OAuth flow failed:', error);
+          this.showError('Google Drive authentication failed. Please try again.');
+          return;
+        }
+      }
+
+      // Use OAuth-authenticated download
+      const file = await this.engine.downloadGoogleDriveFile(url, token.access_token);
       this.currentFile = file;
 
       const results = await this.engine.analyzeFile(file);
@@ -208,7 +226,13 @@ class DesktopAudioAnalyzer {
 
     } catch (error) {
       console.error('Google Drive error:', error);
-      this.showError(`Failed to process Google Drive file: ${error.message}`);
+
+      // If auth error, clear stored token and suggest re-auth
+      if (error.message.includes('401') || error.message.includes('403')) {
+        this.showError('Google Drive access expired. Please try again to re-authenticate.');
+      } else {
+        this.showError(`Failed to process Google Drive file: ${error.message}`);
+      }
     }
   }
 
