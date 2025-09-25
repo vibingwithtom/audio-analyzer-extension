@@ -99,9 +99,19 @@ class WebAudioAnalyzer {
     });
 
     // Local file handling
-    this.browseBtn.addEventListener('click', () => {
+    this.browseBtn.addEventListener('click', (e) => {
       console.log('Browse button clicked, fileInput:', this.fileInput);
-      this.fileInput.click();
+      e.preventDefault(); // Prevent any default button behavior
+
+      // Safari compatibility: ensure file input is properly focused and triggered
+      try {
+        this.fileInput.focus();
+        this.fileInput.click();
+      } catch (error) {
+        console.error('File input click error:', error);
+        // Fallback: try direct assignment
+        setTimeout(() => this.fileInput.click(), 10);
+      }
     });
     this.fileInput.addEventListener('change', (e) => {
       console.log('File input change event fired!');
@@ -243,8 +253,8 @@ class WebAudioAnalyzer {
       return;
     }
 
-    // Clean up previous file data before processing new one
-    this.cleanup();
+    // Clean up previous file data before processing new one (but preserve current file input)
+    this.cleanupForNewFile();
 
     this.currentFile = file;
     this.showLoading();
@@ -264,7 +274,7 @@ class WebAudioAnalyzer {
     } catch (error) {
       console.error('Analysis error:', error);
       this.showError(`Failed to analyze file: ${error.message}`);
-      this.cleanup(); // Clean up on error too
+      this.cleanupForNewFile(); // Clean up on error too
     }
   }
 
@@ -273,7 +283,7 @@ class WebAudioAnalyzer {
     if (!url) return;
 
     // Clean up previous file data before processing new one
-    this.cleanup();
+    this.cleanupForNewFile();
 
     this.showLoading();
 
@@ -299,7 +309,7 @@ class WebAudioAnalyzer {
 
     } catch (error) {
       console.error('Google Drive error:', error);
-      this.cleanup(); // Clean up on error too
+      this.cleanupForNewFile(); // Clean up on error too
       if (error.message.includes('sign-in') || error.message.includes('auth')) {
         this.showError('Please sign in to Google to access Drive files. Click "Analyze" to authenticate.');
       } else {
@@ -456,8 +466,8 @@ class WebAudioAnalyzer {
     this.error.style.display = 'block';
   }
 
-  cleanup() {
-    // Clean up previous file data to prevent memory accumulation
+  cleanupForNewFile() {
+    // Clean up previous file data without touching current file input
     if (this.currentFile) {
       this.currentFile = null;
     }
@@ -477,10 +487,17 @@ class WebAudioAnalyzer {
       }
       this.audioPlayer.src = '';
     }
+  }
 
-    // Clear file input to ensure change events fire for same file
+  cleanup() {
+    // Full cleanup including file input (for page unload, etc.)
+    this.cleanupForNewFile();
+
+    // Clear file input to ensure change events fire for same file (delayed to avoid Safari issues)
     if (this.fileInput) {
-      this.fileInput.value = '';
+      setTimeout(() => {
+        this.fileInput.value = '';
+      }, 100);
     }
 
     // Close any existing audio context to free resources
