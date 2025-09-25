@@ -4,8 +4,10 @@ class GoogleAuth {
   constructor() {
     this.isInitialized = false;
     this.accessToken = null;
-    this.tokenClient = null;
+    this.codeClient = null;
     this.userInfo = null;
+    this.authPromiseResolve = null;
+    this.authPromiseReject = null;
   }
 
   async init() {
@@ -62,23 +64,18 @@ class GoogleAuth {
             discoveryDocs: GOOGLE_CONFIG.DISCOVERY_DOCS
           });
 
-          // Initialize Google Identity Services token client
-          this.tokenClient = window.google.accounts.oauth2.initTokenClient({
+          // Initialize Google Identity Services code client (modern approach)
+          this.codeClient = window.google.accounts.oauth2.initCodeClient({
             client_id: GOOGLE_CONFIG.CLIENT_ID,
             scope: GOOGLE_CONFIG.SCOPE,
+            ux_mode: 'popup',
             callback: (response) => {
               if (response.error) {
-                console.error('Token response error:', response);
+                console.error('Auth code response error:', response);
                 return;
               }
-              this.accessToken = response.access_token;
-              // Store token info
-              const tokenInfo = {
-                access_token: response.access_token,
-                expires_at: Date.now() + (response.expires_in * 1000),
-                scope: response.scope
-              };
-              localStorage.setItem('google_token', JSON.stringify(tokenInfo));
+              // Store the authorization code for token exchange
+              this.handleAuthCode(response.code);
             }
           });
 
@@ -99,6 +96,66 @@ class GoogleAuth {
     });
   }
 
+  async handleAuthCode(authCode) {
+    try {
+      // Exchange authorization code for access token
+      const tokenInfo = await this.exchangeCodeForToken(authCode);
+
+      this.accessToken = tokenInfo.access_token;
+      localStorage.setItem('google_token', JSON.stringify(tokenInfo));
+
+      // Fetch user info after successful authentication
+      try {
+        await this.fetchUserInfo(tokenInfo.access_token);
+      } catch (error) {
+        console.warn('Failed to fetch user info:', error);
+        // Continue even if user info fetch fails
+      }
+
+      // Resolve the waiting promise
+      if (this.authPromiseResolve) {
+        this.authPromiseResolve(tokenInfo);
+        this.authPromiseResolve = null;
+        this.authPromiseReject = null;
+      }
+    } catch (error) {
+      console.error('Auth code handling error:', error);
+      if (this.authPromiseReject) {
+        this.authPromiseReject(error);
+        this.authPromiseResolve = null;
+        this.authPromiseReject = null;
+      }
+    }
+  }
+
+  async exchangeCodeForToken(authCode) {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        code: authCode,
+        client_id: GOOGLE_CONFIG.CLIENT_ID,
+        redirect_uri: GOOGLE_CONFIG.REDIRECT_URI,
+        grant_type: 'authorization_code'
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Token exchange failed: ${response.status} ${response.statusText}`);
+    }
+
+    const tokenData = await response.json();
+
+    return {
+      access_token: tokenData.access_token,
+      expires_at: Date.now() + (tokenData.expires_in * 1000),
+      scope: tokenData.scope,
+      refresh_token: tokenData.refresh_token // Store for future use
+    };
+  }
+
   async signIn() {
     if (!this.isInitialized) {
       await this.init();
@@ -106,37 +163,12 @@ class GoogleAuth {
 
     return new Promise((resolve, reject) => {
       try {
-        // Update the callback to resolve the promise
-        this.tokenClient.callback = (response) => {
-          if (response.error) {
-            console.error('Token response error:', response);
-            reject(new Error(`Google sign-in failed: ${response.error}`));
-            return;
-          }
+        // Store promise resolvers for the callback
+        this.authPromiseResolve = resolve;
+        this.authPromiseReject = reject;
 
-          this.accessToken = response.access_token;
-
-          // Store token info
-          const tokenInfo = {
-            access_token: response.access_token,
-            expires_at: Date.now() + (response.expires_in * 1000),
-            scope: response.scope
-          };
-
-          localStorage.setItem('google_token', JSON.stringify(tokenInfo));
-
-          // Fetch user info after successful authentication
-          this.fetchUserInfo(response.access_token).then(() => {
-            resolve(tokenInfo);
-          }).catch((error) => {
-            console.warn('Failed to fetch user info:', error);
-            // Still resolve even if user info fetch fails
-            resolve(tokenInfo);
-          });
-        };
-
-        // Request access token
-        this.tokenClient.requestAccessToken({ prompt: 'consent' });
+        // Request authorization code (no prompt: 'consent' for better UX)
+        this.codeClient.requestCode();
       } catch (error) {
         console.error('Google sign-in error:', error);
         let errorMsg = 'Unknown sign-in error';
@@ -271,6 +303,8 @@ class GoogleAuth {
 
     this.accessToken = null;
     this.userInfo = null;
+    this.authPromiseResolve = null;
+    this.authPromiseReject = null;
     localStorage.removeItem('google_token');
     localStorage.removeItem('google_user_info');
   }
