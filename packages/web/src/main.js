@@ -102,12 +102,16 @@ class WebAudioAnalyzer {
     // Local file handling
     this.browseBtn.addEventListener('click', (e) => {
       console.log('Browse button clicked, fileInput:', this.fileInput);
+      console.log('FileInput value before clear:', this.fileInput.value);
 
-      // Clear file input before opening to allow same file selection
-      this.fileInput.value = '';
+      // Don't clear file input - test if this fixes the first picker issue
+      // this.fileInput.value = '';
+      // console.log('FileInput value after clear:', this.fileInput.value);
 
       // Safari needs direct, uninterrupted user interaction - don't use preventDefault or try/catch
+      console.log('Calling fileInput.click()...');
       this.fileInput.click();
+      console.log('fileInput.click() called');
     });
     this.fileInput.addEventListener('change', (e) => {
       console.log('File input change event fired!');
