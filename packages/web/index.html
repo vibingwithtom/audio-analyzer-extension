@@ -72,7 +72,7 @@
               </select>
             </div>
             <div class="criteria-item">
-              <label for="targetSampleRate">Sample Rate (kHz)</label>
+              <label for="targetSampleRate">Min. Sample Rate (kHz)</label>
               <select id="targetSampleRate">
                 <option value="">Any</option>
                 <option value="44100">44.1 kHz</option>
@@ -82,21 +82,13 @@
               </select>
             </div>
             <div class="criteria-item">
-              <label>Bit Depth</label>
-              <div class="checkbox-group" id="targetBitDepth">
-                <label class="checkbox-label">
-                  <input type="checkbox" value="16" class="bit-depth-checkbox">
-                  <span>16-bit</span>
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" value="24" class="bit-depth-checkbox">
-                  <span>24-bit</span>
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" value="32" class="bit-depth-checkbox">
-                  <span>32-bit</span>
-                </label>
-              </div>
+              <label for="targetBitDepth">Min. Bit Depth</label>
+              <select id="targetBitDepth">
+                <option value="">Any</option>
+                <option value="16">16-bit</option>
+                <option value="24">24-bit</option>
+                <option value="32">32-bit</option>
+              </select>
             </div>
             <div class="criteria-item">
               <label for="targetChannels">Channels</label>

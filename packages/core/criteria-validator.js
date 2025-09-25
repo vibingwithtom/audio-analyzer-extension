@@ -50,29 +50,45 @@ export class CriteriaValidator {
   static validateResults(results, criteria) {
     const validationResults = {};
 
-    // Sample Rate Validation
+    // Sample Rate Validation (Minimum)
     if (criteria.sampleRate) {
-      const targetSampleRate = parseInt(criteria.sampleRate);
-      const matches = results.sampleRate === targetSampleRate;
+      const minSampleRate = parseInt(criteria.sampleRate);
+      const actualSampleRate = results.sampleRate;
+
+      let status = 'fail';
+      if (actualSampleRate === minSampleRate) {
+        status = 'pass'; // Exact match - green
+      } else if (actualSampleRate > minSampleRate) {
+        status = 'warning'; // Above minimum - yellow
+      }
+      // Below minimum stays 'fail' - red
+
       validationResults.sampleRate = {
-        matches: matches,
-        target: targetSampleRate,
-        actual: results.sampleRate,
-        status: matches ? 'pass' : 'fail'
+        matches: actualSampleRate >= minSampleRate,
+        target: minSampleRate,
+        actual: actualSampleRate,
+        status: status
       };
     }
 
-    // Bit Depth Validation
-    if (criteria.bitDepth && criteria.bitDepth.length > 0) {
-      const targetBitDepths = Array.isArray(criteria.bitDepth) ? criteria.bitDepth : [criteria.bitDepth];
-      const targetValues = targetBitDepths.map(bd => parseInt(bd));
-      const matches = targetValues.includes(results.bitDepth);
+    // Bit Depth Validation (Minimum)
+    if (criteria.bitDepth) {
+      const minBitDepth = parseInt(criteria.bitDepth);
+      const actualBitDepth = results.bitDepth;
+
+      let status = 'fail';
+      if (actualBitDepth === minBitDepth) {
+        status = 'pass'; // Exact match - green
+      } else if (actualBitDepth > minBitDepth) {
+        status = 'warning'; // Above minimum - yellow
+      }
+      // Below minimum stays 'fail' - red
 
       validationResults.bitDepth = {
-        matches: matches,
-        target: targetValues.length === 1 ? targetValues[0] : targetValues,
-        actual: results.bitDepth,
-        status: matches ? 'pass' : 'fail'
+        matches: actualBitDepth >= minBitDepth,
+        target: minBitDepth,
+        actual: actualBitDepth,
+        status: status
       };
     }
 
