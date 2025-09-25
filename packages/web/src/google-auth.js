@@ -4,57 +4,95 @@ class GoogleAuth {
   constructor() {
     this.isInitialized = false;
     this.accessToken = null;
+    this.tokenClient = null;
   }
 
   async init() {
     if (this.isInitialized) return;
 
     return new Promise((resolve, reject) => {
-      // Check if gapi is already loaded
+      // Load Google API library first
+      this.loadGoogleAPI().then(() => {
+        this.initializeGIS().then(resolve).catch(reject);
+      }).catch(reject);
+    });
+  }
+
+  async loadGoogleAPI() {
+    return new Promise((resolve, reject) => {
       if (window.gapi) {
-        this.initializeAuth().then(resolve).catch(reject);
+        resolve();
         return;
       }
 
-      // Load Google API library
       const script = document.createElement('script');
       script.src = 'https://apis.google.com/js/api.js';
-      script.onload = () => {
-        this.initializeAuth().then(resolve).catch(reject);
-      };
+      script.onload = () => resolve();
       script.onerror = () => reject(new Error('Failed to load Google API script'));
       document.head.appendChild(script);
     });
   }
 
-  async initializeAuth() {
+  async initializeGIS() {
+    return new Promise((resolve, reject) => {
+      // Load Google Identity Services
+      const gisScript = document.createElement('script');
+      gisScript.src = 'https://accounts.google.com/gsi/client';
+      gisScript.onload = () => {
+        this.setupGIS().then(resolve).catch(reject);
+      };
+      gisScript.onerror = () => reject(new Error('Failed to load Google Identity Services'));
+      document.head.appendChild(gisScript);
+    });
+  }
+
+  async setupGIS() {
     return new Promise((resolve, reject) => {
       const loadTimeout = setTimeout(() => {
-        reject(new Error('Google API load timeout'));
+        reject(new Error('Google API setup timeout'));
       }, 10000);
 
-      window.gapi.load('auth2:client', async () => {
+      // Initialize gapi client
+      window.gapi.load('client', async () => {
         try {
           clearTimeout(loadTimeout);
 
           await window.gapi.client.init({
-            clientId: GOOGLE_CONFIG.CLIENT_ID,
-            scope: GOOGLE_CONFIG.SCOPE,
             discoveryDocs: GOOGLE_CONFIG.DISCOVERY_DOCS
+          });
+
+          // Initialize Google Identity Services token client
+          this.tokenClient = window.google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CONFIG.CLIENT_ID,
+            scope: GOOGLE_CONFIG.SCOPE,
+            callback: (response) => {
+              if (response.error) {
+                console.error('Token response error:', response);
+                return;
+              }
+              this.accessToken = response.access_token;
+              // Store token info
+              const tokenInfo = {
+                access_token: response.access_token,
+                expires_at: Date.now() + (response.expires_in * 1000),
+                scope: response.scope
+              };
+              localStorage.setItem('google_token', JSON.stringify(tokenInfo));
+            }
           });
 
           this.isInitialized = true;
           resolve();
         } catch (error) {
           clearTimeout(loadTimeout);
-          console.error('Google API initialization error:', error);
-          let errorMsg = 'Unknown initialization error';
+          console.error('Google API setup error:', error);
+          let errorMsg = 'Unknown setup error';
           if (error && typeof error === 'object') {
             errorMsg = error.message || error.error || error.details || JSON.stringify(error);
           } else if (error) {
             errorMsg = error.toString();
           }
-          reject(new Error(`Failed to initialize Google API client: ${errorMsg}`));
+          reject(new Error(`Failed to setup Google API: ${errorMsg}`));
         }
       });
     });
@@ -65,33 +103,42 @@ class GoogleAuth {
       await this.init();
     }
 
-    try {
-      const authInstance = window.gapi.auth2.getAuthInstance();
-      const user = await authInstance.signIn();
-      const authResponse = user.getAuthResponse();
+    return new Promise((resolve, reject) => {
+      try {
+        // Update the callback to resolve the promise
+        this.tokenClient.callback = (response) => {
+          if (response.error) {
+            console.error('Token response error:', response);
+            reject(new Error(`Google sign-in failed: ${response.error}`));
+            return;
+          }
 
-      this.accessToken = authResponse.access_token;
+          this.accessToken = response.access_token;
 
-      // Store token with expiry info
-      const tokenInfo = {
-        access_token: authResponse.access_token,
-        expires_at: Date.now() + (authResponse.expires_in * 1000),
-        scope: authResponse.scope
-      };
+          // Store token info
+          const tokenInfo = {
+            access_token: response.access_token,
+            expires_at: Date.now() + (response.expires_in * 1000),
+            scope: response.scope
+          };
 
-      localStorage.setItem('google_token', JSON.stringify(tokenInfo));
+          localStorage.setItem('google_token', JSON.stringify(tokenInfo));
+          resolve(tokenInfo);
+        };
 
-      return tokenInfo;
-    } catch (error) {
-      console.error('Google sign-in error:', error);
-      let errorMsg = 'Unknown sign-in error';
-      if (error && typeof error === 'object') {
-        errorMsg = error.error || error.message || error.details || JSON.stringify(error);
-      } else if (error) {
-        errorMsg = error.toString();
+        // Request access token
+        this.tokenClient.requestAccessToken({ prompt: 'consent' });
+      } catch (error) {
+        console.error('Google sign-in error:', error);
+        let errorMsg = 'Unknown sign-in error';
+        if (error && typeof error === 'object') {
+          errorMsg = error.error || error.message || error.details || JSON.stringify(error);
+        } else if (error) {
+          errorMsg = error.toString();
+        }
+        reject(new Error(`Google sign-in failed: ${errorMsg}`));
       }
-      throw new Error(`Google sign-in failed: ${errorMsg}`);
-    }
+    });
   }
 
   async getValidToken() {
@@ -162,9 +209,9 @@ class GoogleAuth {
   }
 
   signOut() {
-    if (this.isInitialized) {
-      const authInstance = window.gapi.auth2.getAuthInstance();
-      authInstance.signOut();
+    if (this.accessToken && window.google) {
+      // Revoke the access token
+      window.google.accounts.oauth2.revoke(this.accessToken);
     }
 
     this.accessToken = null;
