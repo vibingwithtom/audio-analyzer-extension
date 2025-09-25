@@ -101,69 +101,17 @@ class WebAudioAnalyzer {
 
     // Local file handling
     this.browseBtn.addEventListener('click', (e) => {
-      console.log('=== BROWSE BUTTON CLICK START ===');
-      console.log('Browse button clicked, fileInput:', this.fileInput);
-      console.log('FileInput value before clear:', this.fileInput.value);
-      console.log('Event target:', e.target);
-      console.log('Current target:', e.currentTarget);
+      // Stop event from bubbling up to drag & drop zone (was causing double picker)
+      e.stopPropagation();
 
-      // Don't clear file input - test if this fixes the first picker issue
-      // this.fileInput.value = '';
-      // console.log('FileInput value after clear:', this.fileInput.value);
+      // Clear file input to allow same file re-selection
+      this.fileInput.value = '';
 
-      // Safari needs direct, uninterrupted user interaction - don't use preventDefault or try/catch
-      console.log('Calling fileInput.click()...');
-
-      // Override the click method temporarily to track additional calls
-      const originalClick = this.fileInput.click;
-      this.fileInput.click = () => {
-        console.log('ADDITIONAL fileInput.click() called! Stack trace:', new Error().stack);
-        return originalClick.call(this.fileInput);
-      };
-
-      originalClick.call(this.fileInput);
-      console.log('Initial fileInput.click() called');
-
-      // Restore original click method after a delay
-      setTimeout(() => {
-        this.fileInput.click = originalClick;
-      }, 2000);
-
-      // Poll to check if files were selected even if change event doesn't fire
-      let pollCount = 0;
-      const pollForFiles = () => {
-        pollCount++;
-        console.log(`Polling for files (attempt ${pollCount}):`, this.fileInput.files.length);
-        if (this.fileInput.files.length > 0) {
-          console.log('Files found via polling:', this.fileInput.files[0]);
-          this.handleFileSelect(this.fileInput.files[0]);
-        } else if (pollCount < 50) {  // Poll for 5 seconds instead of 1 second
-          setTimeout(pollForFiles, 100);
-        } else {
-          console.log('Polling timeout - no files found after 5 seconds');
-        }
-      };
-      setTimeout(pollForFiles, 100);
-
-      console.log('=== BROWSE BUTTON CLICK END ===');
+      // Trigger file picker
+      this.fileInput.click();
     });
-    // Try multiple event listeners to catch the change
+
     this.fileInput.addEventListener('change', (e) => {
-      console.log('File input CHANGE event fired!');
-      console.log('Event:', e);
-      console.log('Files:', e.target.files);
-      console.log('First file:', e.target.files[0]);
-      if (e.target.files[0]) {
-        this.handleFileSelect(e.target.files[0]);
-      } else {
-        console.log('No files selected');
-      }
-    });
-
-    // Also try input event as backup
-    this.fileInput.addEventListener('input', (e) => {
-      console.log('File input INPUT event fired!');
-      console.log('Files:', e.target.files);
       if (e.target.files[0]) {
         this.handleFileSelect(e.target.files[0]);
       }
