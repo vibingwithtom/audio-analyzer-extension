@@ -112,9 +112,26 @@ class WebAudioAnalyzer {
       console.log('Calling fileInput.click()...');
       this.fileInput.click();
       console.log('fileInput.click() called');
+
+      // Poll to check if files were selected even if change event doesn't fire
+      let pollCount = 0;
+      const pollForFiles = () => {
+        pollCount++;
+        console.log(`Polling for files (attempt ${pollCount}):`, this.fileInput.files.length);
+        if (this.fileInput.files.length > 0) {
+          console.log('Files found via polling:', this.fileInput.files[0]);
+          this.handleFileSelect(this.fileInput.files[0]);
+        } else if (pollCount < 10) {
+          setTimeout(pollForFiles, 100);
+        } else {
+          console.log('Polling timeout - no files found');
+        }
+      };
+      setTimeout(pollForFiles, 100);
     });
+    // Try multiple event listeners to catch the change
     this.fileInput.addEventListener('change', (e) => {
-      console.log('File input change event fired!');
+      console.log('File input CHANGE event fired!');
       console.log('Event:', e);
       console.log('Files:', e.target.files);
       console.log('First file:', e.target.files[0]);
@@ -122,6 +139,15 @@ class WebAudioAnalyzer {
         this.handleFileSelect(e.target.files[0]);
       } else {
         console.log('No files selected');
+      }
+    });
+
+    // Also try input event as backup
+    this.fileInput.addEventListener('input', (e) => {
+      console.log('File input INPUT event fired!');
+      console.log('Files:', e.target.files);
+      if (e.target.files[0]) {
+        this.handleFileSelect(e.target.files[0]);
       }
     });
 
