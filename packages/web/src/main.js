@@ -100,12 +100,19 @@ class WebAudioAnalyzer {
 
     // Local file handling
     this.browseBtn.addEventListener('click', () => {
-      console.log('Browse button clicked');
+      console.log('Browse button clicked, fileInput:', this.fileInput);
       this.fileInput.click();
     });
     this.fileInput.addEventListener('change', (e) => {
-      console.log('File input changed:', e.target.files[0]);
-      this.handleFileSelect(e.target.files[0]);
+      console.log('File input change event fired!');
+      console.log('Event:', e);
+      console.log('Files:', e.target.files);
+      console.log('First file:', e.target.files[0]);
+      if (e.target.files[0]) {
+        this.handleFileSelect(e.target.files[0]);
+      } else {
+        console.log('No files selected');
+      }
     });
 
     // Drag and drop
