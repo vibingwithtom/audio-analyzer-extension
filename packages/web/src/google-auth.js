@@ -47,7 +47,14 @@ class GoogleAuth {
           resolve();
         } catch (error) {
           clearTimeout(loadTimeout);
-          reject(new Error(`Failed to initialize Google API client: ${error?.message || error || 'Unknown initialization error'}`));
+          console.error('Google API initialization error:', error);
+          let errorMsg = 'Unknown initialization error';
+          if (error && typeof error === 'object') {
+            errorMsg = error.message || error.error || error.details || JSON.stringify(error);
+          } else if (error) {
+            errorMsg = error.toString();
+          }
+          reject(new Error(`Failed to initialize Google API client: ${errorMsg}`));
         }
       });
     });
@@ -76,7 +83,14 @@ class GoogleAuth {
 
       return tokenInfo;
     } catch (error) {
-      throw new Error(`Google sign-in failed: ${error.error || error.message}`);
+      console.error('Google sign-in error:', error);
+      let errorMsg = 'Unknown sign-in error';
+      if (error && typeof error === 'object') {
+        errorMsg = error.error || error.message || error.details || JSON.stringify(error);
+      } else if (error) {
+        errorMsg = error.toString();
+      }
+      throw new Error(`Google sign-in failed: ${errorMsg}`);
     }
   }
 
