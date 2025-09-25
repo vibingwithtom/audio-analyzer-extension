@@ -45,6 +45,19 @@
         <!-- Target Criteria Section -->
         <section class="criteria-section">
           <h2>Analysis Criteria</h2>
+
+          <!-- Preset Selector -->
+          <div class="preset-section">
+            <label for="presetSelector">Quick Presets:</label>
+            <select id="presetSelector" class="preset-selector">
+              <option value="">Select a preset...</option>
+              <option value="character-recordings">Character Recordings</option>
+              <option value="p2b2-pairs">P2B2 Pairs</option>
+              <option value="three-hour">Three Hour</option>
+            </select>
+            <button id="resetCriteria" class="reset-btn">Reset All</button>
+          </div>
+
           <div class="criteria-grid">
             <div class="criteria-item">
               <label for="targetFileType">File Type</label>
@@ -69,13 +82,21 @@
               </select>
             </div>
             <div class="criteria-item">
-              <label for="targetBitDepth">Bit Depth</label>
-              <select id="targetBitDepth">
-                <option value="">Any</option>
-                <option value="16">16-bit</option>
-                <option value="24">24-bit</option>
-                <option value="32">32-bit</option>
-              </select>
+              <label>Bit Depth</label>
+              <div class="checkbox-group" id="targetBitDepth">
+                <label class="checkbox-label">
+                  <input type="checkbox" value="16" class="bit-depth-checkbox">
+                  <span>16-bit</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" value="24" class="bit-depth-checkbox">
+                  <span>24-bit</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" value="32" class="bit-depth-checkbox">
+                  <span>32-bit</span>
+                </label>
+              </div>
             </div>
             <div class="criteria-item">
               <label for="targetChannels">Channels</label>

@@ -63,12 +63,14 @@ export class CriteriaValidator {
     }
 
     // Bit Depth Validation
-    if (criteria.bitDepth) {
-      const targetBitDepth = parseInt(criteria.bitDepth);
-      const matches = results.bitDepth === targetBitDepth;
+    if (criteria.bitDepth && criteria.bitDepth.length > 0) {
+      const targetBitDepths = Array.isArray(criteria.bitDepth) ? criteria.bitDepth : [criteria.bitDepth];
+      const targetValues = targetBitDepths.map(bd => parseInt(bd));
+      const matches = targetValues.includes(results.bitDepth);
+
       validationResults.bitDepth = {
         matches: matches,
-        target: targetBitDepth,
+        target: targetValues.length === 1 ? targetValues[0] : targetValues,
         actual: results.bitDepth,
         status: matches ? 'pass' : 'fail'
       };

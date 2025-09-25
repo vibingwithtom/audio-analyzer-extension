@@ -68,9 +68,11 @@ class WebAudioAnalyzer {
     this.signOutBtn = document.getElementById('signOutBtn');
 
     // Criteria elements
+    this.presetSelector = document.getElementById('presetSelector');
+    this.resetCriteria = document.getElementById('resetCriteria');
     this.targetFileType = document.getElementById('targetFileType');
     this.targetSampleRate = document.getElementById('targetSampleRate');
-    this.targetBitDepth = document.getElementById('targetBitDepth');
+    this.targetBitDepthCheckboxes = document.querySelectorAll('.bit-depth-checkbox');
     this.targetChannels = document.getElementById('targetChannels');
 
     // Results elements
@@ -146,9 +148,18 @@ class WebAudioAnalyzer {
     this.signInBtn.addEventListener('click', () => this.handleSignIn());
     this.signOutBtn.addEventListener('click', () => this.handleSignOut());
 
+    // Preset functionality
+    this.presetSelector.addEventListener('change', () => this.handlePresetChange());
+    this.resetCriteria.addEventListener('click', () => this.resetCriteriaToDefault());
+
     // Criteria changes
-    [this.targetFileType, this.targetSampleRate, this.targetBitDepth, this.targetChannels].forEach(select => {
+    [this.targetFileType, this.targetSampleRate, this.targetChannels].forEach(select => {
       select.addEventListener('change', () => this.saveCriteria());
+    });
+
+    // Bit depth checkboxes
+    this.targetBitDepthCheckboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', () => this.saveCriteria());
     });
 
     // Audio player
@@ -171,7 +182,10 @@ class WebAudioAnalyzer {
         if (settings.criteria) {
           this.targetFileType.value = settings.criteria.fileType || '';
           this.targetSampleRate.value = settings.criteria.sampleRate || '';
-          this.targetBitDepth.value = settings.criteria.bitDepth || '';
+          // Handle bit depth - could be old single value or new array
+          const bitDepthCriteria = settings.criteria.bitDepth || [];
+          const bitDepthValues = Array.isArray(bitDepthCriteria) ? bitDepthCriteria : (bitDepthCriteria ? [bitDepthCriteria] : []);
+          this.setBitDepthValues(bitDepthValues);
           this.targetChannels.value = settings.criteria.channels || '';
         }
       } catch (error) {
@@ -217,11 +231,22 @@ class WebAudioAnalyzer {
     this.updateAuthStatus();
   }
 
+  getBitDepthValues() {
+    const checkedBoxes = Array.from(this.targetBitDepthCheckboxes).filter(cb => cb.checked);
+    return checkedBoxes.map(cb => cb.value);
+  }
+
+  setBitDepthValues(values) {
+    this.targetBitDepthCheckboxes.forEach(cb => {
+      cb.checked = values.includes(cb.value);
+    });
+  }
+
   saveCriteria() {
     const criteria = {
       fileType: this.targetFileType.value,
       sampleRate: this.targetSampleRate.value,
-      bitDepth: this.targetBitDepth.value,
+      bitDepth: this.getBitDepthValues(),
       channels: this.targetChannels.value
     };
 
@@ -233,6 +258,69 @@ class WebAudioAnalyzer {
     if (this.currentResults) {
       this.validateAndDisplayResults(this.currentResults);
     }
+  }
+
+  getPresetConfigurations() {
+    return {
+      'character-recordings': {
+        name: 'Character Recordings',
+        fileType: 'wav',
+        sampleRate: '48000',
+        bitDepth: ['24'],
+        channels: '1'
+      },
+      'p2b2-pairs': {
+        name: 'P2B2 Pairs',
+        fileType: 'wav',
+        sampleRate: '48000',
+        bitDepth: ['16', '24'], // Both 16-bit and 24-bit acceptable
+        channels: '2'
+      },
+      'three-hour': {
+        name: 'Three Hour',
+        fileType: '', // To be defined
+        sampleRate: '', // To be defined
+        bitDepth: '', // To be defined
+        channels: '' // To be defined
+      }
+    };
+  }
+
+  handlePresetChange() {
+    const selectedPreset = this.presetSelector.value;
+
+    if (!selectedPreset) return;
+
+    const presets = this.getPresetConfigurations();
+    const config = presets[selectedPreset];
+
+    if (config) {
+      // Apply preset configuration
+      this.targetFileType.value = config.fileType;
+      this.targetSampleRate.value = config.sampleRate;
+      this.setBitDepthValues(config.bitDepth || []);
+      this.targetChannels.value = config.channels;
+
+      // Save the changes
+      this.saveCriteria();
+
+      // Reset preset selector to show it was applied
+      this.presetSelector.value = '';
+    }
+  }
+
+  resetCriteriaToDefault() {
+    // Reset all criteria to "Any"
+    this.targetFileType.value = '';
+    this.targetSampleRate.value = '';
+    this.setBitDepthValues([]); // Uncheck all bit depth checkboxes
+    this.targetChannels.value = '';
+
+    // Reset preset selector
+    this.presetSelector.value = '';
+
+    // Save the reset state
+    this.saveCriteria();
   }
 
   switchTab(tabName) {

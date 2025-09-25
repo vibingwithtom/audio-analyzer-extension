@@ -119,6 +119,27 @@ Add a third tab alongside "Local Files" and "Google Drive" for Box.com file inte
 - Generate PDF reports
 - Save analysis history
 
+### Advanced Criteria Options
+
+#### Multi-Select/Range Bit Depth
+**Current Issue**: P2B2 Pairs requires "16-bit OR 24-bit" but current UI only allows single selection.
+
+**Potential Solutions**:
+1. **Range Selection**: "16-bit or higher" option
+2. **Multi-Select**: Checkbox-based bit depth selection
+3. **Validation Logic**: Accept any bit depth ≥ specified minimum
+
+**Implementation Options**:
+- Add "16+ bit" option to bit depth dropdown
+- Convert bit depth to checkbox group with multiple selections
+- Add validation logic that accepts ranges instead of exact matches
+
+#### RAW Audio Support
+**Current Question**: P2B2 requires "RAW Audio" - need to research:
+- Does this mean uncompressed PCM WAV files?
+- Is this referring to specific WAV format variants?
+- Should we detect and validate audio compression types?
+
 ### UI/UX Improvements
 - Dark mode support
 - Drag & drop for multiple files
