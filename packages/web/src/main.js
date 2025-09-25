@@ -258,19 +258,25 @@ class WebAudioAnalyzer {
     this.cleanupForNewFile();
 
     this.currentFile = file;
+    console.log('Showing loading screen...');
     this.showLoading();
 
     try {
+      console.log('Starting analysis with core engine...');
       // Analyze file using the shared core engine
       const results = await this.engine.analyzeFile(file);
+      console.log('Analysis results:', results);
       this.currentResults = results;
 
+      console.log('Setting up audio player...');
       // Setup audio player
       this.setupAudioPlayer(file);
 
+      console.log('Validating and displaying results...');
       // Display results
       this.validateAndDisplayResults(results);
       this.showResults();
+      console.log('Results displayed successfully');
 
     } catch (error) {
       console.error('Analysis error:', error);
