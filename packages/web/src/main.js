@@ -103,6 +103,9 @@ class WebAudioAnalyzer {
     this.browseBtn.addEventListener('click', (e) => {
       console.log('Browse button clicked, fileInput:', this.fileInput);
 
+      // Clear file input before opening to allow same file selection
+      this.fileInput.value = '';
+
       // Safari needs direct, uninterrupted user interaction - don't use preventDefault or try/catch
       this.fileInput.click();
     });
@@ -512,12 +515,8 @@ class WebAudioAnalyzer {
     // Full cleanup including file input (for page unload, etc.)
     this.cleanupForNewFile();
 
-    // Clear file input to ensure change events fire for same file (delayed to avoid Safari issues)
-    if (this.fileInput) {
-      setTimeout(() => {
-        this.fileInput.value = '';
-      }, 100);
-    }
+    // Don't automatically clear file input - let browser handle it
+    // This prevents the double picker issue in Chrome
 
     // Close any existing audio context to free resources
     if (this.engine.audioAnalyzer.audioContext) {
