@@ -101,8 +101,11 @@ class WebAudioAnalyzer {
 
     // Local file handling
     this.browseBtn.addEventListener('click', (e) => {
+      console.log('=== BROWSE BUTTON CLICK START ===');
       console.log('Browse button clicked, fileInput:', this.fileInput);
       console.log('FileInput value before clear:', this.fileInput.value);
+      console.log('Event target:', e.target);
+      console.log('Current target:', e.currentTarget);
 
       // Don't clear file input - test if this fixes the first picker issue
       // this.fileInput.value = '';
@@ -110,8 +113,21 @@ class WebAudioAnalyzer {
 
       // Safari needs direct, uninterrupted user interaction - don't use preventDefault or try/catch
       console.log('Calling fileInput.click()...');
-      this.fileInput.click();
-      console.log('fileInput.click() called');
+
+      // Override the click method temporarily to track additional calls
+      const originalClick = this.fileInput.click;
+      this.fileInput.click = () => {
+        console.log('ADDITIONAL fileInput.click() called! Stack trace:', new Error().stack);
+        return originalClick.call(this.fileInput);
+      };
+
+      originalClick.call(this.fileInput);
+      console.log('Initial fileInput.click() called');
+
+      // Restore original click method after a delay
+      setTimeout(() => {
+        this.fileInput.click = originalClick;
+      }, 2000);
 
       // Poll to check if files were selected even if change event doesn't fire
       let pollCount = 0;
@@ -121,13 +137,15 @@ class WebAudioAnalyzer {
         if (this.fileInput.files.length > 0) {
           console.log('Files found via polling:', this.fileInput.files[0]);
           this.handleFileSelect(this.fileInput.files[0]);
-        } else if (pollCount < 10) {
+        } else if (pollCount < 50) {  // Poll for 5 seconds instead of 1 second
           setTimeout(pollForFiles, 100);
         } else {
-          console.log('Polling timeout - no files found');
+          console.log('Polling timeout - no files found after 5 seconds');
         }
       };
       setTimeout(pollForFiles, 100);
+
+      console.log('=== BROWSE BUTTON CLICK END ===');
     });
     // Try multiple event listeners to catch the change
     this.fileInput.addEventListener('change', (e) => {
