@@ -43,6 +43,7 @@ class WebAudioAnalyzer {
     this.audioBuffer = null;
     this.isAnalyzing = false;
     this.currentResults = null;
+    this.processingFile = false;  // Prevent double file processing
 
     this.initializeElements();
     this.attachEventListeners();
@@ -101,17 +102,9 @@ class WebAudioAnalyzer {
     // Local file handling
     this.browseBtn.addEventListener('click', (e) => {
       console.log('Browse button clicked, fileInput:', this.fileInput);
-      e.preventDefault(); // Prevent any default button behavior
 
-      // Safari compatibility: ensure file input is properly focused and triggered
-      try {
-        this.fileInput.focus();
-        this.fileInput.click();
-      } catch (error) {
-        console.error('File input click error:', error);
-        // Fallback: try direct assignment
-        setTimeout(() => this.fileInput.click(), 10);
-      }
+      // Safari needs direct, uninterrupted user interaction - don't use preventDefault or try/catch
+      this.fileInput.click();
     });
     this.fileInput.addEventListener('change', (e) => {
       console.log('File input change event fired!');
@@ -253,6 +246,14 @@ class WebAudioAnalyzer {
       return;
     }
 
+    if (this.processingFile) {
+      console.log('Already processing a file, ignoring duplicate call');
+      return;
+    }
+
+    this.processingFile = true;
+    console.log('Starting file processing...');
+
     // Clean up previous file data before processing new one (but preserve current file input)
     this.cleanupForNewFile();
 
@@ -275,12 +276,22 @@ class WebAudioAnalyzer {
       console.error('Analysis error:', error);
       this.showError(`Failed to analyze file: ${error.message}`);
       this.cleanupForNewFile(); // Clean up on error too
+    } finally {
+      this.processingFile = false;
+      console.log('File processing completed');
     }
   }
 
   async handleGoogleDriveUrl() {
     const url = this.driveUrl.value.trim();
     if (!url) return;
+
+    if (this.processingFile) {
+      console.log('Already processing a file, ignoring Google Drive request');
+      return;
+    }
+
+    this.processingFile = true;
 
     // Clean up previous file data before processing new one
     this.cleanupForNewFile();
@@ -315,6 +326,8 @@ class WebAudioAnalyzer {
       } else {
         this.showError(`Failed to process Google Drive file: ${error.message}`);
       }
+    } finally {
+      this.processingFile = false;
     }
   }
 
