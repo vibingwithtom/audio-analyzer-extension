@@ -278,10 +278,10 @@ class WebAudioAnalyzer {
       },
       'three-hour': {
         name: 'Three Hour',
-        fileType: '', // To be defined
-        sampleRate: '', // To be defined
-        bitDepth: '', // To be defined
-        channels: '' // To be defined
+        fileType: 'wav',
+        sampleRate: '48000',
+        bitDepth: ['24'],
+        channels: '' // No channel requirement specified
       }
     };
   }
