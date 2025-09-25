@@ -314,6 +314,9 @@ class WebAudioAnalyzer {
       const file = await this.googleAuth.downloadFile(fileId);
       this.currentFile = file;
 
+      // Update auth status in case user was automatically signed in
+      this.updateAuthStatus();
+
       // Analyze the downloaded file
       const results = await this.engine.analyzeFile(file);
       this.currentResults = results;
