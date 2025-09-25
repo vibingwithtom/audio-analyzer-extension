@@ -99,8 +99,14 @@ class WebAudioAnalyzer {
     });
 
     // Local file handling
-    this.browseBtn.addEventListener('click', () => this.fileInput.click());
-    this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e.target.files[0]));
+    this.browseBtn.addEventListener('click', () => {
+      console.log('Browse button clicked');
+      this.fileInput.click();
+    });
+    this.fileInput.addEventListener('change', (e) => {
+      console.log('File input changed:', e.target.files[0]);
+      this.handleFileSelect(e.target.files[0]);
+    });
 
     // Drag and drop
     this.dropZone.addEventListener('dragover', (e) => {
@@ -224,7 +230,11 @@ class WebAudioAnalyzer {
   }
 
   async handleFileSelect(file) {
-    if (!file) return;
+    console.log('handleFileSelect called with:', file);
+    if (!file) {
+      console.log('No file provided to handleFileSelect');
+      return;
+    }
 
     // Clean up previous file data before processing new one
     this.cleanup();
