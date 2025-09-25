@@ -197,6 +197,48 @@ body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+.gdrive-auth {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border-left: 4px solid #3b82f6;
+}
+
+.auth-status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+#authText {
+  font-weight: 500;
+}
+
+.sign-in-btn,
+.sign-out-btn {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.sign-out-btn {
+  background: #6b7280;
+}
+
+.sign-in-btn:hover {
+  background: #2563eb;
+}
+
+.sign-out-btn:hover {
+  background: #4b5563;
+}
+
 .gdrive-input label {
   display: block;
   margin-bottom: 0.5rem;

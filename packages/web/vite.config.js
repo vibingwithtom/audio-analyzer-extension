@@ -4,14 +4,10 @@ import path from 'path';
 export default defineConfig({
   root: '.',
   publicDir: 'public',
+  base: '/audio-analyzer/',
   build: {
     outDir: 'dist',
-    emptyOutDir: true,
-    rollupOptions: {
-      input: {
-        main: path.resolve(__dirname, 'public/index.html')
-      }
-    }
+    emptyOutDir: true
   },
   server: {
     port: 3000,

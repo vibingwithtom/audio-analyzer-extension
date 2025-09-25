@@ -1,8 +1,44 @@
-import { AudioAnalyzerEngine } from '@audio-analyzer/core';
+import { AudioAnalyzer } from '../../core/audio-analyzer.js';
+import { CriteriaValidator } from '../../core/criteria-validator.js';
+import { LevelAnalyzer } from '../../core/level-analyzer.js';
+
+// Simplified engine class to avoid circular import issues
+class AudioAnalyzerEngine {
+  constructor() {
+    this.audioAnalyzer = new AudioAnalyzer();
+    this.levelAnalyzer = new LevelAnalyzer();
+  }
+
+  async analyzeFile(file) {
+    return await this.audioAnalyzer.analyzeFile(file);
+  }
+
+  async analyzeAdvanced(audioBuffer, progressCallback) {
+    return await this.levelAnalyzer.analyzeAudioBuffer(audioBuffer, progressCallback);
+  }
+
+  validateCriteria(results, criteria) {
+    return CriteriaValidator.validateResults(results, criteria);
+  }
+
+  formatResults(results) {
+    return CriteriaValidator.formatDisplayText(results);
+  }
+
+  formatAdvancedResults(results) {
+    return CriteriaValidator.formatAdvancedResults(results);
+  }
+
+  cancelAdvancedAnalysis() {
+    this.levelAnalyzer.cancelAnalysis();
+  }
+}
+import GoogleAuth from './google-auth.js';
 
 class WebAudioAnalyzer {
   constructor() {
     this.engine = new AudioAnalyzerEngine();
+    this.googleAuth = new GoogleAuth();
     this.currentFile = null;
     this.audioBuffer = null;
     this.isAnalyzing = false;
@@ -26,6 +62,9 @@ class WebAudioAnalyzer {
     // Google Drive elements
     this.driveUrl = document.getElementById('driveUrl');
     this.analyzeUrl = document.getElementById('analyzeUrl');
+    this.authText = document.getElementById('authText');
+    this.signInBtn = document.getElementById('signInBtn');
+    this.signOutBtn = document.getElementById('signOutBtn');
 
     // Criteria elements
     this.targetFileType = document.getElementById('targetFileType');
@@ -84,11 +123,13 @@ class WebAudioAnalyzer {
 
     this.dropZone.addEventListener('click', () => this.fileInput.click());
 
-    // Google Drive URL
+    // Google Drive URL and auth
     this.analyzeUrl.addEventListener('click', () => this.handleGoogleDriveUrl());
     this.driveUrl.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') this.handleGoogleDriveUrl();
     });
+    this.signInBtn.addEventListener('click', () => this.handleSignIn());
+    this.signOutBtn.addEventListener('click', () => this.handleSignOut());
 
     // Criteria changes
     [this.targetFileType, this.targetSampleRate, this.targetBitDepth, this.targetChannels].forEach(select => {
@@ -122,6 +163,38 @@ class WebAudioAnalyzer {
         console.warn('Failed to load settings from localStorage:', error);
       }
     }
+
+    // Update auth status
+    this.updateAuthStatus();
+  }
+
+  updateAuthStatus() {
+    const isSignedIn = this.googleAuth.isSignedIn();
+
+    if (isSignedIn) {
+      this.authText.textContent = '✓ Signed in to Google Drive';
+      this.signInBtn.style.display = 'none';
+      this.signOutBtn.style.display = 'inline-block';
+    } else {
+      this.authText.textContent = 'Not signed in to Google';
+      this.signInBtn.style.display = 'inline-block';
+      this.signOutBtn.style.display = 'none';
+    }
+  }
+
+  async handleSignIn() {
+    try {
+      await this.googleAuth.signIn();
+      this.updateAuthStatus();
+    } catch (error) {
+      console.error('Sign-in failed:', error);
+      this.showError(`Google sign-in failed: ${error.message}`);
+    }
+  }
+
+  handleSignOut() {
+    this.googleAuth.signOut();
+    this.updateAuthStatus();
   }
 
   saveCriteria() {
@@ -153,6 +226,9 @@ class WebAudioAnalyzer {
   async handleFileSelect(file) {
     if (!file) return;
 
+    // Clean up previous file data before processing new one
+    this.cleanup();
+
     this.currentFile = file;
     this.showLoading();
 
@@ -171,6 +247,7 @@ class WebAudioAnalyzer {
     } catch (error) {
       console.error('Analysis error:', error);
       this.showError(`Failed to analyze file: ${error.message}`);
+      this.cleanup(); // Clean up on error too
     }
   }
 
@@ -178,21 +255,56 @@ class WebAudioAnalyzer {
     const url = this.driveUrl.value.trim();
     if (!url) return;
 
+    // Clean up previous file data before processing new one
+    this.cleanup();
+
     this.showLoading();
 
     try {
-      // For web version, we'll need to handle Google Drive differently
-      // This will require a Web Application OAuth flow
-      this.showError('Google Drive integration coming soon for the web version!');
+      // Extract file ID from Google Drive URL
+      const fileId = this.extractFileIdFromUrl(url);
+      if (!fileId) {
+        throw new Error('Invalid Google Drive URL. Please ensure it\'s a valid Drive file link.');
+      }
 
-      // TODO: Implement web-based Google Drive OAuth
-      // const file = await this.engine.downloadGoogleDriveFile(url, accessToken);
-      // ... rest of analysis
+      // Download file using Google Drive API
+      const file = await this.googleAuth.downloadFile(fileId);
+      this.currentFile = file;
+
+      // Analyze the downloaded file
+      const results = await this.engine.analyzeFile(file);
+      this.currentResults = results;
+
+      // Setup audio player and display results
+      this.setupAudioPlayer(file);
+      this.validateAndDisplayResults(results);
+      this.showResults();
 
     } catch (error) {
       console.error('Google Drive error:', error);
-      this.showError(`Failed to process Google Drive file: ${error.message}`);
+      this.cleanup(); // Clean up on error too
+      if (error.message.includes('sign-in') || error.message.includes('auth')) {
+        this.showError('Please sign in to Google to access Drive files. Click "Analyze" to authenticate.');
+      } else {
+        this.showError(`Failed to process Google Drive file: ${error.message}`);
+      }
     }
+  }
+
+  extractFileIdFromUrl(url) {
+    // Handle various Google Drive URL formats
+    const patterns = [
+      /\/file\/d\/([a-zA-Z0-9-_]+)/,  // Standard sharing link
+      /[?&]id=([a-zA-Z0-9-_]+)/,      // URL parameter
+      /^([a-zA-Z0-9-_]+)$/            // Just the file ID
+    ];
+
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) return match[1];
+    }
+
+    return null;
   }
 
   setupAudioPlayer(file) {
@@ -327,6 +439,45 @@ class WebAudioAnalyzer {
     this.error.style.display = 'block';
   }
 
+  cleanup() {
+    // Clean up previous file data to prevent memory accumulation
+    if (this.currentFile) {
+      this.currentFile = null;
+    }
+
+    if (this.audioBuffer) {
+      this.audioBuffer = null;
+    }
+
+    if (this.currentResults) {
+      this.currentResults = null;
+    }
+
+    // Revoke any existing object URLs to prevent memory leaks
+    if (this.audioPlayer && this.audioPlayer.src) {
+      if (this.audioPlayer.src.startsWith('blob:')) {
+        URL.revokeObjectURL(this.audioPlayer.src);
+      }
+      this.audioPlayer.src = '';
+    }
+
+    // Clear file input to ensure change events fire for same file
+    if (this.fileInput) {
+      this.fileInput.value = '';
+    }
+
+    // Close any existing audio context to free resources
+    if (this.engine.audioAnalyzer.audioContext) {
+      // Don't close the audio context immediately as it might be needed
+      // Instead, let the browser's garbage collector handle it
+    }
+
+    // Force garbage collection hint (not guaranteed, but helps in some browsers)
+    if (window.gc && typeof window.gc === 'function') {
+      window.gc();
+    }
+  }
+
   hideAllSections() {
     this.loading.style.display = 'none';
     this.error.style.display = 'none';
@@ -337,5 +488,17 @@ class WebAudioAnalyzer {
 
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-  new WebAudioAnalyzer();
+  const app = new WebAudioAnalyzer();
+
+  // Clean up when page is being unloaded
+  window.addEventListener('beforeunload', () => {
+    app.cleanup();
+  });
+
+  // Also clean up on visibility change (when tab becomes hidden)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      app.cleanup();
+    }
+  });
 });

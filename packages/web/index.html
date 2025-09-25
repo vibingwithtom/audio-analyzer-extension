@@ -106,6 +106,14 @@
 
         <div class="tab-content" data-tab="gdrive">
           <section class="gdrive-section">
+            <div class="gdrive-auth" id="driveAuth">
+              <div class="auth-status" id="authStatus">
+                <span id="authText">Not signed in to Google</span>
+                <button id="signInBtn" class="sign-in-btn" style="display: none;">Sign In</button>
+                <button id="signOutBtn" class="sign-out-btn" style="display: none;">Sign Out</button>
+              </div>
+            </div>
+
             <div class="gdrive-input">
               <label for="driveUrl">Google Drive File URL</label>
               <div class="input-group">
@@ -120,7 +128,8 @@
                 </button>
               </div>
               <p class="input-hint">
-                Paste a Google Drive file link to analyze audio files stored in your Drive
+                Paste a Google Drive file link to analyze audio files stored in your Drive.
+                Authentication will be prompted if needed.
               </p>
             </div>
           </section>
