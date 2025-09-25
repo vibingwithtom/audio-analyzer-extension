@@ -386,6 +386,11 @@ body {
   background-color: #fef2f2;
 }
 
+.result-item.warning {
+  border-left-color: #f59e0b;
+  background-color: #fffbeb;
+}
+
 .result-item.unknown {
   border-left-color: #f59e0b;
   background-color: #fffbeb;

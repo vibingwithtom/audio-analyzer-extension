@@ -4,6 +4,49 @@
  */
 
 export class CriteriaValidator {
+  static matchesFileType(actualType, targetType) {
+    // Return object with match status instead of boolean
+    const result = {
+      matches: false,
+      status: 'fail'
+    };
+
+    // Direct match - perfect
+    if (actualType === targetType) {
+      result.matches = true;
+      result.status = 'pass';
+      return result;
+    }
+
+    // Handle WAV variations when WAV is the target
+    if (targetType === 'wav' || targetType === 'WAV') {
+      if (actualType === 'WAV (PCM)') {
+        // Perfect WAV match
+        result.matches = true;
+        result.status = 'pass';
+        return result;
+      } else if (actualType.startsWith('WAV')) {
+        // WAV variant (compressed, etc.) - partial match
+        result.matches = true;
+        result.status = 'warning';
+        return result;
+      }
+      // Not WAV at all - fail
+      return result;
+    }
+
+    // Handle other potential format variations
+    const normalizedActual = actualType.replace(/\s*\(.*\)/, '').trim();
+    const normalizedTarget = targetType.toUpperCase();
+
+    if (normalizedActual === normalizedTarget) {
+      result.matches = true;
+      result.status = 'pass';
+    }
+
+    return result;
+  }
+
   static validateResults(results, criteria) {
     const validationResults = {};
 
@@ -45,12 +88,12 @@ export class CriteriaValidator {
 
     // File Type Validation
     if (criteria.fileType) {
-      const matches = results.fileType === criteria.fileType;
+      const matchResult = this.matchesFileType(results.fileType, criteria.fileType);
       validationResults.fileType = {
-        matches: matches,
+        matches: matchResult.matches,
         target: criteria.fileType,
         actual: results.fileType,
-        status: matches ? 'pass' : 'fail'
+        status: matchResult.status
       };
     }
 

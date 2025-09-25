@@ -413,7 +413,7 @@ class WebAudioAnalyzer {
       const row = rows[key];
       if (row) {
         // Remove existing validation classes
-        row.classList.remove('pass', 'fail', 'unknown');
+        row.classList.remove('pass', 'fail', 'warning', 'unknown');
         // Add new validation class
         row.classList.add(validation.status);
       }
