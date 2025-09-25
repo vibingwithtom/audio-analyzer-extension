@@ -5,6 +5,7 @@ class GoogleAuth {
     this.isInitialized = false;
     this.accessToken = null;
     this.tokenClient = null;
+    this.userInfo = null;
   }
 
   async init() {
@@ -123,7 +124,15 @@ class GoogleAuth {
           };
 
           localStorage.setItem('google_token', JSON.stringify(tokenInfo));
-          resolve(tokenInfo);
+
+          // Fetch user info after successful authentication
+          this.fetchUserInfo(response.access_token).then(() => {
+            resolve(tokenInfo);
+          }).catch((error) => {
+            console.warn('Failed to fetch user info:', error);
+            // Still resolve even if user info fetch fails
+            resolve(tokenInfo);
+          });
         };
 
         // Request access token
@@ -141,6 +150,35 @@ class GoogleAuth {
     });
   }
 
+  async fetchUserInfo(accessToken) {
+    try {
+      const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch user info: ${response.status}`);
+      }
+
+      const userInfo = await response.json();
+      this.userInfo = {
+        name: userInfo.name,
+        email: userInfo.email,
+        picture: userInfo.picture
+      };
+
+      // Store user info in localStorage
+      localStorage.setItem('google_user_info', JSON.stringify(this.userInfo));
+
+      return this.userInfo;
+    } catch (error) {
+      console.error('Error fetching user info:', error);
+      throw error;
+    }
+  }
+
   async getValidToken() {
     // Check stored token first
     const stored = localStorage.getItem('google_token');
@@ -150,11 +188,24 @@ class GoogleAuth {
         // Check if token is still valid (with 5 minute buffer)
         if (tokenInfo.expires_at > Date.now() + 300000) {
           this.accessToken = tokenInfo.access_token;
+
+          // Load stored user info if available
+          const storedUserInfo = localStorage.getItem('google_user_info');
+          if (storedUserInfo) {
+            try {
+              this.userInfo = JSON.parse(storedUserInfo);
+            } catch (error) {
+              console.warn('Invalid stored user info:', error);
+              localStorage.removeItem('google_user_info');
+            }
+          }
+
           return tokenInfo;
         }
       } catch (error) {
         console.warn('Invalid stored token:', error);
         localStorage.removeItem('google_token');
+        localStorage.removeItem('google_user_info');
       }
     }
 
@@ -208,6 +259,10 @@ class GoogleAuth {
     }
   }
 
+  getUserInfo() {
+    return this.userInfo;
+  }
+
   signOut() {
     if (this.accessToken && window.google) {
       // Revoke the access token
@@ -215,7 +270,9 @@ class GoogleAuth {
     }
 
     this.accessToken = null;
+    this.userInfo = null;
     localStorage.removeItem('google_token');
+    localStorage.removeItem('google_user_info');
   }
 
   isSignedIn() {

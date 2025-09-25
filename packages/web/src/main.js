@@ -187,7 +187,12 @@ class WebAudioAnalyzer {
     const isSignedIn = this.googleAuth.isSignedIn();
 
     if (isSignedIn) {
-      this.authText.textContent = '✓ Signed in to Google Drive';
+      const userInfo = this.googleAuth.getUserInfo();
+      if (userInfo && userInfo.name) {
+        this.authText.textContent = `✓ Signed in as ${userInfo.name}`;
+      } else {
+        this.authText.textContent = '✓ Signed in to Google Drive';
+      }
       this.signInBtn.style.display = 'none';
       this.signOutBtn.style.display = 'inline-block';
     } else {

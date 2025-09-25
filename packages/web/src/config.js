@@ -8,6 +8,6 @@ const REDIRECT_URI = isLocalhost
 export const GOOGLE_CONFIG = {
   CLIENT_ID: '708688597317-bmmrje6hqg8vo52nctned54m32q8uhsr.apps.googleusercontent.com',
   REDIRECT_URI,
-  SCOPE: 'https://www.googleapis.com/auth/drive.readonly',
+  SCOPE: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
   DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
 };
