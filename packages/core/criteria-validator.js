@@ -139,6 +139,18 @@ export class CriteriaValidator {
     return validationResults;
   }
 
+  static formatDuration(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    } else {
+      return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    }
+  }
+
   static formatDisplayText(results) {
     const formatted = {};
 
@@ -153,7 +165,7 @@ export class CriteriaValidator {
       ? `${results.channels} channel${results.channels !== 1 ? 's' : ''}${results.channels === 1 ? ' (Mono)' : results.channels === 2 ? ' (Stereo)' : ''}`
       : results.channels;
     formatted.duration = typeof results.duration === 'number'
-      ? `${results.duration.toFixed(2)} seconds`
+      ? this.formatDuration(results.duration)
       : results.duration;
     formatted.fileSize = `${(results.fileSize / 1024 / 1024).toFixed(2)} MB`;
 
