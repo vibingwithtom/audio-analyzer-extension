@@ -445,37 +445,37 @@ body {
 /* Results Section */
 .results-section {
   background: white;
-  border-radius: 12px;
-  padding: 2rem;
+  border-radius: 8px;
+  padding: 1.5rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .results-section h2 {
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   color: #1f2937;
-  font-size: 1.5rem;
+  font-size: 1.3rem;
 }
 
 /* Validation Legend */
 .validation-legend {
   background: #f8fafc;
-  border-radius: 8px;
-  padding: 1.5rem;
-  margin-bottom: 2rem;
-  border-left: 4px solid #6366f1;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  border-left: 3px solid #6366f1;
 }
 
 .validation-legend h3 {
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
   color: #374151;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
 }
 
 .legend-items {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .legend-item {
@@ -524,19 +524,19 @@ body {
 
 .results-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
 }
 
 .result-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem;
+  padding: 0.75rem;
   background: #f9fafb;
-  border-radius: 8px;
-  border-left: 4px solid #e5e7eb;
+  border-radius: 6px;
+  border-left: 3px solid #e5e7eb;
 }
 
 .result-item.pass {
@@ -575,14 +575,15 @@ body {
 
 /* Player Section */
 .player-section {
-  margin: 2rem 0;
-  padding: 1.5rem;
+  margin: 1rem 0;
+  padding: 1rem;
   background: #f9fafb;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .player-section h3 {
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
+  font-size: 1.1rem;
 }
 
 .audio-player {
@@ -606,8 +607,8 @@ body {
 
 /* Advanced Section */
 .advanced-section {
-  margin-top: 2rem;
-  padding-top: 2rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
   border-top: 2px solid #e5e7eb;
 }
 
@@ -663,15 +664,16 @@ body {
 
 /* Advanced Results */
 .advanced-results {
-  margin-top: 1.5rem;
-  padding: 1.5rem;
+  margin-top: 1rem;
+  padding: 1rem;
   background: #f3f4f6;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .advanced-results h3 {
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
   color: #1f2937;
+  font-size: 1.1rem;
 }
 
 .advanced-grid {
@@ -757,6 +759,10 @@ body {
   .criteria-section,
   .results-section,
   .gdrive-section {
+    padding: 1rem;
+  }
+
+  .validation-legend {
     padding: 0.75rem;
   }
 
