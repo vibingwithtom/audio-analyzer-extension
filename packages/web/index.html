@@ -167,6 +167,25 @@
         <section id="resultsSection" class="results-section" style="display: none;">
           <h2>Analysis Results</h2>
 
+          <!-- Validation Legend -->
+          <div class="validation-legend">
+            <h3>Validation Legend:</h3>
+            <div class="legend-items">
+              <div class="legend-item">
+                <span class="legend-color red"></span>
+                <span class="legend-text"><strong>Red (fail):</strong> Candidate must resubmit</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color yellow"></span>
+                <span class="legend-text"><strong>Yellow:</strong> Not exact match but safe to submit</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color green"></span>
+                <span class="legend-text"><strong>Green:</strong> Safe to submit</span>
+              </div>
+            </div>
+          </div>
+
           <!-- Basic Results -->
           <div class="results-grid">
             <div class="result-item" id="fileNameRow">
