@@ -2,7 +2,7 @@
   "name": "@audio-analyzer/web",
   "version": "1.0.0",
   "description": "Web-based audio analyzer application",
-  "homepage": "https://tinytech.site/audio-extension",
+  "homepage": "https://tinytech.site/audio-analyzer",
   "type": "module",
   "scripts": {
     "dev": "vite",
