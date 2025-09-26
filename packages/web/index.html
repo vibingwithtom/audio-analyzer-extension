@@ -164,22 +164,12 @@
         <section id="resultsSection" class="results-section" style="display: none;">
           <h2>Analysis Results</h2>
 
-          <!-- Validation Legend -->
-          <div class="validation-legend">
-            <h3>Validation Legend:</h3>
-            <div class="legend-items">
-              <div class="legend-item">
-                <span class="legend-color red"></span>
-                <span class="legend-text"><strong>Red (fail):</strong> Candidate must resubmit</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-color yellow"></span>
-                <span class="legend-text"><strong>Yellow:</strong> Not exact match but safe to submit</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-color green"></span>
-                <span class="legend-text"><strong>Green:</strong> Safe to submit</span>
-              </div>
+          <!-- Audio Player -->
+          <div id="playerSection" class="player-section" style="display: none;">
+            <h3>Audio Preview</h3>
+            <div class="audio-player">
+              <audio id="audioPlayer" controls preload="metadata"></audio>
+              <button id="playPause" class="play-pause-btn">Play</button>
             </div>
           </div>
 
@@ -215,12 +205,22 @@
             </div>
           </div>
 
-          <!-- Audio Player -->
-          <div id="playerSection" class="player-section" style="display: none;">
-            <h3>Audio Preview</h3>
-            <div class="audio-player">
-              <audio id="audioPlayer" controls preload="metadata"></audio>
-              <button id="playPause" class="play-pause-btn">Play</button>
+          <!-- Validation Legend -->
+          <div class="validation-legend">
+            <h3>Validation Legend:</h3>
+            <div class="legend-items">
+              <div class="legend-item">
+                <span class="legend-color red"></span>
+                <span class="legend-text"><strong>Red (fail):</strong> Candidate must resubmit</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color yellow"></span>
+                <span class="legend-text"><strong>Yellow:</strong> Not exact match but safe to submit</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color green"></span>
+                <span class="legend-text"><strong>Green:</strong> Safe to submit</span>
+              </div>
             </div>
           </div>
 
