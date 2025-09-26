@@ -206,10 +206,24 @@ body {
   background: white;
   border: 2px dashed #d1d5db;
   border-radius: 8px;
-  padding: 1.5rem 1rem;
+  padding: 1.2rem 1rem;
   text-align: center;
   cursor: pointer;
   transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.drop-zone::before {
+  content: '🎵';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 8rem;
+  opacity: 0.05;
+  z-index: 1;
+  pointer-events: none;
 }
 
 .drop-zone:hover,
@@ -221,11 +235,8 @@ body {
 .drop-zone-content {
   max-width: 300px;
   margin: 0 auto;
-}
-
-.drop-icon {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
+  position: relative;
+  z-index: 2;
 }
 
 .drop-zone h3 {
@@ -701,6 +712,10 @@ body {
 
   .drop-zone {
     padding: 1rem 0.5rem;
+  }
+
+  .drop-zone::before {
+    font-size: 6rem;
   }
 }
 
