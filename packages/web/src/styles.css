@@ -217,11 +217,11 @@ body {
 .drop-zone::before {
   content: '🎵';
   position: absolute;
-  top: 30%;
+  top: 15%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 8rem;
-  opacity: 0.08;
+  font-size: 7rem;
+  opacity: 0.06;
   z-index: 1;
   pointer-events: none;
 }
@@ -715,8 +715,8 @@ body {
   }
 
   .drop-zone::before {
-    font-size: 6rem;
-    top: 25%;
+    font-size: 5rem;
+    top: 15%;
   }
 }
 
