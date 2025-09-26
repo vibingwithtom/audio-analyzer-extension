@@ -477,7 +477,8 @@ class WebAudioAnalyzer {
       fileType: document.getElementById('fileTypeRow'),
       sampleRate: document.getElementById('sampleRateRow'),
       bitDepth: document.getElementById('bitDepthRow'),
-      channels: document.getElementById('channelsRow')
+      channels: document.getElementById('channelsRow'),
+      duration: document.getElementById('durationRow')
     };
 
     Object.entries(validationResults).forEach(([key, validation]) => {

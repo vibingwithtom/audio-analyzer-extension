@@ -115,6 +115,27 @@ export class CriteriaValidator {
       };
     }
 
+    // Duration Validation (always performed)
+    const durationSeconds = results.duration;
+    let durationStatus = 'fail';
+    let durationMatches = false;
+
+    if (durationSeconds >= 120) { // 2 minutes or more
+      durationStatus = 'pass';
+      durationMatches = true;
+    } else if (durationSeconds >= 60) { // 1-2 minutes
+      durationStatus = 'warning';
+      durationMatches = false; // Not ideal but acceptable
+    }
+    // Under 1 minute stays 'fail'
+
+    validationResults.duration = {
+      matches: durationMatches,
+      target: '2+ minutes',
+      actual: durationSeconds,
+      status: durationStatus
+    };
+
     return validationResults;
   }
 

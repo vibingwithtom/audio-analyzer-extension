@@ -492,6 +492,10 @@ body {
   background-color: #10b981;
 }
 
+.legend-color.grey {
+  background-color: #6b7280;
+}
+
 .legend-text {
   font-size: 0.9rem;
   color: #374151;
@@ -542,6 +546,11 @@ body {
 .result-item.unknown {
   border-left-color: #f59e0b;
   background-color: #fffbeb;
+}
+
+.result-item.grey {
+  border-left-color: #6b7280;
+  background-color: #f9fafb;
 }
 
 .result-item label {
