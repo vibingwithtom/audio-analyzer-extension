@@ -69,7 +69,6 @@ class WebAudioAnalyzer {
 
     // Criteria elements
     this.presetSelector = document.getElementById('presetSelector');
-    this.resetCriteria = document.getElementById('resetCriteria');
     this.targetFileType = document.getElementById('targetFileType');
     this.targetSampleRate = document.getElementById('targetSampleRate');
     this.targetBitDepth = document.getElementById('targetBitDepth');
@@ -150,7 +149,6 @@ class WebAudioAnalyzer {
 
     // Preset functionality
     this.presetSelector.addEventListener('change', () => this.handlePresetChange());
-    this.resetCriteria.addEventListener('click', () => this.resetCriteriaToDefault());
 
     // Criteria changes
     [this.targetFileType, this.targetSampleRate, this.targetBitDepth, this.targetChannels].forEach(select => {
@@ -329,25 +327,6 @@ class WebAudioAnalyzer {
     localStorage.setItem('audio-analyzer-selected-preset', selectedPreset);
   }
 
-  resetCriteriaToDefault() {
-    const customSection = document.getElementById('customCriteriaSection');
-
-    // Hide custom section
-    customSection.style.display = 'none';
-
-    // Reset all criteria to "Any"
-    this.targetFileType.value = '';
-    this.targetSampleRate.value = '';
-    this.targetBitDepth.value = '';
-    this.targetChannels.value = '';
-
-    // Reset to default Auditions preset
-    this.presetSelector.value = 'auditions';
-    this.handlePresetChange();
-
-    // Save the reset state
-    this.saveCriteria();
-  }
 
   switchTab(tabName) {
     this.tabButtons.forEach(btn => btn.classList.remove('active'));
