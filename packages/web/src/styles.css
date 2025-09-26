@@ -35,7 +35,6 @@ body {
 /* Main Content */
 .main {
   padding: 2rem 0;
-  min-height: calc(100vh - 200px);
 }
 
 /* Tabs */
