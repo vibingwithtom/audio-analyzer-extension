@@ -245,6 +245,13 @@ class WebAudioAnalyzer {
 
   getPresetConfigurations() {
     return {
+      'auditions': {
+        name: 'Auditions',
+        fileType: 'wav',
+        sampleRate: '48000', // Min 48kHz
+        bitDepth: '24', // Min 24-bit
+        channels: '1'
+      },
       'character-recordings': {
         name: 'Character Recordings',
         fileType: 'wav',
