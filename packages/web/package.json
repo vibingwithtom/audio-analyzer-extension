@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "serve": "serve dist",
-    "deploy": "npm run build && gh-pages -d dist"
+    "deploy": "npm run build && echo tinytech.site > dist/CNAME && gh-pages -d dist"
   },
   "dependencies": {
     "@audio-analyzer/core": "^1.0.0"
