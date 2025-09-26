@@ -79,42 +79,43 @@ body {
 /* Criteria Section */
 .criteria-section {
   background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  margin-bottom: 2rem;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .criteria-section h2 {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   color: #1f2937;
-  font-size: 1.5rem;
+  font-size: 1.3rem;
 }
 
 .preset-section {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 2rem;
-  padding: 1rem;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding: 0.75rem;
   background: #f8fafc;
-  border-radius: 8px;
-  border-left: 4px solid #8b5cf6;
+  border-radius: 6px;
+  border-left: 3px solid #8b5cf6;
 }
 
 .preset-section label {
   font-weight: 500;
   color: #374151;
   white-space: nowrap;
+  font-size: 0.9rem;
 }
 
 .preset-selector {
   flex: 1;
-  max-width: 250px;
-  padding: 0.5rem 0.75rem;
+  max-width: 200px;
+  padding: 0.4rem 0.6rem;
   border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 0.875rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
   background: white;
   cursor: pointer;
 }
@@ -123,9 +124,9 @@ body {
   background: #6b7280;
   color: white;
   border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  font-size: 0.875rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
   cursor: pointer;
   transition: background-color 0.2s;
   white-space: nowrap;
@@ -137,23 +138,24 @@ body {
 
 .criteria-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
 }
 
 .criteria-item label {
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
   font-weight: 500;
   color: #374151;
+  font-size: 0.9rem;
 }
 
 .criteria-item select {
   width: 100%;
-  padding: 0.75rem;
-  border: 2px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 1rem;
+  padding: 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.9rem;
   background: white;
   transition: border-color 0.2s;
 }
@@ -710,7 +712,7 @@ body {
   .criteria-section,
   .results-section,
   .gdrive-section {
-    padding: 1.5rem;
+    padding: 1rem;
   }
 
   .logo {
