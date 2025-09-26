@@ -12,11 +12,21 @@
     "lint": "npm run lint --workspaces",
     "test": "npm run test --workspaces"
   },
-  "keywords": ["audio", "analyzer", "chrome-extension", "electron", "desktop", "web-app"],
+  "keywords": [
+    "audio",
+    "analyzer",
+    "chrome-extension",
+    "electron",
+    "desktop",
+    "web-app"
+  ],
   "author": "vibingwithtom",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/vibingwithtom/audio-analyzer-extension.git"
+    "url": "https://github.com/vibingwithtom/audio-extension.git"
+  },
+  "devDependencies": {
+    "gh-pages": "^6.3.0"
   }
 }
