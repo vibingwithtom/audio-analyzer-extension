@@ -47,56 +47,63 @@
           <div class="preset-section">
             <label for="presetSelector">Quick Presets:</label>
             <select id="presetSelector" class="preset-selector">
-              <option value="">Select a preset...</option>
               <option value="auditions">Auditions</option>
               <option value="character-recordings">Character Recordings</option>
+              <option value="custom">Custom</option>
               <option value="p2b2-pairs">P2B2 Pairs</option>
               <option value="three-hour">Three Hour</option>
             </select>
             <button id="resetCriteria" class="reset-btn">Reset All</button>
           </div>
 
-          <div class="criteria-grid">
-            <div class="criteria-item">
-              <label for="targetFileType">File Type</label>
-              <select id="targetFileType">
-                <option value="">Any</option>
-                <option value="wav">WAV</option>
-                <option value="mp3">MP3</option>
-                <option value="flac">FLAC</option>
-                <option value="aac">AAC</option>
-                <option value="m4a">M4A</option>
-                <option value="ogg">OGG</option>
-              </select>
-            </div>
-            <div class="criteria-item">
-              <label for="targetSampleRate">Min. Sample Rate (kHz)</label>
-              <select id="targetSampleRate">
-                <option value="">Any</option>
-                <option value="44100">44.1 kHz</option>
-                <option value="48000">48.0 kHz</option>
-                <option value="96000">96.0 kHz</option>
-                <option value="192000">192.0 kHz</option>
-              </select>
-            </div>
-            <div class="criteria-item">
-              <label for="targetBitDepth">Min. Bit Depth</label>
-              <select id="targetBitDepth">
-                <option value="">Any</option>
-                <option value="16">16-bit</option>
-                <option value="24">24-bit</option>
-                <option value="32">32-bit</option>
-              </select>
-            </div>
-            <div class="criteria-item">
-              <label for="targetChannels">Channels</label>
-              <select id="targetChannels">
-                <option value="">Any</option>
-                <option value="1">Mono (1)</option>
-                <option value="2">Stereo (2)</option>
-                <option value="6">5.1 Surround (6)</option>
-                <option value="8">7.1 Surround (8)</option>
-              </select>
+          <!-- No Preset Warning -->
+          <div id="noPresetWarning" class="preset-warning" style="display: none;">
+            ⚠️ Select a preset above to enable validation checks
+          </div>
+
+          <div id="customCriteriaSection" class="custom-criteria" style="display: none;">
+            <div class="criteria-grid">
+              <div class="criteria-item">
+                <label for="targetFileType">File Type</label>
+                <select id="targetFileType">
+                  <option value="">Any</option>
+                  <option value="wav">WAV</option>
+                  <option value="mp3">MP3</option>
+                  <option value="flac">FLAC</option>
+                  <option value="aac">AAC</option>
+                  <option value="m4a">M4A</option>
+                  <option value="ogg">OGG</option>
+                </select>
+              </div>
+              <div class="criteria-item">
+                <label for="targetSampleRate">Min. Sample Rate (kHz)</label>
+                <select id="targetSampleRate">
+                  <option value="">Any</option>
+                  <option value="44100">44.1 kHz</option>
+                  <option value="48000">48.0 kHz</option>
+                  <option value="96000">96.0 kHz</option>
+                  <option value="192000">192.0 kHz</option>
+                </select>
+              </div>
+              <div class="criteria-item">
+                <label for="targetBitDepth">Min. Bit Depth</label>
+                <select id="targetBitDepth">
+                  <option value="">Any</option>
+                  <option value="16">16-bit</option>
+                  <option value="24">24-bit</option>
+                  <option value="32">32-bit</option>
+                </select>
+              </div>
+              <div class="criteria-item">
+                <label for="targetChannels">Channels</label>
+                <select id="targetChannels">
+                  <option value="">Any</option>
+                  <option value="1">Mono (1)</option>
+                  <option value="2">Stereo (2)</option>
+                  <option value="6">5.1 Surround (6)</option>
+                  <option value="8">7.1 Surround (8)</option>
+                </select>
+              </div>
             </div>
           </div>
         </section>

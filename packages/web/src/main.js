@@ -187,6 +187,18 @@ class WebAudioAnalyzer {
       }
     }
 
+    // Load and restore selected preset
+    const selectedPreset = localStorage.getItem('audio-analyzer-selected-preset');
+    if (selectedPreset) {
+      this.presetSelector.value = selectedPreset;
+      // Apply the preset settings
+      this.handlePresetChange();
+    } else {
+      // Default to Auditions preset on first load
+      this.presetSelector.value = 'auditions';
+      this.handlePresetChange();
+    }
+
     // Update auth status
     this.updateAuthStatus();
   }
@@ -259,6 +271,10 @@ class WebAudioAnalyzer {
         bitDepth: '24', // Min 24-bit
         channels: '1'
       },
+      'custom': {
+        name: 'Custom',
+        // Custom allows manual selection of individual criteria
+      },
       'p2b2-pairs': {
         name: 'P2B2 Pairs',
         fileType: 'wav',
@@ -278,36 +294,56 @@ class WebAudioAnalyzer {
 
   handlePresetChange() {
     const selectedPreset = this.presetSelector.value;
+    const customSection = document.getElementById('customCriteriaSection');
 
     if (!selectedPreset) return;
 
-    const presets = this.getPresetConfigurations();
-    const config = presets[selectedPreset];
+    if (selectedPreset === 'custom') {
+      // Show custom criteria selectors
+      customSection.style.display = 'block';
+    } else {
+      // Hide custom criteria selectors for preset options
+      customSection.style.display = 'none';
 
-    if (config) {
-      // Apply preset configuration
-      this.targetFileType.value = config.fileType;
-      this.targetSampleRate.value = config.sampleRate;
-      this.targetBitDepth.value = config.bitDepth;
-      this.targetChannels.value = config.channels;
+      const presets = this.getPresetConfigurations();
+      const config = presets[selectedPreset];
 
-      // Save the changes
-      this.saveCriteria();
+      if (config) {
+        // Apply preset configuration
+        this.targetFileType.value = config.fileType || '';
+        this.targetSampleRate.value = config.sampleRate || '';
+        this.targetBitDepth.value = config.bitDepth || '';
+        this.targetChannels.value = config.channels || '';
 
-      // Reset preset selector to show it was applied
-      this.presetSelector.value = '';
+        // Save the changes
+        this.saveCriteria();
+
+        // Re-validate current results if we have them
+        if (this.currentResults) {
+          this.validateAndDisplayResults(this.currentResults);
+        }
+      }
     }
+
+    // Save selected preset to localStorage for persistence
+    localStorage.setItem('audio-analyzer-selected-preset', selectedPreset);
   }
 
   resetCriteriaToDefault() {
+    const customSection = document.getElementById('customCriteriaSection');
+
+    // Hide custom section
+    customSection.style.display = 'none';
+
     // Reset all criteria to "Any"
     this.targetFileType.value = '';
     this.targetSampleRate.value = '';
     this.targetBitDepth.value = '';
     this.targetChannels.value = '';
 
-    // Reset preset selector
-    this.presetSelector.value = '';
+    // Reset to default Auditions preset
+    this.presetSelector.value = 'auditions';
+    this.handlePresetChange();
 
     // Save the reset state
     this.saveCriteria();
