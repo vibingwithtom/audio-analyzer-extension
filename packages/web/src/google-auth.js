@@ -4,10 +4,8 @@ class GoogleAuth {
   constructor() {
     this.isInitialized = false;
     this.accessToken = null;
-    this.tokenClient = null;
+    this.codeClient = null;
     this.userInfo = null;
-    this.authPromiseResolve = null;
-    this.authPromiseReject = null;
   }
 
   async init() {
@@ -55,7 +53,6 @@ class GoogleAuth {
         reject(new Error('Google API setup timeout'));
       }, 10000);
 
-      // Initialize gapi client
       window.gapi.load('client', async () => {
         try {
           clearTimeout(loadTimeout);
@@ -64,16 +61,26 @@ class GoogleAuth {
             discoveryDocs: GOOGLE_CONFIG.DISCOVERY_DOCS
           });
 
-          // Initialize Google Identity Services token client with better settings
+          // Use token client for implicit flow instead of code client
           this.tokenClient = window.google.accounts.oauth2.initTokenClient({
             client_id: GOOGLE_CONFIG.CLIENT_ID,
             scope: GOOGLE_CONFIG.SCOPE,
             callback: (response) => {
               if (response.error) {
                 console.error('Token response error:', response);
+                reject(new Error(`Google sign-in failed: ${response.error}`));
                 return;
               }
-              this.handleTokenResponse(response);
+
+              this.accessToken = response.access_token;
+              const tokenInfo = {
+                access_token: response.access_token,
+                expires_at: Date.now() + (response.expires_in * 1000),
+                scope: response.scope
+              };
+
+              localStorage.setItem('google_token', JSON.stringify(tokenInfo));
+              resolve(tokenInfo);
             }
           });
 
@@ -94,42 +101,6 @@ class GoogleAuth {
     });
   }
 
-  async handleTokenResponse(response) {
-    try {
-      this.accessToken = response.access_token;
-
-      // Create token info
-      const tokenInfo = {
-        access_token: response.access_token,
-        expires_at: Date.now() + (response.expires_in * 1000),
-        scope: response.scope
-      };
-
-      localStorage.setItem('google_token', JSON.stringify(tokenInfo));
-
-      // Fetch user info after successful authentication
-      try {
-        await this.fetchUserInfo(response.access_token);
-      } catch (error) {
-        console.warn('Failed to fetch user info:', error);
-        // Continue even if user info fetch fails
-      }
-
-      // Resolve the waiting promise
-      if (this.authPromiseResolve) {
-        this.authPromiseResolve(tokenInfo);
-        this.authPromiseResolve = null;
-        this.authPromiseReject = null;
-      }
-    } catch (error) {
-      console.error('Token response handling error:', error);
-      if (this.authPromiseReject) {
-        this.authPromiseReject(error);
-        this.authPromiseResolve = null;
-        this.authPromiseReject = null;
-      }
-    }
-  }
 
   async signIn() {
     if (!this.isInitialized) {
@@ -138,11 +109,23 @@ class GoogleAuth {
 
     return new Promise((resolve, reject) => {
       try {
-        // Store promise resolvers for the callback
-        this.authPromiseResolve = resolve;
-        this.authPromiseReject = reject;
+        this.tokenClient.callback = (response) => {
+          if (response.error) {
+            console.error('Token response error:', response);
+            reject(new Error(`Google sign-in failed: ${response.error}`));
+            return;
+          }
 
-        // Request access token (without forced consent for better UX)
+          this.accessToken = response.access_token;
+          const tokenInfo = {
+            access_token: response.access_token,
+            expires_at: Date.now() + (response.expires_in * 1000),
+            scope: response.scope
+          };
+
+          localStorage.setItem('google_token', JSON.stringify(tokenInfo));
+          resolve(tokenInfo);
+        };
         this.tokenClient.requestAccessToken();
       } catch (error) {
         console.error('Google sign-in error:', error);
@@ -157,35 +140,6 @@ class GoogleAuth {
     });
   }
 
-  async fetchUserInfo(accessToken) {
-    try {
-      const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch user info: ${response.status}`);
-      }
-
-      const userInfo = await response.json();
-      this.userInfo = {
-        name: userInfo.name,
-        email: userInfo.email,
-        picture: userInfo.picture
-      };
-
-      // Store user info in localStorage
-      localStorage.setItem('google_user_info', JSON.stringify(this.userInfo));
-
-      return this.userInfo;
-    } catch (error) {
-      console.error('Error fetching user info:', error);
-      throw error;
-    }
-  }
-
   async getValidToken() {
     // Check stored token first
     const stored = localStorage.getItem('google_token');
@@ -195,29 +149,38 @@ class GoogleAuth {
         // Check if token is still valid (with 5 minute buffer)
         if (tokenInfo.expires_at > Date.now() + 300000) {
           this.accessToken = tokenInfo.access_token;
-
-          // Load stored user info if available
-          const storedUserInfo = localStorage.getItem('google_user_info');
-          if (storedUserInfo) {
-            try {
-              this.userInfo = JSON.parse(storedUserInfo);
-            } catch (error) {
-              console.warn('Invalid stored user info:', error);
-              localStorage.removeItem('google_user_info');
-            }
-          }
-
           return tokenInfo;
         }
       } catch (error) {
         console.warn('Invalid stored token:', error);
         localStorage.removeItem('google_token');
-        localStorage.removeItem('google_user_info');
       }
     }
 
     // Need to sign in
     return await this.signIn();
+  }
+
+  async getUserInfo() {
+    const token = await this.getValidToken();
+
+    try {
+      const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: {
+          'Authorization': `Bearer ${token.access_token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to get user info: ${response.status}`);
+      }
+
+      const userInfo = await response.json();
+      this.userInfo = userInfo;
+      return userInfo;
+    } catch (error) {
+      throw new Error(`Failed to get user info: ${error.message}`);
+    }
   }
 
   async downloadFile(fileId) {
@@ -266,10 +229,6 @@ class GoogleAuth {
     }
   }
 
-  getUserInfo() {
-    return this.userInfo;
-  }
-
   signOut() {
     if (this.accessToken && window.google) {
       // Revoke the access token
@@ -277,11 +236,7 @@ class GoogleAuth {
     }
 
     this.accessToken = null;
-    this.userInfo = null;
-    this.authPromiseResolve = null;
-    this.authPromiseReject = null;
     localStorage.removeItem('google_token');
-    localStorage.removeItem('google_user_info');
   }
 
   isSignedIn() {

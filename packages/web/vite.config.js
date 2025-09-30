@@ -4,7 +4,7 @@ import path from 'path';
 export default defineConfig({
   root: '.',
   publicDir: 'public',
-  base: '/audio-analyzer/',
+  base: '/',
   build: {
     outDir: 'dist',
     emptyOutDir: true

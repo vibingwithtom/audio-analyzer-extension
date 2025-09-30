@@ -2,14 +2,14 @@
   "name": "@audio-analyzer/web",
   "version": "1.0.0",
   "description": "Web-based audio analyzer application",
-  "homepage": "https://tinytech.site/audio-analyzer",
+  "homepage": "https://audio-analyzer.tinytech.site",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "serve": "serve dist",
-    "deploy": "npm run build && echo tinytech.site > dist/CNAME && gh-pages -d dist"
+    "deploy": "npm run build && echo audio-analyzer.tinytech.site > dist/CNAME && gh-pages -d dist"
   },
   "dependencies": {
     "@audio-analyzer/core": "^1.0.0"
