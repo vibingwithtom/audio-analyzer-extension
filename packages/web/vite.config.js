@@ -1,10 +1,10 @@
 import { defineConfig } from 'vite';
 import path from 'path';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   root: '.',
   publicDir: 'public',
-  base: '/',
+  base: mode === 'beta' ? '/beta/' : '/',
   build: {
     outDir: 'dist',
     emptyOutDir: true
@@ -21,4 +21,4 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['@audio-analyzer/core']
   }
-});
+}));

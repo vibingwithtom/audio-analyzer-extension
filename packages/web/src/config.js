@@ -1,9 +1,13 @@
 // Google OAuth configuration for web app
 // Determine the current environment and redirect URI
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const isBeta = window.location.pathname.startsWith('/beta');
+
 const REDIRECT_URI = isLocalhost
   ? 'http://localhost:3000'
-  : 'https://audio-analyzer.tinytech.site';
+  : isBeta
+    ? 'https://audio-analyzer.tinytech.site/beta'
+    : 'https://audio-analyzer.tinytech.site';
 
 export const GOOGLE_CONFIG = {
   CLIENT_ID: '708688597317-bmmrje6hqg8vo52nctned54m32q8uhsr.apps.googleusercontent.com',
