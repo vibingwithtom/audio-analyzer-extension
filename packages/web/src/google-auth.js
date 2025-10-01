@@ -126,7 +126,8 @@ class GoogleAuth {
           localStorage.setItem('google_token', JSON.stringify(tokenInfo));
           resolve(tokenInfo);
         };
-        this.tokenClient.requestAccessToken();
+        // Request with prompt to ensure user sees and approves all scopes
+        this.tokenClient.requestAccessToken({ prompt: 'consent' });
       } catch (error) {
         console.error('Google sign-in error:', error);
         let errorMsg = 'Unknown sign-in error';
