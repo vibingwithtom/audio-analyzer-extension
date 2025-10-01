@@ -198,6 +198,11 @@ class GoogleAuth {
       );
 
       if (!metaResponse.ok) {
+        // 403 likely means insufficient permissions - clear token and prompt re-auth
+        if (metaResponse.status === 403) {
+          this.signOut();
+          throw new Error('Insufficient permissions to access Google Drive. Please sign in again and grant Drive access.');
+        }
         throw new Error(`Failed to get file metadata: ${metaResponse.status}`);
       }
 
