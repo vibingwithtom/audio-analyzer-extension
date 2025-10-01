@@ -116,6 +116,17 @@ class GoogleAuth {
             return;
           }
 
+          // Check if Drive scope was granted
+          const hasRequiredScopes = response.scope &&
+            response.scope.includes('https://www.googleapis.com/auth/drive.readonly');
+
+          if (!hasRequiredScopes) {
+            console.warn('Drive scope not granted, retrying with consent prompt');
+            // Token was granted but without Drive scope, request again with consent
+            this.tokenClient.requestAccessToken({ prompt: 'consent' });
+            return;
+          }
+
           this.accessToken = response.access_token;
           const tokenInfo = {
             access_token: response.access_token,
@@ -126,8 +137,8 @@ class GoogleAuth {
           localStorage.setItem('google_token', JSON.stringify(tokenInfo));
           resolve(tokenInfo);
         };
-        // Request with prompt to ensure user sees and approves all scopes
-        this.tokenClient.requestAccessToken({ prompt: 'consent' });
+        // First try without forcing consent (better UX for returning users)
+        this.tokenClient.requestAccessToken({ prompt: '' });
       } catch (error) {
         console.error('Google sign-in error:', error);
         let errorMsg = 'Unknown sign-in error';
