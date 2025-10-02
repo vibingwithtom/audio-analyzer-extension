@@ -772,6 +772,10 @@ class WebAudioAnalyzer {
   cancelBatchProcessing() {
     this.batchCancelled = true;
     this.batchProcessor.cancel();
+
+    // Hide progress and show cancelled message
+    this.batchProgress.style.display = 'none';
+    this.batchProgressText.textContent = 'Processing cancelled';
   }
 
   showLoading() {
