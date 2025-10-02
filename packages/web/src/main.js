@@ -591,17 +591,22 @@ class WebAudioAnalyzer {
         // Download file headers (first 100KB)
         const headerBlob = await this.googleAuth.downloadFileHeaders(driveFile.id);
 
-        // Create a pseudo-File object for analysis (with header size for analysis)
+        // Create a pseudo-File object for analysis
+        // Note: File constructor doesn't let us override size, so we'll create a custom object
+        const fileSize = parseInt(driveFile.size) || headerBlob.size;
         const file = new File([headerBlob], driveFile.name, {
           type: driveFile.mimeType,
           lastModified: new Date(driveFile.modifiedTime).getTime()
         });
 
-        // Analyze headers
-        const analysis = await this.batchProcessor.analyzer.analyzeHeaders(file);
+        // Add a custom size property that overrides the blob size
+        Object.defineProperty(file, 'size', {
+          value: fileSize,
+          writable: false
+        });
 
-        // Override fileSize with actual Drive file size (not header size)
-        analysis.fileSize = parseInt(driveFile.size) || file.size;
+        // Analyze headers (will use the overridden file.size)
+        const analysis = await this.batchProcessor.analyzer.analyzeHeaders(file);
 
         // Apply validation
         const validation = CriteriaValidator.validateResults(analysis, criteria);
@@ -631,8 +636,10 @@ class WebAudioAnalyzer {
       this.addBatchResultRow(result);
       this.updateBatchSummary();
 
-      // Update progress
-      this.showBatchProgress(i + 1, audioFiles.length, driveFile.name);
+      // Update progress (only if not cancelled)
+      if (!this.batchCancelled) {
+        this.showBatchProgress(i + 1, audioFiles.length, driveFile.name);
+      }
     }
 
     // Hide progress bar when complete
@@ -832,6 +839,11 @@ class WebAudioAnalyzer {
     const channelsStatus = this.getValidationStatus(result.validation, 'channels');
     const durationStatus = this.getValidationStatus(result.validation, 'duration');
 
+    // Only show play button if we have the actual file
+    const playButton = result.file
+      ? `<button class="play-btn-small" data-index="${index}">▶</button>`
+      : '-';
+
     row.innerHTML = `
       <td class="filename">${result.filename}</td>
       <td><span class="status-badge ${result.status}">${result.status}</span></td>
@@ -841,18 +853,20 @@ class WebAudioAnalyzer {
       <td class="validation-${channelsStatus}">${formatted.channels || '-'}</td>
       <td class="validation-${durationStatus}">${formatted.duration || '-'}</td>
       <td>${formatted.fileSize || '-'}</td>
-      <td><button class="play-btn-small" data-index="${index}">▶</button></td>
+      <td>${playButton}</td>
     `;
 
     this.batchTableBody.appendChild(row);
 
-    // Add event listener to play button
-    const playBtn = row.querySelector('.play-btn-small');
-    if (playBtn) {
-      playBtn.addEventListener('click', (e) => {
-        const idx = parseInt(e.target.dataset.index);
-        this.playBatchFile(idx);
-      });
+    // Add event listener to play button (only if it exists)
+    if (result.file) {
+      const playBtn = row.querySelector('.play-btn-small');
+      if (playBtn) {
+        playBtn.addEventListener('click', (e) => {
+          const idx = parseInt(e.target.dataset.index);
+          this.playBatchFile(idx);
+        });
+      }
     }
   }
 
