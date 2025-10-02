@@ -23,11 +23,11 @@ export class StreamingAudioAnalyzer {
 
     // Parse based on file type
     if (file.name.toLowerCase().endsWith('.wav')) {
-      Object.assign(result, this.parseWavHeaders(view));
+      Object.assign(result, this.parseWavHeaders(view, file.size));
     } else if (file.name.toLowerCase().endsWith('.mp3')) {
-      Object.assign(result, this.parseMp3Headers(view));
+      Object.assign(result, this.parseMp3Headers(view, file.size));
     } else if (file.name.toLowerCase().endsWith('.flac')) {
-      Object.assign(result, this.parseFlacHeaders(view));
+      Object.assign(result, this.parseFlacHeaders(view, file.size));
     } else {
       // Unknown format - set defaults
       result.sampleRate = 'Unknown';
@@ -39,7 +39,7 @@ export class StreamingAudioAnalyzer {
     return result;
   }
 
-  parseWavHeaders(view) {
+  parseWavHeaders(view, fileSize) {
     try {
       // Check for RIFF header
       const riffHeader = String.fromCharCode(
@@ -71,10 +71,12 @@ export class StreamingAudioAnalyzer {
           const channels = view.getUint16(offset + 10, true);
           const sampleRate = view.getUint32(offset + 12, true);
           const bitsPerSample = view.getUint16(offset + 22, true);
-
-          // Calculate duration from file size (estimate)
           const byteRate = view.getUint32(offset + 16, true);
-          const duration = byteRate > 0 ? view.byteLength / byteRate : 'Unknown';
+
+          // Calculate duration from full file size and byte rate
+          // Subtract ~44 bytes for typical WAV header
+          const audioDataSize = fileSize - 44;
+          const duration = byteRate > 0 ? audioDataSize / byteRate : 'Unknown';
 
           return {
             sampleRate,

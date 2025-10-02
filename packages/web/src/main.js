@@ -683,6 +683,8 @@ class WebAudioAnalyzer {
       const row = document.createElement('tr');
       row.className = `batch-row ${result.status}`;
 
+      const issues = this.getValidationIssues(result.validation);
+
       row.innerHTML = `
         <td class="filename">${result.filename}</td>
         <td><span class="status-badge ${result.status}">${result.status}</span></td>
@@ -691,6 +693,7 @@ class WebAudioAnalyzer {
         <td>${this.formatValue(result.analysis?.bitDepth)}</td>
         <td>${this.formatValue(result.analysis?.channels)}</td>
         <td>${this.formatDuration(result.analysis?.duration)}</td>
+        <td class="issues">${issues}</td>
       `;
 
       this.batchTableBody.appendChild(row);
@@ -709,6 +712,19 @@ class WebAudioAnalyzer {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  getValidationIssues(validation) {
+    if (!validation) return '-';
+
+    const issues = [];
+    Object.entries(validation).forEach(([key, result]) => {
+      if (result.status === 'fail') {
+        issues.push(key);
+      }
+    });
+
+    return issues.length > 0 ? issues.join(', ') : '✓';
   }
 
   cleanupForNewFile() {
