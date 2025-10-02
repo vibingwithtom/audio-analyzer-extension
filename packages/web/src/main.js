@@ -48,6 +48,7 @@ class WebAudioAnalyzer {
     this.processingFile = false;  // Prevent double file processing
     this.batchMode = false;
     this.batchResults = null;
+    this.batchCancelled = false;
 
     this.initializeElements();
     this.attachEventListeners();
@@ -181,6 +182,9 @@ class WebAudioAnalyzer {
     // Advanced analysis
     this.advancedAnalysisBtn.addEventListener('click', () => this.runAdvancedAnalysis());
     this.cancelAnalysis.addEventListener('click', () => this.cancelAdvancedAnalysis());
+
+    // Batch cancel
+    this.cancelBatch.addEventListener('click', () => this.cancelBatchProcessing());
   }
 
   loadSettings() {
@@ -436,6 +440,7 @@ class WebAudioAnalyzer {
 
   async handleBatchFiles(files) {
     this.processingFile = true;
+    this.batchCancelled = false;
     this.cleanupForNewFile();
 
     console.log(`Starting batch processing of ${files.length} files`);
@@ -470,6 +475,11 @@ class WebAudioAnalyzer {
       // Final update
       this.batchResults = results;
       this.updateBatchSummary();
+
+      // Hide progress bar when complete
+      if (!this.batchCancelled) {
+        this.batchProgress.style.display = 'none';
+      }
 
     } catch (error) {
       console.error('Batch processing error:', error);
@@ -555,6 +565,7 @@ class WebAudioAnalyzer {
     // Switch to batch mode
     this.batchMode = true;
     this.batchResults = [];
+    this.batchCancelled = false;
 
     // Initialize table and show progress
     this.showBatchProgress(0, audioFiles.length, 'Initializing...');
@@ -564,6 +575,12 @@ class WebAudioAnalyzer {
 
     // Process each file
     for (let i = 0; i < audioFiles.length; i++) {
+      // Check for cancellation
+      if (this.batchCancelled) {
+        console.log('Batch processing cancelled');
+        break;
+      }
+
       const driveFile = audioFiles[i];
       let result;
 
@@ -574,7 +591,7 @@ class WebAudioAnalyzer {
         // Download file headers (first 100KB)
         const headerBlob = await this.googleAuth.downloadFileHeaders(driveFile.id);
 
-        // Create a pseudo-File object for analysis
+        // Create a pseudo-File object for analysis (with header size for analysis)
         const file = new File([headerBlob], driveFile.name, {
           type: driveFile.mimeType,
           lastModified: new Date(driveFile.modifiedTime).getTime()
@@ -582,6 +599,9 @@ class WebAudioAnalyzer {
 
         // Analyze headers
         const analysis = await this.batchProcessor.analyzer.analyzeHeaders(file);
+
+        // Override fileSize with actual Drive file size (not header size)
+        analysis.fileSize = parseInt(driveFile.size) || file.size;
 
         // Apply validation
         const validation = CriteriaValidator.validateResults(analysis, criteria);
@@ -613,6 +633,11 @@ class WebAudioAnalyzer {
 
       // Update progress
       this.showBatchProgress(i + 1, audioFiles.length, driveFile.name);
+    }
+
+    // Hide progress bar when complete
+    if (!this.batchCancelled) {
+      this.batchProgress.style.display = 'none';
     }
   }
 
@@ -744,6 +769,11 @@ class WebAudioAnalyzer {
     this.advancedAnalysisBtn.style.display = 'block';
   }
 
+  cancelBatchProcessing() {
+    this.batchCancelled = true;
+    this.batchProcessor.cancel();
+  }
+
   showLoading() {
     this.hideAllSections();
     this.loading.style.display = 'block';
@@ -761,7 +791,8 @@ class WebAudioAnalyzer {
   }
 
   showBatchProgress(current, total, currentFile) {
-    this.hideAllSections();
+    // Don't hide sections - just show progress
+    // (batch results table should remain visible during processing)
     this.batchProgress.style.display = 'block';
 
     const percentage = Math.round((current / total) * 100);
