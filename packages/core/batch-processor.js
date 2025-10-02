@@ -232,9 +232,10 @@ export class BatchProcessor {
    * @param {File[]} files - Array of files to process
    * @param {Object} criteria - Validation criteria
    * @param {Function} progressCallback - Called with progress updates
+   * @param {Function} resultCallback - Called with each result as it completes
    * @returns {Promise<Array>} Array of results
    */
-  async processBatch(files, criteria, progressCallback) {
+  async processBatch(files, criteria, progressCallback, resultCallback) {
     this.cancelled = false;
     const results = [];
     const startTime = Date.now();
@@ -245,6 +246,7 @@ export class BatchProcessor {
       }
 
       const file = files[i];
+      let result;
 
       try {
         // Quick header analysis
@@ -253,32 +255,40 @@ export class BatchProcessor {
         // Apply validation criteria
         const validation = this.validator.validateResults(analysis, criteria);
 
-        results.push({
+        result = {
           filename: file.name,
           file: file, // Keep File object for playback
           analysis,
           validation,
           status: this.getOverallStatus(validation)
-        });
+        };
 
-        // Report progress
-        if (progressCallback) {
-          progressCallback({
-            current: i + 1,
-            total: files.length,
-            currentFile: file.name,
-            percentage: ((i + 1) / files.length) * 100,
-            elapsedTime: Date.now() - startTime
-          });
-        }
       } catch (error) {
-        results.push({
+        result = {
           filename: file.name,
           file: file, // Keep File object even on error
           analysis: null,
           validation: null,
           status: 'error',
           error: error.message
+        };
+      }
+
+      results.push(result);
+
+      // Call result callback with individual result
+      if (resultCallback) {
+        resultCallback(result);
+      }
+
+      // Report progress
+      if (progressCallback) {
+        progressCallback({
+          current: i + 1,
+          total: files.length,
+          currentFile: file.name,
+          percentage: ((i + 1) / files.length) * 100,
+          elapsedTime: Date.now() - startTime
         });
       }
     }

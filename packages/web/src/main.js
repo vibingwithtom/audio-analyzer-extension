@@ -440,7 +440,11 @@ class WebAudioAnalyzer {
 
     console.log(`Starting batch processing of ${files.length} files`);
 
+    // Initialize batch mode and show empty table with progress
+    this.batchMode = true;
+    this.batchResults = [];
     this.showBatchProgress(0, files.length, 'Initializing...');
+    this.initializeBatchResultsTable();
 
     try {
       const criteria = this.getCriteria();
@@ -454,11 +458,18 @@ class WebAudioAnalyzer {
             progress.total,
             progress.currentFile
           );
+        },
+        (result) => {
+          // Progressive callback - add result as each file completes
+          this.batchResults.push(result);
+          this.addBatchResultRow(result);
+          this.updateBatchSummary();
         }
       );
 
+      // Final update
       this.batchResults = results;
-      this.showBatchResults(results);
+      this.updateBatchSummary();
 
     } catch (error) {
       console.error('Batch processing error:', error);
@@ -543,16 +554,18 @@ class WebAudioAnalyzer {
 
     // Switch to batch mode
     this.batchMode = true;
+    this.batchResults = [];
 
-    // Show batch progress
+    // Initialize table and show progress
     this.showBatchProgress(0, audioFiles.length, 'Initializing...');
+    this.initializeBatchResultsTable();
 
     const criteria = this.getCriteria();
-    const results = [];
 
     // Process each file
     for (let i = 0; i < audioFiles.length; i++) {
       const driveFile = audioFiles[i];
+      let result;
 
       try {
         // Update progress
@@ -573,32 +586,34 @@ class WebAudioAnalyzer {
         // Apply validation
         const validation = CriteriaValidator.validateResults(analysis, criteria);
 
-        results.push({
+        result = {
           filename: driveFile.name,
           file: null, // Can't play Drive files directly without downloading
           analysis,
           validation,
           status: this.getOverallStatus(validation)
-        });
+        };
 
       } catch (error) {
         console.error(`Error processing ${driveFile.name}:`, error);
-        results.push({
+        result = {
           filename: driveFile.name,
           file: null,
           analysis: null,
           validation: null,
           status: 'error',
           error: error.message
-        });
+        };
       }
+
+      // Add result progressively
+      this.batchResults.push(result);
+      this.addBatchResultRow(result);
+      this.updateBatchSummary();
 
       // Update progress
       this.showBatchProgress(i + 1, audioFiles.length, driveFile.name);
     }
-
-    // Show results
-    this.showBatchResults(results);
   }
 
   extractFileIdFromUrl(url) {
@@ -755,11 +770,73 @@ class WebAudioAnalyzer {
     this.batchCurrentFile.textContent = currentFile || 'Processing...';
   }
 
+  initializeBatchResultsTable() {
+    // Show batch results section and clear table
+    this.hideAllSections();
+    this.batchProgress.style.display = 'block';
+    this.batchResultsSection.style.display = 'block';
+    this.batchTableBody.innerHTML = '';
+
+    // Initialize summary stats to zero
+    this.batchPassCount.textContent = '0';
+    this.batchWarningCount.textContent = '0';
+    this.batchFailCount.textContent = '0';
+  }
+
+  addBatchResultRow(result) {
+    const index = this.batchResults.length - 1;
+    const row = document.createElement('tr');
+    row.className = `batch-row ${result.status}`;
+
+    // Format the analysis data using the same formatter as single file view
+    const formatted = result.analysis ? CriteriaValidator.formatDisplayText(result.analysis) : {};
+
+    const fileTypeStatus = this.getValidationStatus(result.validation, 'fileType');
+    const sampleRateStatus = this.getValidationStatus(result.validation, 'sampleRate');
+    const bitDepthStatus = this.getValidationStatus(result.validation, 'bitDepth');
+    const channelsStatus = this.getValidationStatus(result.validation, 'channels');
+    const durationStatus = this.getValidationStatus(result.validation, 'duration');
+
+    row.innerHTML = `
+      <td class="filename">${result.filename}</td>
+      <td><span class="status-badge ${result.status}">${result.status}</span></td>
+      <td class="validation-${fileTypeStatus}">${formatted.fileType || 'Unknown'}</td>
+      <td class="validation-${sampleRateStatus}">${formatted.sampleRate || '-'}</td>
+      <td class="validation-${bitDepthStatus}">${formatted.bitDepth || '-'}</td>
+      <td class="validation-${channelsStatus}">${formatted.channels || '-'}</td>
+      <td class="validation-${durationStatus}">${formatted.duration || '-'}</td>
+      <td>${formatted.fileSize || '-'}</td>
+      <td><button class="play-btn-small" data-index="${index}">▶</button></td>
+    `;
+
+    this.batchTableBody.appendChild(row);
+
+    // Add event listener to play button
+    const playBtn = row.querySelector('.play-btn-small');
+    if (playBtn) {
+      playBtn.addEventListener('click', (e) => {
+        const idx = parseInt(e.target.dataset.index);
+        this.playBatchFile(idx);
+      });
+    }
+  }
+
+  updateBatchSummary() {
+    const passCount = this.batchResults.filter(r => r.status === 'pass').length;
+    const warningCount = this.batchResults.filter(r => r.status === 'warning').length;
+    const failCount = this.batchResults.filter(r => r.status === 'fail').length;
+
+    this.batchPassCount.textContent = passCount;
+    this.batchWarningCount.textContent = warningCount;
+    this.batchFailCount.textContent = failCount;
+  }
+
   showBatchResults(results) {
+    // This is now only used for revalidation - rebuild entire table
     this.hideAllSections();
     this.batchResultsSection.style.display = 'block';
 
-    // Calculate summary stats
+    // Update summary stats
     const passCount = results.filter(r => r.status === 'pass').length;
     const warningCount = results.filter(r => r.status === 'warning').length;
     const failCount = results.filter(r => r.status === 'fail').length;
@@ -768,7 +845,7 @@ class WebAudioAnalyzer {
     this.batchWarningCount.textContent = warningCount;
     this.batchFailCount.textContent = failCount;
 
-    // Populate table
+    // Rebuild table
     this.batchTableBody.innerHTML = '';
     results.forEach((result, index) => {
       const row = document.createElement('tr');
