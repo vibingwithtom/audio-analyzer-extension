@@ -23,7 +23,12 @@ export class StreamingAudioAnalyzer {
 
     // Parse based on file type
     if (file.name.toLowerCase().endsWith('.wav')) {
-      Object.assign(result, this.parseWavHeaders(view, file.size));
+      const wavData = this.parseWavHeaders(view, file.size);
+      Object.assign(result, wavData);
+      // Use formatType if available (e.g., "WAV (PCM)")
+      if (wavData.formatType) {
+        result.fileType = wavData.formatType;
+      }
     } else if (file.name.toLowerCase().endsWith('.mp3')) {
       Object.assign(result, this.parseMp3Headers(view, file.size));
     } else if (file.name.toLowerCase().endsWith('.flac')) {
@@ -83,7 +88,8 @@ export class StreamingAudioAnalyzer {
             channels,
             bitDepth: bitsPerSample,
             duration: typeof duration === 'number' ? duration : 'Unknown',
-            audioFormat
+            audioFormat,
+            formatType: audioFormat === 1 ? 'WAV (PCM)' : `WAV (Format ${audioFormat})`
           };
         }
 
@@ -96,7 +102,8 @@ export class StreamingAudioAnalyzer {
         sampleRate: 'Unknown',
         channels: 'Unknown',
         bitDepth: 'Unknown',
-        duration: 'Unknown'
+        duration: 'Unknown',
+        formatType: 'WAV'
       };
     }
   }
