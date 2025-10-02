@@ -286,8 +286,9 @@ body {
   background: #1d4ed8;
 }
 
-/* Google Drive Section */
-.gdrive-section {
+/* Google Drive Section & Web URL Section */
+.gdrive-section,
+.weburl-section {
   background: white;
   border-radius: 12px;
   padding: 2rem;
@@ -336,7 +337,8 @@ body {
   background: #4b5563;
 }
 
-.gdrive-input label {
+.gdrive-input label,
+.weburl-input label {
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 500;
@@ -349,7 +351,8 @@ body {
   margin-bottom: 0.5rem;
 }
 
-.gdrive-url-input {
+.gdrive-url-input,
+.weburl-input input[type="url"] {
   flex: 1;
   padding: 0.75rem;
   border: 2px solid #d1d5db;
@@ -357,7 +360,8 @@ body {
   font-size: 1rem;
 }
 
-.gdrive-url-input:focus {
+.gdrive-url-input:focus,
+.weburl-input input[type="url"]:focus {
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);

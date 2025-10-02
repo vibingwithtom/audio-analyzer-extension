@@ -67,6 +67,10 @@ class WebAudioAnalyzer {
     this.signInBtn = document.getElementById('signInBtn');
     this.signOutBtn = document.getElementById('signOutBtn');
 
+    // Web URL elements
+    this.webUrl = document.getElementById('webUrl');
+    this.analyzeWebUrl = document.getElementById('analyzeWebUrl');
+
     // Criteria elements
     this.presetSelector = document.getElementById('presetSelector');
     this.targetFileType = document.getElementById('targetFileType');
@@ -146,6 +150,12 @@ class WebAudioAnalyzer {
     });
     this.signInBtn.addEventListener('click', () => this.handleSignIn());
     this.signOutBtn.addEventListener('click', () => this.handleSignOut());
+
+    // Web URL
+    this.analyzeWebUrl.addEventListener('click', () => this.handleWebUrl());
+    this.webUrl.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') this.handleWebUrl();
+    });
 
     // Preset functionality
     this.presetSelector.addEventListener('change', () => this.handlePresetChange());
@@ -435,6 +445,79 @@ class WebAudioAnalyzer {
     } finally {
       this.processingFile = false;
     }
+  }
+
+  async handleWebUrl() {
+    const url = this.webUrl.value.trim();
+    if (!url) return;
+
+    if (this.processingFile) {
+      console.log('Already processing a file, ignoring web URL request');
+      return;
+    }
+
+    this.processingFile = true;
+
+    // Clean up previous results
+    this.cleanupForNewFile();
+
+    this.showLoading();
+
+    try {
+      // Fetch the audio file from the URL
+      const response = await fetch(url, {
+        mode: 'cors',
+        credentials: 'omit'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+
+      // Extract filename from URL
+      const urlPath = new URL(url).pathname;
+      const filename = urlPath.split('/').pop() || 'audio-file';
+
+      // Determine MIME type
+      const mimeType = blob.type || this.getMimeTypeFromFilename(filename);
+
+      // Create a File object
+      const file = new File([blob], filename, { type: mimeType });
+      this.currentFile = file;
+
+      // Analyze and display
+      const results = await this.audioAnalyzer.analyzeFile(file);
+      this.setupAudioPlayer(file);
+      this.validateAndDisplayResults(results);
+      this.showResults();
+
+    } catch (error) {
+      console.error('Web URL error:', error);
+      this.cleanupForNewFile();
+
+      if (error.message.includes('CORS') || error.message.includes('NetworkError')) {
+        this.showError('Failed to fetch file: CORS error. The server must allow cross-origin requests.');
+      } else {
+        this.showError(`Failed to process web URL: ${error.message}`);
+      }
+    } finally {
+      this.processingFile = false;
+    }
+  }
+
+  getMimeTypeFromFilename(filename) {
+    const ext = filename.split('.').pop().toLowerCase();
+    const mimeTypes = {
+      'mp3': 'audio/mpeg',
+      'wav': 'audio/wav',
+      'flac': 'audio/flac',
+      'ogg': 'audio/ogg',
+      'm4a': 'audio/mp4',
+      'aac': 'audio/aac'
+    };
+    return mimeTypes[ext] || 'audio/mpeg';
   }
 
   extractFileIdFromUrl(url) {
