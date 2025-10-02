@@ -739,6 +739,7 @@ class WebAudioAnalyzer {
           if (useMetadataOnly) {
             // Metadata-only mode: faster, but less detailed analysis
             const metadata = await this.googleAuth.getFileMetadata(driveFile.id);
+            console.log(metadata);
             analysis = {
               filename: metadata.name,
               fileSize: parseInt(metadata.size) || 0,
