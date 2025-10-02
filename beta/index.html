@@ -17,8 +17,8 @@
   <meta property="og:description" content="Professional audio file analysis tool">
   <meta property="og:type" content="website">
 
-  <script type="module" crossorigin src="/beta/assets/index-DnCkU6YE.js"></script>
-  <link rel="stylesheet" crossorigin href="/beta/assets/index-C9ctsiPs.css">
+  <script type="module" crossorigin src="/beta/assets/index-DrHNJ23n.js"></script>
+  <link rel="stylesheet" crossorigin href="/beta/assets/index-mBgbolpz.css">
 </head>
 <body>
   <div id="app">
@@ -117,7 +117,7 @@
                 <h3>Drop audio file here</h3>
                 <p>Or click to browse files</p>
                 <button class="browse-btn" id="browseBtn">Choose File</button>
-                <input type="file" id="fileInput" accept="audio/*" style="display: none;">
+                <input type="file" id="fileInput" accept="audio/*" multiple style="display: none;">
               </div>
             </div>
           </section>
@@ -158,6 +158,19 @@
         <div id="loading" class="loading" style="display: none;">
           <div class="spinner"></div>
           <p>Analyzing audio file...</p>
+        </div>
+
+        <!-- Batch Progress -->
+        <div id="batchProgress" class="batch-progress" style="display: none;">
+          <h3>Processing Batch</h3>
+          <div class="progress-info">
+            <span id="batchCurrentFile">file.mp3</span>
+            <span id="batchProgressText">0/0 (0%)</span>
+          </div>
+          <div class="progress-bar">
+            <div id="batchProgressBar" class="progress-fill" style="width: 0%"></div>
+          </div>
+          <button id="cancelBatch" class="cancel-btn">Cancel</button>
         </div>
 
         <!-- Error State -->
@@ -268,6 +281,50 @@
                 <span id="normalization">-</span>
               </div>
             </div>
+          </div>
+        </section>
+
+        <!-- Batch Results Section -->
+        <section id="batchResultsSection" class="batch-results-section" style="display: none;">
+          <h2>Batch Analysis Results</h2>
+
+          <div class="batch-summary">
+            <div class="summary-stats">
+              <div class="stat-item pass">
+                <span class="count" id="batchPassCount">0</span>
+                <span class="label">Pass</span>
+              </div>
+              <div class="stat-item warning">
+                <span class="count" id="batchWarningCount">0</span>
+                <span class="label">Warnings</span>
+              </div>
+              <div class="stat-item fail">
+                <span class="count" id="batchFailCount">0</span>
+                <span class="label">Failed</span>
+              </div>
+            </div>
+            <div class="batch-actions">
+              <button id="exportCSV" class="export-btn">Export CSV</button>
+              <button id="exportJSON" class="export-btn">Export JSON</button>
+            </div>
+          </div>
+
+          <div class="batch-table-container">
+            <table class="batch-results-table">
+              <thead>
+                <tr>
+                  <th>Filename</th>
+                  <th>Status</th>
+                  <th>Format</th>
+                  <th>Sample Rate</th>
+                  <th>Bit Depth</th>
+                  <th>Channels</th>
+                  <th>Duration</th>
+                </tr>
+              </thead>
+              <tbody id="batchTableBody">
+              </tbody>
+            </table>
           </div>
         </section>
       </div>
