@@ -922,6 +922,12 @@ body {
   border-bottom: 1px solid #e5e7eb;
 }
 
+.batch-results-table th:nth-child(6),
+.batch-results-table td:nth-child(6) {
+  min-width: 100px;
+  white-space: nowrap;
+}
+
 .batch-row.pass {
   background: #f0fdf4;
 }
