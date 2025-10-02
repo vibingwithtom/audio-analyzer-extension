@@ -943,6 +943,23 @@ body {
   color: #1f2937;
 }
 
+/* Inline Validation Cell Styles */
+.validation-pass {
+  background-color: #dcfce7 !important;
+  color: #166534;
+}
+
+.validation-warning {
+  background-color: #fef3c7 !important;
+  color: #92400e;
+}
+
+.validation-fail {
+  background-color: #fee2e2 !important;
+  color: #991b1b;
+  font-weight: 500;
+}
+
 .status-badge {
   display: inline-block;
   padding: 0.25rem 0.75rem;

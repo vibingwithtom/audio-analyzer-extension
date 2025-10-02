@@ -683,17 +683,20 @@ class WebAudioAnalyzer {
       const row = document.createElement('tr');
       row.className = `batch-row ${result.status}`;
 
-      const issues = this.getValidationIssues(result.validation);
+      const fileTypeStatus = this.getValidationStatus(result.validation, 'fileType');
+      const sampleRateStatus = this.getValidationStatus(result.validation, 'sampleRate');
+      const bitDepthStatus = this.getValidationStatus(result.validation, 'bitDepth');
+      const channelsStatus = this.getValidationStatus(result.validation, 'channels');
+      const durationStatus = this.getValidationStatus(result.validation, 'duration');
 
       row.innerHTML = `
         <td class="filename">${result.filename}</td>
         <td><span class="status-badge ${result.status}">${result.status}</span></td>
-        <td>${result.analysis?.fileType || 'Unknown'}</td>
-        <td>${this.formatValue(result.analysis?.sampleRate)}</td>
-        <td>${this.formatValue(result.analysis?.bitDepth)}</td>
-        <td>${this.formatValue(result.analysis?.channels)}</td>
-        <td>${this.formatDuration(result.analysis?.duration)}</td>
-        <td class="issues">${issues}</td>
+        <td class="validation-${fileTypeStatus}">${result.analysis?.fileType || 'Unknown'}</td>
+        <td class="validation-${sampleRateStatus}">${this.formatValue(result.analysis?.sampleRate)}</td>
+        <td class="validation-${bitDepthStatus}">${this.formatValue(result.analysis?.bitDepth)}</td>
+        <td class="validation-${channelsStatus}">${this.formatValue(result.analysis?.channels)}</td>
+        <td class="validation-${durationStatus}">${this.formatDuration(result.analysis?.duration)}</td>
       `;
 
       this.batchTableBody.appendChild(row);
@@ -714,17 +717,9 @@ class WebAudioAnalyzer {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
 
-  getValidationIssues(validation) {
-    if (!validation) return '-';
-
-    const issues = [];
-    Object.entries(validation).forEach(([key, result]) => {
-      if (result.status === 'fail') {
-        issues.push(key);
-      }
-    });
-
-    return issues.length > 0 ? issues.join(', ') : '✓';
+  getValidationStatus(validation, field) {
+    if (!validation || !validation[field]) return '';
+    return validation[field].status; // 'pass', 'warning', or 'fail'
   }
 
   cleanupForNewFile() {
