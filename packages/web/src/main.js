@@ -252,13 +252,17 @@ class WebAudioAnalyzer {
     this.updateAuthStatus();
   }
 
-  saveCriteria() {
-    const criteria = {
+  getCriteria() {
+    return {
       fileType: this.targetFileType.value,
       sampleRate: this.targetSampleRate.value,
       bitDepth: this.targetBitDepth.value,
       channels: this.targetChannels.value
     };
+  }
+
+  saveCriteria() {
+    const criteria = this.getCriteria();
 
     // Save to localStorage
     const settings = { criteria };
@@ -541,13 +545,7 @@ class WebAudioAnalyzer {
   }
 
   validateAndDisplayResults(results) {
-    const criteria = {
-      fileType: this.targetFileType.value,
-      sampleRate: this.targetSampleRate.value,
-      bitDepth: this.targetBitDepth.value,
-      channels: this.targetChannels.value
-    };
-
+    const criteria = this.getCriteria();
     const validationResults = this.engine.validateCriteria(results, criteria);
     const formatted = this.engine.formatResults(results);
 
