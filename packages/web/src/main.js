@@ -272,6 +272,11 @@ class WebAudioAnalyzer {
     if (this.currentResults) {
       this.validateAndDisplayResults(this.currentResults);
     }
+
+    // Re-validate batch results if we have them
+    if (this.batchResults && this.batchMode) {
+      this.revalidateBatchResults();
+    }
   }
 
   getPresetConfigurations() {
@@ -340,6 +345,11 @@ class WebAudioAnalyzer {
         // Re-validate current results if we have them
         if (this.currentResults) {
           this.validateAndDisplayResults(this.currentResults);
+        }
+
+        // Re-validate batch results if we have them
+        if (this.batchResults && this.batchMode) {
+          this.revalidateBatchResults();
         }
       }
     }
@@ -750,6 +760,31 @@ class WebAudioAnalyzer {
 
     // Revoke URL after a delay to allow it to load
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  revalidateBatchResults() {
+    if (!this.batchResults) return;
+
+    const criteria = this.getCriteria();
+
+    // Re-run validation on all batch results
+    this.batchResults.forEach(result => {
+      if (result.analysis) {
+        result.validation = CriteriaValidator.validateResults(result.analysis, criteria);
+        result.status = this.getOverallStatus(result.validation);
+      }
+    });
+
+    // Re-display the updated results
+    this.showBatchResults(this.batchResults);
+  }
+
+  getOverallStatus(validation) {
+    const statuses = Object.values(validation).map(v => v.status);
+
+    if (statuses.includes('fail')) return 'fail';
+    if (statuses.includes('warning')) return 'warning';
+    return 'pass';
   }
 
   cleanupForNewFile() {
