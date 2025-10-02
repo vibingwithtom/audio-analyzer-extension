@@ -37,9 +37,6 @@
           <button class="tab-button" data-tab="gdrive">
             ☁️ Google Drive
           </button>
-          <button class="tab-button" data-tab="weburl">
-            🌐 Web URL
-          </button>
         </div>
 
         <!-- Target Criteria Section -->
@@ -151,29 +148,6 @@
               <p class="input-hint">
                 Paste a Google Drive file link to analyze audio files stored in your Drive.
                 Authentication will be prompted if needed.
-              </p>
-            </div>
-          </section>
-        </div>
-
-        <div class="tab-content" data-tab="weburl">
-          <section class="weburl-section">
-            <div class="weburl-input">
-              <label for="webUrl">Public Audio File URL</label>
-              <div class="input-group">
-                <input
-                  type="url"
-                  id="webUrl"
-                  placeholder="https://example.com/audio.mp3"
-                  class="weburl-input"
-                >
-                <button id="analyzeWebUrl" class="analyze-btn">
-                  Analyze
-                </button>
-              </div>
-              <p class="input-hint">
-                Enter a direct link to a publicly accessible audio file (MP3, WAV, FLAC, etc.).
-                The file must be hosted with CORS enabled.
               </p>
             </div>
           </section>
