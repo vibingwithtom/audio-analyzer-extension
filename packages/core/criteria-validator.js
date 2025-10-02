@@ -20,7 +20,7 @@ export class CriteriaValidator {
 
     // Handle WAV variations when WAV is the target
     if (targetType === 'wav' || targetType === 'WAV') {
-      if (actualType === 'WAV (PCM)') {
+      if (actualType === 'WAV (PCM)' || actualType === 'WAV') {
         // Perfect WAV match
         result.matches = true;
         result.status = 'pass';
@@ -55,6 +55,30 @@ export class CriteriaValidator {
       if (!value) return [];
       return Array.isArray(value) ? value : [value];
     };
+
+    // File Type Validation (Exact Match)
+    const fileTypes = toArray(criteria.fileType);
+    if (fileTypes.length > 0) {
+      // Check if any of the target types match
+      let bestMatch = { matches: false, status: 'fail' };
+
+      for (const targetType of fileTypes) {
+        const matchResult = this.matchesFileType(results.fileType, targetType);
+        if (matchResult.status === 'pass') {
+          bestMatch = matchResult;
+          break; // Found perfect match
+        } else if (matchResult.status === 'warning' && bestMatch.status === 'fail') {
+          bestMatch = matchResult; // Partial match better than no match
+        }
+      }
+
+      validationResults.fileType = {
+        matches: bestMatch.matches,
+        target: fileTypes,
+        actual: results.fileType,
+        status: bestMatch.status
+      };
+    }
 
     if (!metadataOnly) {
       // Sample Rate Validation (Exact Match)
