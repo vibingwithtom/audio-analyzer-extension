@@ -317,6 +317,34 @@ class GoogleAuth {
     }
   }
 
+  async getFileMetadata(fileId) {
+    const token = await this.getValidToken();
+
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name,mimeType,size,modifiedTime,videoMediaMetadata`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token.access_token}`
+          }
+        }
+      );
+
+      if (!response.ok) {
+        if (response.status === 403) {
+          this.signOut();
+          throw new Error('Insufficient permissions to access Google Drive. Please sign in again and grant Drive access.');
+        }
+        throw new Error(`Failed to get file metadata: ${response.status}`);
+      }
+
+      return await response.json();
+
+    } catch (error) {
+      throw new Error(`Google Drive metadata fetch failed: ${error.message}`);
+    }
+  }
+
   signOut() {
     if (this.accessToken && window.google) {
       // Revoke the access token

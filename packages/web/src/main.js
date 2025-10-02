@@ -72,12 +72,21 @@ class WebAudioAnalyzer {
     this.signInBtn = document.getElementById('signInBtn');
     this.signOutBtn = document.getElementById('signOutBtn');
 
+    // Analysis type elements (for filename validation)
+    this.analysisTypeSection = document.getElementById('analysisTypeSection');
+    this.enableAudioAnalysis = document.getElementById('enableAudioAnalysis');
+    this.enableFilenameValidation = document.getElementById('enableFilenameValidation');
+    this.filenameValidationFields = document.getElementById('filenameValidationFields');
+    this.speakerId = document.getElementById('speakerId');
+    this.scriptsFolderUrl = document.getElementById('scriptsFolderUrl');
+
     // Criteria elements
     this.presetSelector = document.getElementById('presetSelector');
     this.targetFileType = document.getElementById('targetFileType');
     this.targetSampleRate = document.getElementById('targetSampleRate');
     this.targetBitDepth = document.getElementById('targetBitDepth');
     this.targetChannels = document.getElementById('targetChannels');
+    this.targetMinDuration = document.getElementById('targetMinDuration');
 
     // Results elements
     this.playerSection = document.getElementById('playerSection');
@@ -170,10 +179,19 @@ class WebAudioAnalyzer {
     // Preset functionality
     this.presetSelector.addEventListener('change', () => this.handlePresetChange());
 
+    // Filename validation checkboxes
+    this.enableFilenameValidation.addEventListener('change', () => this.toggleFilenameValidationFields());
+    this.enableAudioAnalysis.addEventListener('change', () => this.validateAnalysisTypeSelection());
+
+    // Filename validation inputs
+    this.speakerId.addEventListener('input', () => this.saveFilenameValidationSettings());
+    this.scriptsFolderUrl.addEventListener('input', () => this.saveFilenameValidationSettings());
+
     // Criteria changes
     [this.targetFileType, this.targetSampleRate, this.targetBitDepth, this.targetChannels].forEach(select => {
       select.addEventListener('change', () => this.saveCriteria());
     });
+    this.targetMinDuration.addEventListener('input', () => this.saveCriteria());
 
     // Audio player
     this.playPause.addEventListener('click', () => this.togglePlayback());
@@ -196,12 +214,23 @@ class WebAudioAnalyzer {
       try {
         const settings = JSON.parse(stored);
         if (settings.criteria) {
-          this.targetFileType.value = settings.criteria.fileType || '';
-          this.targetSampleRate.value = settings.criteria.sampleRate || '';
-          // Handle bit depth - could be old array value or single value
-          const bitDepthCriteria = settings.criteria.bitDepth;
-          this.targetBitDepth.value = Array.isArray(bitDepthCriteria) ? (bitDepthCriteria[0] || '') : (bitDepthCriteria || '');
-          this.targetChannels.value = settings.criteria.channels || '';
+          // Helper to set multi-select values
+          const setMultiSelect = (selectElement, values) => {
+            Array.from(selectElement.options).forEach(option => {
+              option.selected = false;
+            });
+            const valuesArray = Array.isArray(values) ? values : (values ? [values] : []);
+            valuesArray.forEach(value => {
+              const option = Array.from(selectElement.options).find(opt => opt.value === value);
+              if (option) option.selected = true;
+            });
+          };
+
+          setMultiSelect(this.targetFileType, settings.criteria.fileType || []);
+          setMultiSelect(this.targetSampleRate, settings.criteria.sampleRate || []);
+          setMultiSelect(this.targetBitDepth, settings.criteria.bitDepth || []);
+          setMultiSelect(this.targetChannels, settings.criteria.channels || []);
+          this.targetMinDuration.value = settings.criteria.minDuration || '';
         }
       } catch (error) {
         console.warn('Failed to load settings from localStorage:', error);
@@ -219,6 +248,9 @@ class WebAudioAnalyzer {
       this.presetSelector.value = 'auditions';
       this.handlePresetChange();
     }
+
+    // Load filename validation settings
+    this.loadFilenameValidationSettings();
 
     // Update auth status
     this.updateAuthStatus();
@@ -259,12 +291,20 @@ class WebAudioAnalyzer {
   }
 
   getCriteria() {
-    return {
-      fileType: this.targetFileType.value,
-      sampleRate: this.targetSampleRate.value,
-      bitDepth: this.targetBitDepth.value,
-      channels: this.targetChannels.value
+    // Helper to get selected values from multi-select
+    const getSelectedValues = (selectElement) => {
+      return Array.from(selectElement.selectedOptions).map(option => option.value);
     };
+
+    const criteria = {
+      fileType: getSelectedValues(this.targetFileType),
+      sampleRate: getSelectedValues(this.targetSampleRate),
+      bitDepth: getSelectedValues(this.targetBitDepth),
+      channels: getSelectedValues(this.targetChannels),
+      minDuration: this.targetMinDuration.value || ''
+    };
+
+    return criteria;
   }
 
   saveCriteria() {
@@ -289,35 +329,65 @@ class WebAudioAnalyzer {
     return {
       'auditions': {
         name: 'Auditions',
-        fileType: 'wav',
-        sampleRate: '48000', // Min 48kHz
-        bitDepth: '24', // Min 24-bit
-        channels: '1'
+        fileType: ['wav'],
+        sampleRate: ['48000'],
+        bitDepth: ['24'],
+        channels: ['1'],
+        minDuration: '120' // 2 minutes
       },
       'character-recordings': {
         name: 'Character Recordings',
-        fileType: 'wav',
-        sampleRate: '48000', // Min 48kHz
-        bitDepth: '24', // Min 24-bit
-        channels: '1'
+        fileType: ['wav'],
+        sampleRate: ['48000'],
+        bitDepth: ['24'],
+        channels: ['1'],
+        minDuration: '' // No requirement
+      },
+      'p2b2-pairs-mono': {
+        name: 'P2B2 Pairs (Mono)',
+        fileType: ['wav'],
+        sampleRate: ['44100', '48000'],
+        bitDepth: ['16', '24'],
+        channels: ['1'],
+        minDuration: ''
+      },
+      'p2b2-pairs-stereo': {
+        name: 'P2B2 Pairs (Stereo)',
+        fileType: ['wav'],
+        sampleRate: ['44100', '48000'],
+        bitDepth: ['16', '24'],
+        channels: ['2'],
+        minDuration: ''
+      },
+      'p2b2-pairs-mixed': {
+        name: 'P2B2 Pairs (Mixed)',
+        fileType: ['wav'],
+        sampleRate: ['44100', '48000'],
+        bitDepth: ['16', '24'],
+        channels: ['1', '2'],
+        minDuration: ''
+      },
+      'three-hour': {
+        name: 'Three Hour',
+        fileType: ['wav'],
+        sampleRate: ['48000'],
+        bitDepth: ['24'],
+        channels: ['1'],
+        minDuration: '',
+        supportsFilenameValidation: true,
+        filenameValidationType: 'script-match' // Requires matching .txt script file
+      },
+      'bilingual-conversational': {
+        name: 'Bilingual Conversational',
+        fileType: ['wav'],
+        sampleRate: ['48000'],
+        bitDepth: ['16', '24'],
+        channels: ['2'],
+        minDuration: ''
       },
       'custom': {
         name: 'Custom',
         // Custom allows manual selection of individual criteria
-      },
-      'p2b2-pairs': {
-        name: 'P2B2 Pairs',
-        fileType: 'wav',
-        sampleRate: '48000', // Min 48kHz
-        bitDepth: '16', // Min 16-bit (allows 16, 24, 32)
-        channels: '2'
-      },
-      'three-hour': {
-        name: 'Three Hour',
-        fileType: 'wav',
-        sampleRate: '48000', // Min 48kHz
-        bitDepth: '24', // Min 24-bit
-        channels: '' // No channel requirement specified
       }
     };
   }
@@ -339,11 +409,26 @@ class WebAudioAnalyzer {
       const config = presets[selectedPreset];
 
       if (config) {
+        // Helper to set multi-select values
+        const setMultiSelect = (selectElement, values) => {
+          // Clear all selections first
+          Array.from(selectElement.options).forEach(option => {
+            option.selected = false;
+          });
+          // Select the values from config
+          const valuesArray = Array.isArray(values) ? values : (values ? [values] : []);
+          valuesArray.forEach(value => {
+            const option = Array.from(selectElement.options).find(opt => opt.value === value);
+            if (option) option.selected = true;
+          });
+        };
+
         // Apply preset configuration
-        this.targetFileType.value = config.fileType || '';
-        this.targetSampleRate.value = config.sampleRate || '';
-        this.targetBitDepth.value = config.bitDepth || '';
-        this.targetChannels.value = config.channels || '';
+        setMultiSelect(this.targetFileType, config.fileType || []);
+        setMultiSelect(this.targetSampleRate, config.sampleRate || []);
+        setMultiSelect(this.targetBitDepth, config.bitDepth || []);
+        setMultiSelect(this.targetChannels, config.channels || []);
+        this.targetMinDuration.value = config.minDuration || '';
 
         // Save the changes
         this.saveCriteria();
@@ -357,11 +442,68 @@ class WebAudioAnalyzer {
         if (this.batchResults && this.batchMode) {
           this.revalidateBatchResults();
         }
+
+        // Show/hide filename validation section based on preset support
+        if (config.supportsFilenameValidation) {
+          this.analysisTypeSection.style.display = 'block';
+        } else {
+          this.analysisTypeSection.style.display = 'none';
+          this.filenameValidationFields.style.display = 'none';
+        }
       }
     }
 
     // Save selected preset to localStorage for persistence
     localStorage.setItem('audio-analyzer-selected-preset', selectedPreset);
+  }
+
+  toggleFilenameValidationFields() {
+    if (this.enableFilenameValidation.checked) {
+      this.filenameValidationFields.style.display = 'block';
+    } else {
+      this.filenameValidationFields.style.display = 'none';
+    }
+    this.saveFilenameValidationSettings();
+  }
+
+  validateAnalysisTypeSelection() {
+    // Ensure at least one analysis type is selected
+    if (!this.enableAudioAnalysis.checked && !this.enableFilenameValidation.checked) {
+      // If user unchecked the last option, re-check it
+      this.enableAudioAnalysis.checked = true;
+      alert('At least one analysis type must be selected');
+    }
+    this.saveFilenameValidationSettings();
+  }
+
+  saveFilenameValidationSettings() {
+    const settings = {
+      enableAudioAnalysis: this.enableAudioAnalysis.checked,
+      enableFilenameValidation: this.enableFilenameValidation.checked,
+      speakerId: this.speakerId.value,
+      scriptsFolderUrl: this.scriptsFolderUrl.value
+    };
+    localStorage.setItem('audio-analyzer-filename-validation', JSON.stringify(settings));
+  }
+
+  loadFilenameValidationSettings() {
+    const saved = localStorage.getItem('audio-analyzer-filename-validation');
+    if (saved) {
+      try {
+        const settings = JSON.parse(saved);
+        this.enableAudioAnalysis.checked = settings.enableAudioAnalysis !== false; // Default true
+        this.enableFilenameValidation.checked = settings.enableFilenameValidation || false;
+        this.speakerId.value = settings.speakerId || '';
+        this.scriptsFolderUrl.value = settings.scriptsFolderUrl || '';
+
+        // Show fields if checkbox is checked
+        if (this.enableFilenameValidation.checked) {
+          this.filenameValidationFields.style.display = 'block';
+        }
+      } catch (e) {
+        console.error('Error loading filename validation settings:', e);
+      }
+    }
   }
 
 
@@ -593,66 +735,67 @@ class WebAudioAnalyzer {
           let analysis;
           let usedFallback = false;
 
-          // Retry logic for transient Google Drive errors
-          const maxRetries = 3;
-          let lastError = null;
+          const useMetadataOnly = this.enableFilenameValidation.checked && !this.enableAudioAnalysis.checked;
 
-          for (let attempt = 0; attempt < maxRetries; attempt++) {
-            try {
-              // Try to download file headers (first 100KB) for detailed analysis
-              const headerBlob = await this.googleAuth.downloadFileHeaders(driveFile.id);
+          if (useMetadataOnly) {
+            // Metadata-only mode: faster, but less detailed analysis
+            const metadata = await this.googleAuth.getFileMetadata(driveFile.id);
+            analysis = {
+              filename: metadata.name,
+              fileSize: parseInt(metadata.size) || 0,
+              fileType: this.getFileTypeFromName(metadata.name),
+              sampleRate: 'Unknown',
+              bitDepth: 'Unknown',
+              channels: 'Unknown',
+              duration: metadata.videoMediaMetadata?.durationMillis
+                ? metadata.videoMediaMetadata.durationMillis / 1000
+                : 'Unknown'
+            };
+            usedFallback = true; // Indicate that this is a limited analysis
+          } else {
+            // Existing logic: download headers for more detailed analysis
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+              try {
+                // Try to download file headers (first 100KB) for detailed analysis
+                const headerBlob = await this.googleAuth.downloadFileHeaders(driveFile.id);
 
-              // Create a pseudo-File object for analysis
-              const fileSize = parseInt(driveFile.size) || headerBlob.size;
-              const file = new File([headerBlob], driveFile.name, {
-                type: driveFile.mimeType,
-                lastModified: new Date(driveFile.modifiedTime).getTime()
-              });
+                // Create a pseudo-File object for analysis
+                const fileSize = parseInt(driveFile.size) || headerBlob.size;
+                const file = new File([headerBlob], driveFile.name, {
+                  type: driveFile.mimeType,
+                  lastModified: new Date(driveFile.modifiedTime).getTime()
+                });
 
-              // Add a custom size property that overrides the blob size
-              Object.defineProperty(file, 'size', {
-                value: fileSize,
-                writable: false
-              });
+                // Add a custom size property that overrides the blob size
+                Object.defineProperty(file, 'size', {
+                  value: fileSize,
+                  writable: false
+                });
 
-              // Analyze headers (will use the overridden file.size)
-              analysis = await this.batchProcessor.analyzer.analyzeHeaders(file);
+                // Analyze headers (will use the overridden file.size)
+                analysis = await this.batchProcessor.analyzer.analyzeHeaders(file);
 
-              // Success! Break out of retry loop
-              break;
-
-            } catch (downloadError) {
-              lastError = downloadError;
-
-              // Check if it's a retryable error (5xx server errors)
-              const isRetryable = downloadError.message.includes('500') ||
-                                  downloadError.message.includes('502') ||
-                                  downloadError.message.includes('503') ||
-                                  downloadError.message.includes('504');
-
-              if (isRetryable && attempt < maxRetries - 1) {
-                // Wait with exponential backoff before retrying
-                const delay = Math.min(1000 * Math.pow(2, attempt), 5000); // Max 5 seconds
-                console.log(`Retry ${attempt + 1}/${maxRetries} for ${driveFile.name} after ${delay}ms...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-              } else if (attempt === maxRetries - 1) {
-                // All retries failed, fall back to Google metadata
-                console.warn(`Failed to download headers for ${driveFile.name} after ${maxRetries} attempts, using Google metadata:`, downloadError.message);
-                usedFallback = true;
-
-                // Build analysis from Google Drive metadata only
-                analysis = {
-                  filename: driveFile.name,
-                  fileSize: parseInt(driveFile.size) || 0,
-                  fileType: this.getFileTypeFromName(driveFile.name),
-                  sampleRate: 'Unknown',
-                  bitDepth: 'Unknown',
-                  channels: 'Unknown',
-                  duration: driveFile.videoMediaMetadata?.durationMillis
-                    ? driveFile.videoMediaMetadata.durationMillis / 1000
-                    : 'Unknown'
-                };
+                // Success! Break out of retry loop
                 break;
+
+              } catch (downloadError) {
+                lastError = downloadError;
+
+                // Check if it's a retryable error (5xx server errors)
+                const isRetryable = downloadError.message.includes('500') ||
+                                    downloadError.message.includes('502') ||
+                                    downloadError.message.includes('503') ||
+                                    downloadError.message.includes('504');
+
+                if (isRetryable && attempt < maxRetries - 1) {
+                  // Wait with exponential backoff before retrying
+                  const delay = Math.min(1000 * Math.pow(2, attempt), 5000); // Max 5 seconds
+                  console.log(`Retry ${attempt + 1}/${maxRetries} for ${driveFile.name} after ${delay}ms...`);
+                  await new Promise(resolve => setTimeout(resolve, delay));
+                } else {
+                  // All retries failed, so we throw the last error
+                  throw lastError;
+                }
               }
             }
           }

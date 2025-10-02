@@ -50,91 +50,91 @@ export class CriteriaValidator {
   static validateResults(results, criteria) {
     const validationResults = {};
 
-    // Sample Rate Validation (Minimum)
-    if (criteria.sampleRate) {
-      const minSampleRate = parseInt(criteria.sampleRate);
-      const actualSampleRate = results.sampleRate;
+    // Helper to normalize criteria to arrays
+    const toArray = (value) => {
+      if (!value) return [];
+      return Array.isArray(value) ? value : [value];
+    };
 
-      let status = 'fail';
-      if (actualSampleRate === minSampleRate) {
-        status = 'pass'; // Exact match - green
-      } else if (actualSampleRate > minSampleRate) {
-        status = 'warning'; // Above minimum - yellow
-      }
-      // Below minimum stays 'fail' - red
+    // Sample Rate Validation (Exact Match)
+    const sampleRates = toArray(criteria.sampleRate).map(sr => parseInt(sr)).filter(sr => !isNaN(sr));
+    if (sampleRates.length > 0) {
+      const actualSampleRate = results.sampleRate;
+      const matches = sampleRates.includes(actualSampleRate);
 
       validationResults.sampleRate = {
-        matches: actualSampleRate >= minSampleRate,
-        target: minSampleRate,
-        actual: actualSampleRate,
-        status: status
-      };
-    }
-
-    // Bit Depth Validation (Minimum)
-    if (criteria.bitDepth) {
-      const minBitDepth = parseInt(criteria.bitDepth);
-      const actualBitDepth = results.bitDepth;
-
-      let status = 'fail';
-      if (actualBitDepth === minBitDepth) {
-        status = 'pass'; // Exact match - green
-      } else if (actualBitDepth > minBitDepth) {
-        status = 'warning'; // Above minimum - yellow
-      }
-      // Below minimum stays 'fail' - red
-
-      validationResults.bitDepth = {
-        matches: actualBitDepth >= minBitDepth,
-        target: minBitDepth,
-        actual: actualBitDepth,
-        status: status
-      };
-    }
-
-    // Channels Validation
-    if (criteria.channels) {
-      const targetChannels = parseInt(criteria.channels);
-      const matches = results.channels === targetChannels;
-      validationResults.channels = {
         matches: matches,
-        target: targetChannels,
-        actual: results.channels,
+        target: sampleRates,
+        actual: actualSampleRate,
         status: matches ? 'pass' : 'fail'
       };
     }
 
-    // File Type Validation
-    if (criteria.fileType) {
-      const matchResult = this.matchesFileType(results.fileType, criteria.fileType);
-      validationResults.fileType = {
-        matches: matchResult.matches,
-        target: criteria.fileType,
-        actual: results.fileType,
-        status: matchResult.status
+    // Bit Depth Validation (Exact Match)
+    const bitDepths = toArray(criteria.bitDepth).map(bd => parseInt(bd)).filter(bd => !isNaN(bd));
+    if (bitDepths.length > 0) {
+      const actualBitDepth = results.bitDepth;
+      const matches = bitDepths.includes(actualBitDepth);
+
+      validationResults.bitDepth = {
+        matches: matches,
+        target: bitDepths,
+        actual: actualBitDepth,
+        status: matches ? 'pass' : 'fail'
       };
     }
 
-    // Duration Validation (always performed)
-    const durationSeconds = results.duration;
-    let durationStatus = 'fail';
-    let durationMatches = false;
+    // Channels Validation (Exact Match)
+    const channels = toArray(criteria.channels).map(ch => parseInt(ch)).filter(ch => !isNaN(ch));
+    if (channels.length > 0) {
+      const actualChannels = results.channels;
+      const matches = channels.includes(actualChannels);
 
-    if (durationSeconds >= 120) { // 2 minutes or more
-      durationStatus = 'pass';
-      durationMatches = true;
-    } else if (durationSeconds >= 60) { // 1-2 minutes
-      durationStatus = 'warning';
-      durationMatches = false; // Not ideal but acceptable
+      validationResults.channels = {
+        matches: matches,
+        target: channels,
+        actual: actualChannels,
+        status: matches ? 'pass' : 'fail'
+      };
     }
-    // Under 1 minute stays 'fail'
 
-    validationResults.duration = {
-      matches: durationMatches,
-      target: '2+ minutes',
-      actual: durationSeconds,
-      status: durationStatus
-    };
+    // File Type Validation (Exact Match)
+    const fileTypes = toArray(criteria.fileType);
+    if (fileTypes.length > 0) {
+      // Check if any of the target types match
+      let bestMatch = { matches: false, status: 'fail' };
+
+      for (const targetType of fileTypes) {
+        const matchResult = this.matchesFileType(results.fileType, targetType);
+        if (matchResult.status === 'pass') {
+          bestMatch = matchResult;
+          break; // Found perfect match
+        } else if (matchResult.status === 'warning' && bestMatch.status === 'fail') {
+          bestMatch = matchResult; // Partial match better than no match
+        }
+      }
+
+      validationResults.fileType = {
+        matches: bestMatch.matches,
+        target: fileTypes,
+        actual: results.fileType,
+        status: bestMatch.status
+      };
+    }
+
+    // Duration Validation (Minimum - only if specified in criteria)
+    if (criteria.minDuration) {
+      const minDurationSeconds = parseInt(criteria.minDuration);
+      const durationSeconds = results.duration;
+      const matches = typeof durationSeconds === 'number' && durationSeconds >= minDurationSeconds;
+
+      validationResults.duration = {
+        matches: matches,
+        target: `${minDurationSeconds}s minimum`,
+        actual: durationSeconds,
+        status: matches ? 'pass' : 'fail'
+      };
+    }
 
     return validationResults;
   }

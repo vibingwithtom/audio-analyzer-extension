@@ -336,6 +336,63 @@ body {
   background: #4b5563;
 }
 
+.analysis-type-section {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border-left: 4px solid #6366f1;
+}
+
+.analysis-type-section h3 {
+  margin-bottom: 0.75rem;
+  color: #374151;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.filename-validation-fields {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: #fef3c7;
+  border-radius: 8px;
+  border-left: 4px solid #f59e0b;
+}
+
+.filename-validation-fields h3 {
+  margin-bottom: 0.75rem;
+  color: #92400e;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.validation-inputs {
+  display: grid;
+  gap: 1rem;
+}
+
+.validation-inputs .criteria-item {
+  margin-bottom: 0;
+}
+
+.validation-inputs input[type="text"],
+.validation-inputs input[type="url"] {
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: white;
+  transition: border-color 0.2s;
+}
+
+.validation-inputs input[type="text"]:focus,
+.validation-inputs input[type="url"]:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
 .gdrive-input label {
   display: block;
   margin-bottom: 0.5rem;
