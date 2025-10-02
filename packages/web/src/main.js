@@ -486,27 +486,22 @@ class WebAudioAnalyzer {
     this.showLoading();
 
     try {
-      // Extract file ID from Google Drive URL
-      const fileId = this.extractFileIdFromUrl(url);
-      if (!fileId) {
-        throw new Error('Invalid Google Drive URL. Please ensure it\'s a valid Drive file link.');
+      // Extract file/folder ID from Google Drive URL
+      const parsed = this.extractFileIdFromUrl(url);
+      if (!parsed) {
+        throw new Error('Invalid Google Drive URL. Please ensure it\'s a valid Drive file or folder link.');
       }
-
-      // Download file using Google Drive API
-      const file = await this.googleAuth.downloadFile(fileId);
-      this.currentFile = file;
 
       // Update auth status in case user was automatically signed in
       this.updateAuthStatus();
 
-      // Analyze the downloaded file
-      const results = await this.engine.analyzeFile(file);
-      this.currentResults = results;
-
-      // Setup audio player and display results
-      this.setupAudioPlayer(file);
-      this.validateAndDisplayResults(results);
-      this.showResults();
+      if (parsed.isFolder) {
+        // Handle folder - batch process all audio files
+        await this.handleGoogleDriveFolder(parsed.id);
+      } else {
+        // Handle single file
+        await this.handleGoogleDriveFile(parsed.id);
+      }
 
     } catch (error) {
       console.error('Google Drive error:', error);
@@ -514,24 +509,110 @@ class WebAudioAnalyzer {
       if (error.message.includes('sign-in') || error.message.includes('auth')) {
         this.showError('Please sign in to Google to access Drive files. Click "Analyze" to authenticate.');
       } else {
-        this.showError(`Failed to process Google Drive file: ${error.message}`);
+        this.showError(`Failed to process Google Drive: ${error.message}`);
       }
     } finally {
       this.processingFile = false;
     }
   }
 
+  async handleGoogleDriveFile(fileId) {
+    // Download file using Google Drive API
+    const file = await this.googleAuth.downloadFile(fileId);
+    this.currentFile = file;
+
+    // Analyze the downloaded file
+    const results = await this.engine.analyzeFile(file);
+    this.currentResults = results;
+
+    // Setup audio player and display results
+    this.setupAudioPlayer(file);
+    this.validateAndDisplayResults(results);
+    this.showResults();
+  }
+
+  async handleGoogleDriveFolder(folderId) {
+    // List all audio files in folder
+    const audioFiles = await this.googleAuth.listAudioFilesInFolder(folderId);
+
+    if (audioFiles.length === 0) {
+      throw new Error('No audio files found in this folder');
+    }
+
+    console.log(`Found ${audioFiles.length} audio files in folder`);
+
+    // Switch to batch mode
+    this.batchMode = true;
+
+    // Show batch progress
+    this.showBatchProgress(0, audioFiles.length, 'Initializing...');
+
+    const criteria = this.getCriteria();
+    const results = [];
+
+    // Process each file
+    for (let i = 0; i < audioFiles.length; i++) {
+      const driveFile = audioFiles[i];
+
+      try {
+        // Update progress
+        this.showBatchProgress(i, audioFiles.length, driveFile.name);
+
+        // Download file headers (first 100KB)
+        const headerBlob = await this.googleAuth.downloadFileHeaders(driveFile.id);
+
+        // Create a pseudo-File object for analysis
+        const file = new File([headerBlob], driveFile.name, {
+          type: driveFile.mimeType,
+          lastModified: new Date(driveFile.modifiedTime).getTime()
+        });
+
+        // Analyze headers
+        const analysis = await this.batchProcessor.analyzer.analyzeHeaders(file);
+
+        // Apply validation
+        const validation = CriteriaValidator.validateResults(analysis, criteria);
+
+        results.push({
+          filename: driveFile.name,
+          file: null, // Can't play Drive files directly without downloading
+          analysis,
+          validation,
+          status: this.getOverallStatus(validation)
+        });
+
+      } catch (error) {
+        console.error(`Error processing ${driveFile.name}:`, error);
+        results.push({
+          filename: driveFile.name,
+          file: null,
+          analysis: null,
+          validation: null,
+          status: 'error',
+          error: error.message
+        });
+      }
+
+      // Update progress
+      this.showBatchProgress(i + 1, audioFiles.length, driveFile.name);
+    }
+
+    // Show results
+    this.showBatchResults(results);
+  }
+
   extractFileIdFromUrl(url) {
     // Handle various Google Drive URL formats
     const patterns = [
-      /\/file\/d\/([a-zA-Z0-9-_]+)/,  // Standard sharing link
+      /\/file\/d\/([a-zA-Z0-9-_]+)/,  // Standard file sharing link
+      /\/folders\/([a-zA-Z0-9-_]+)/,  // Folder sharing link
       /[?&]id=([a-zA-Z0-9-_]+)/,      // URL parameter
-      /^([a-zA-Z0-9-_]+)$/            // Just the file ID
+      /^([a-zA-Z0-9-_]+)$/            // Just the ID
     ];
 
     for (const pattern of patterns) {
       const match = url.match(pattern);
-      if (match) return match[1];
+      if (match) return { id: match[1], isFolder: pattern === patterns[1] };
     }
 
     return null;

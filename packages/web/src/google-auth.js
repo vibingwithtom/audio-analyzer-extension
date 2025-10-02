@@ -246,6 +246,77 @@ class GoogleAuth {
     }
   }
 
+  async listAudioFilesInFolder(folderId) {
+    const token = await this.getValidToken();
+
+    try {
+      const audioMimeTypes = [
+        'audio/mpeg',
+        'audio/wav',
+        'audio/x-wav',
+        'audio/wave',
+        'audio/flac',
+        'audio/x-flac',
+        'audio/aac',
+        'audio/mp4',
+        'audio/ogg',
+        'audio/x-m4a'
+      ];
+
+      const mimeQuery = audioMimeTypes.map(type => `mimeType='${type}'`).join(' or ');
+      const query = `'${folderId}' in parents and (${mimeQuery}) and trashed=false`;
+
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,modifiedTime)&pageSize=1000`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token.access_token}`
+          }
+        }
+      );
+
+      if (!response.ok) {
+        if (response.status === 403) {
+          this.signOut();
+          throw new Error('Insufficient permissions to access Google Drive folder. Please sign in again.');
+        }
+        throw new Error(`Failed to list folder contents: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.files || [];
+
+    } catch (error) {
+      throw new Error(`Failed to list folder: ${error.message}`);
+    }
+  }
+
+  async downloadFileHeaders(fileId, bytesLimit = 102400) {
+    const token = await this.getValidToken();
+
+    try {
+      // Use HTTP Range header to download only first 100KB
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token.access_token}`,
+            'Range': `bytes=0-${bytesLimit - 1}`
+          }
+        }
+      );
+
+      if (!response.ok && response.status !== 206) {
+        throw new Error(`Failed to download file headers: ${response.status}`);
+      }
+
+      return await response.blob();
+
+    } catch (error) {
+      throw new Error(`Failed to download headers: ${error.message}`);
+    }
+  }
+
   signOut() {
     if (this.accessToken && window.google) {
       // Revoke the access token
