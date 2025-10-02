@@ -1042,7 +1042,17 @@ class WebAudioAnalyzer {
     // Re-validate with current criteria before displaying (in case criteria changed during processing)
     if (result.analysis && !result.error) {
       const currentCriteria = this.getCriteria();
-      result.validation = CriteriaValidator.validateResults(result.analysis, currentCriteria);
+      const useMetadataOnly = this.enableFilenameValidation.checked && !this.enableAudioAnalysis.checked;
+      result.validation = CriteriaValidator.validateResults(result.analysis, currentCriteria, useMetadataOnly);
+
+      // If in metadata-only mode, override status for audio-specific fields to 'unknown'
+      if (useMetadataOnly) {
+        if (result.validation.sampleRate) result.validation.sampleRate.status = 'unknown';
+        if (result.validation.bitDepth) result.validation.bitDepth.status = 'unknown';
+        if (result.validation.channels) result.validation.channels.status = 'unknown';
+        if (result.validation.duration) result.validation.duration.status = 'unknown';
+      }
+
       result.status = this.getOverallStatus(result.validation);
     }
 
