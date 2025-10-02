@@ -317,12 +317,17 @@ class GoogleAuth {
     }
   }
 
-  async getFileMetadata(fileId) {
+  async getFileMetadata(driveFile) {
+    // If the driveFile object already has videoMediaMetadata, we can just return it.
+    if (driveFile.videoMediaMetadata) {
+      return driveFile;
+    }
+
     const token = await this.getValidToken();
 
     try {
       const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name,mimeType,size,modifiedTime,videoMediaMetadata`,
+        `https://www.googleapis.com/drive/v3/files/${driveFile.id}?fields=name,mimeType,size,modifiedTime,videoMediaMetadata`,
         {
           headers: {
             'Authorization': `Bearer ${token.access_token}`
