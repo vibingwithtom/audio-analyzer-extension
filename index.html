@@ -17,8 +17,8 @@
   <meta property="og:description" content="Professional audio file analysis tool">
   <meta property="og:type" content="website">
 
-  <script type="module" crossorigin src="/assets/index-Dz-P6YzI.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-CQfTmHo5.css">
+  <script type="module" crossorigin src="/assets/index-B9ApM7BI.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-fhlHg-aV.css">
 </head>
 <body>
   <div id="app">
@@ -38,6 +38,17 @@
           <button class="tab-button" data-tab="gdrive">
             ☁️ Google Drive
           </button>
+        </div>
+
+        <!-- Google Drive Auth (only shown when on Google Drive tab) -->
+        <div class="gdrive-auth-global tab-content" data-tab="gdrive">
+          <div class="gdrive-auth" id="driveAuth">
+            <div class="auth-status" id="authStatus">
+              <span id="authText">Not signed in to Google</span>
+              <button id="signInBtn" class="sign-in-btn" style="display: none;">Sign In</button>
+              <button id="signOutBtn" class="sign-out-btn" style="display: none;">Sign Out</button>
+            </div>
+          </div>
         </div>
 
         <!-- Target Criteria Section -->
@@ -128,11 +139,33 @@
 
         <div class="tab-content" data-tab="gdrive">
           <section class="gdrive-section">
-            <div class="gdrive-auth" id="driveAuth">
-              <div class="auth-status" id="authStatus">
-                <span id="authText">Not signed in to Google</span>
-                <button id="signInBtn" class="sign-in-btn" style="display: none;">Sign In</button>
-                <button id="signOutBtn" class="sign-out-btn" style="display: none;">Sign Out</button>
+            <!-- Analysis Type Selection (only shown for presets with filename validation) -->
+            <div id="analysisTypeSection" class="analysis-type-section" style="display: none;">
+              <h3>Analysis Options</h3>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="enableAudioAnalysis" checked>
+                  <span>Audio Quality Analysis</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="enableFilenameValidation">
+                  <span>Filename Validation</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Filename Validation Fields (only shown when checkbox is checked) -->
+            <div id="filenameValidationFields" class="filename-validation-fields" style="display: none;">
+              <h3>Filename Validation Settings</h3>
+              <div class="validation-inputs">
+                <div class="criteria-item">
+                  <label for="speakerId">Speaker ID</label>
+                  <input type="text" id="speakerId" placeholder="e.g., SPK123">
+                </div>
+                <div class="criteria-item">
+                  <label for="scriptsFolderUrl">Scripts Folder URL</label>
+                  <input type="url" id="scriptsFolderUrl" placeholder="https://drive.google.com/folders/...">
+                </div>
               </div>
             </div>
 
@@ -322,11 +355,12 @@
                 <tr>
                   <th>Filename</th>
                   <th>Status</th>
-                  <th>Format</th>
-                  <th>Sample Rate</th>
-                  <th>Bit Depth</th>
-                  <th>Channels</th>
-                  <th>Duration</th>
+                  <th id="filenameCheckHeader" style="display: none;">Filename Check</th>
+                  <th id="formatHeader">Format</th>
+                  <th id="sampleRateHeader">Sample Rate</th>
+                  <th id="bitDepthHeader">Bit Depth</th>
+                  <th id="channelsHeader">Channels</th>
+                  <th id="durationHeader">Duration</th>
                   <th>File Size</th>
                   <th>Play</th>
                 </tr>
