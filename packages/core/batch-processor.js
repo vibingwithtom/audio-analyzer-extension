@@ -230,7 +230,7 @@ export class BatchProcessor {
   /**
    * Process multiple files in batch
    * @param {File[]} files - Array of files to process
-   * @param {Object} criteria - Validation criteria
+   * @param {Object|Function} criteria - Validation criteria object or function that returns criteria
    * @param {Function} progressCallback - Called with progress updates
    * @param {Function} resultCallback - Called with each result as it completes
    * @returns {Promise<Array>} Array of results
@@ -252,8 +252,11 @@ export class BatchProcessor {
         // Quick header analysis
         const analysis = await this.analyzer.analyzeHeaders(file);
 
+        // Get fresh criteria (in case user changed it during processing)
+        const currentCriteria = typeof criteria === 'function' ? criteria() : criteria;
+
         // Apply validation criteria
-        const validation = this.validator.validateResults(analysis, criteria);
+        const validation = this.validator.validateResults(analysis, currentCriteria);
 
         result = {
           filename: file.name,

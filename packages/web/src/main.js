@@ -108,6 +108,8 @@ class WebAudioAnalyzer {
     this.batchPassCount = document.getElementById('batchPassCount');
     this.batchWarningCount = document.getElementById('batchWarningCount');
     this.batchFailCount = document.getElementById('batchFailCount');
+    this.batchErrorCount = document.getElementById('batchErrorCount');
+    this.batchTotalDuration = document.getElementById('batchTotalDuration');
     this.batchTableBody = document.getElementById('batchTableBody');
   }
 
@@ -452,11 +454,9 @@ class WebAudioAnalyzer {
     this.initializeBatchResultsTable();
 
     try {
-      const criteria = this.getCriteria();
-
       const results = await this.batchProcessor.processBatch(
         files,
-        criteria,
+        () => this.getCriteria(), // Pass function to get fresh criteria
         (progress) => {
           this.showBatchProgress(
             progress.current,
@@ -571,8 +571,6 @@ class WebAudioAnalyzer {
     this.showBatchProgress(0, audioFiles.length, 'Initializing...');
     this.initializeBatchResultsTable();
 
-    const criteria = this.getCriteria();
-
     // Process files in parallel (3 at a time)
     const PARALLEL_LIMIT = 3;
     let completed = 0;
@@ -592,32 +590,80 @@ class WebAudioAnalyzer {
         if (this.batchCancelled) return null;
 
         try {
-          // Download file headers (first 100KB)
-          const headerBlob = await this.googleAuth.downloadFileHeaders(driveFile.id);
+          let analysis;
+          let usedFallback = false;
 
-          // Create a pseudo-File object for analysis
-          const fileSize = parseInt(driveFile.size) || headerBlob.size;
-          const file = new File([headerBlob], driveFile.name, {
-            type: driveFile.mimeType,
-            lastModified: new Date(driveFile.modifiedTime).getTime()
-          });
+          // Retry logic for transient Google Drive errors
+          const maxRetries = 3;
+          let lastError = null;
 
-          // Add a custom size property that overrides the blob size
-          Object.defineProperty(file, 'size', {
-            value: fileSize,
-            writable: false
-          });
+          for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+              // Try to download file headers (first 100KB) for detailed analysis
+              const headerBlob = await this.googleAuth.downloadFileHeaders(driveFile.id);
 
-          // Analyze headers (will use the overridden file.size)
-          const analysis = await this.batchProcessor.analyzer.analyzeHeaders(file);
+              // Create a pseudo-File object for analysis
+              const fileSize = parseInt(driveFile.size) || headerBlob.size;
+              const file = new File([headerBlob], driveFile.name, {
+                type: driveFile.mimeType,
+                lastModified: new Date(driveFile.modifiedTime).getTime()
+              });
+
+              // Add a custom size property that overrides the blob size
+              Object.defineProperty(file, 'size', {
+                value: fileSize,
+                writable: false
+              });
+
+              // Analyze headers (will use the overridden file.size)
+              analysis = await this.batchProcessor.analyzer.analyzeHeaders(file);
+
+              // Success! Break out of retry loop
+              break;
+
+            } catch (downloadError) {
+              lastError = downloadError;
+
+              // Check if it's a retryable error (5xx server errors)
+              const isRetryable = downloadError.message.includes('500') ||
+                                  downloadError.message.includes('502') ||
+                                  downloadError.message.includes('503') ||
+                                  downloadError.message.includes('504');
+
+              if (isRetryable && attempt < maxRetries - 1) {
+                // Wait with exponential backoff before retrying
+                const delay = Math.min(1000 * Math.pow(2, attempt), 5000); // Max 5 seconds
+                console.log(`Retry ${attempt + 1}/${maxRetries} for ${driveFile.name} after ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+              } else if (attempt === maxRetries - 1) {
+                // All retries failed, fall back to Google metadata
+                console.warn(`Failed to download headers for ${driveFile.name} after ${maxRetries} attempts, using Google metadata:`, downloadError.message);
+                usedFallback = true;
+
+                // Build analysis from Google Drive metadata only
+                analysis = {
+                  filename: driveFile.name,
+                  fileSize: parseInt(driveFile.size) || 0,
+                  fileType: this.getFileTypeFromName(driveFile.name),
+                  sampleRate: 'Unknown',
+                  bitDepth: 'Unknown',
+                  channels: 'Unknown',
+                  duration: driveFile.videoMediaMetadata?.durationMillis
+                    ? driveFile.videoMediaMetadata.durationMillis / 1000
+                    : 'Unknown'
+                };
+                break;
+              }
+            }
+          }
 
           // Use Google's duration if available (more accurate than our calculation)
           if (driveFile.videoMediaMetadata?.durationMillis) {
             analysis.duration = driveFile.videoMediaMetadata.durationMillis / 1000; // Convert ms to seconds
           }
 
-          // Apply validation
-          const validation = CriteriaValidator.validateResults(analysis, criteria);
+          // Apply validation - get fresh criteria in case user changed it during processing
+          const validation = CriteriaValidator.validateResults(analysis, this.getCriteria());
 
           return {
             filename: driveFile.name,
@@ -625,7 +671,8 @@ class WebAudioAnalyzer {
             driveFileId: driveFile.id, // Store Drive file ID for playback
             analysis,
             validation,
-            status: this.getOverallStatus(validation)
+            status: this.getOverallStatus(validation),
+            warning: usedFallback ? 'Limited analysis (Google Drive error)' : null
           };
 
         } catch (error) {
@@ -633,6 +680,7 @@ class WebAudioAnalyzer {
           return {
             filename: driveFile.name,
             file: null,
+            driveFileId: driveFile.id, // Still store ID for playback
             analysis: null,
             validation: null,
             status: 'error',
@@ -842,9 +890,18 @@ class WebAudioAnalyzer {
     this.batchPassCount.textContent = '0';
     this.batchWarningCount.textContent = '0';
     this.batchFailCount.textContent = '0';
+    this.batchErrorCount.textContent = '0';
+    this.batchTotalDuration.textContent = '0h 0m';
   }
 
   addBatchResultRow(result) {
+    // Re-validate with current criteria before displaying (in case criteria changed during processing)
+    if (result.analysis && !result.error) {
+      const currentCriteria = this.getCriteria();
+      result.validation = CriteriaValidator.validateResults(result.analysis, currentCriteria);
+      result.status = this.getOverallStatus(result.validation);
+    }
+
     const index = this.batchResults.length - 1;
     const row = document.createElement('tr');
     row.className = `batch-row ${result.status}`;
@@ -893,10 +950,25 @@ class WebAudioAnalyzer {
     const passCount = this.batchResults.filter(r => r.status === 'pass').length;
     const warningCount = this.batchResults.filter(r => r.status === 'warning').length;
     const failCount = this.batchResults.filter(r => r.status === 'fail').length;
+    const errorCount = this.batchResults.filter(r => r.status === 'error').length;
 
     this.batchPassCount.textContent = passCount;
     this.batchWarningCount.textContent = warningCount;
     this.batchFailCount.textContent = failCount;
+    this.batchErrorCount.textContent = errorCount;
+
+    // Calculate total duration for passed files only
+    const totalSeconds = this.batchResults
+      .filter(r => r.status === 'pass')
+      .reduce((sum, r) => {
+        const duration = r.analysis?.duration;
+        if (typeof duration === 'number' && !isNaN(duration)) {
+          return sum + duration;
+        }
+        return sum;
+      }, 0);
+
+    this.batchTotalDuration.textContent = this.formatTotalDuration(totalSeconds);
   }
 
   showBatchResults(results) {
@@ -908,10 +980,25 @@ class WebAudioAnalyzer {
     const passCount = results.filter(r => r.status === 'pass').length;
     const warningCount = results.filter(r => r.status === 'warning').length;
     const failCount = results.filter(r => r.status === 'fail').length;
+    const errorCount = results.filter(r => r.status === 'error').length;
 
     this.batchPassCount.textContent = passCount;
     this.batchWarningCount.textContent = warningCount;
     this.batchFailCount.textContent = failCount;
+    this.batchErrorCount.textContent = errorCount;
+
+    // Calculate total duration for passed files only
+    const totalSeconds = results
+      .filter(r => r.status === 'pass')
+      .reduce((sum, r) => {
+        const duration = r.analysis?.duration;
+        if (typeof duration === 'number' && !isNaN(duration)) {
+          return sum + duration;
+        }
+        return sum;
+      }, 0);
+
+    this.batchTotalDuration.textContent = this.formatTotalDuration(totalSeconds);
 
     // Rebuild table
     this.batchTableBody.innerHTML = '';
@@ -969,6 +1056,22 @@ class WebAudioAnalyzer {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
 
+  formatTotalDuration(totalSeconds) {
+    if (!totalSeconds || totalSeconds === 0) return '0h 0m 0s';
+
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = Math.floor(totalSeconds % 60);
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${seconds}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  }
+
   getValidationStatus(validation, field) {
     if (!validation || !validation[field]) return '';
     return validation[field].status; // 'pass', 'warning', or 'fail'
@@ -1015,6 +1118,19 @@ class WebAudioAnalyzer {
     if (statuses.includes('fail')) return 'fail';
     if (statuses.includes('warning')) return 'warning';
     return 'pass';
+  }
+
+  getFileTypeFromName(filename) {
+    const extension = filename.split('.').pop().toLowerCase();
+    const typeMap = {
+      'wav': 'WAV',
+      'mp3': 'MP3',
+      'flac': 'FLAC',
+      'aac': 'AAC',
+      'm4a': 'M4A',
+      'ogg': 'OGG'
+    };
+    return typeMap[extension] || extension.toUpperCase();
   }
 
   cleanupForNewFile() {
