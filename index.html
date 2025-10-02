@@ -10,15 +10,15 @@
 
   <!-- PWA Meta Tags -->
   <meta name="theme-color" content="#2563eb">
-  <link rel="manifest" href="/assets/manifest-CPrzWFIA.json">
+  <link rel="manifest" href="/audio-analyzer/assets/manifest-DxZNS_xL.json">
 
   <!-- Open Graph -->
   <meta property="og:title" content="Audio Analyzer">
   <meta property="og:description" content="Professional audio file analysis tool">
   <meta property="og:type" content="website">
 
-  <script type="module" crossorigin src="/assets/index-Ca20vsCO.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-C9ctsiPs.css">
+  <script type="module" crossorigin src="/audio-analyzer/assets/index-Dz-P6YzI.js"></script>
+  <link rel="stylesheet" crossorigin href="/audio-analyzer/assets/index-CQfTmHo5.css">
 </head>
 <body>
   <div id="app">
@@ -50,8 +50,11 @@
             <select id="presetSelector" class="preset-selector">
               <option value="auditions">Auditions</option>
               <option value="character-recordings">Character Recordings</option>
-              <option value="p2b2-pairs">P2B2 Pairs</option>
+              <option value="p2b2-pairs-mono">P2B2 Pairs (Mono)</option>
+              <option value="p2b2-pairs-stereo">P2B2 Pairs (Stereo)</option>
+              <option value="p2b2-pairs-mixed">P2B2 Pairs (Mixed)</option>
               <option value="three-hour">Three Hour</option>
+              <option value="bilingual-conversational">Bilingual Conversational</option>
               <option disabled>────────────</option>
               <option value="custom">Custom</option>
             </select>
@@ -65,9 +68,8 @@
           <div id="customCriteriaSection" class="custom-criteria" style="display: none;">
             <div class="criteria-grid">
               <div class="criteria-item">
-                <label for="targetFileType">File Type</label>
-                <select id="targetFileType">
-                  <option value="">Any</option>
+                <label for="targetFileType">File Type (multi-select)</label>
+                <select id="targetFileType" multiple size="3">
                   <option value="wav">WAV</option>
                   <option value="mp3">MP3</option>
                   <option value="flac">FLAC</option>
@@ -77,9 +79,8 @@
                 </select>
               </div>
               <div class="criteria-item">
-                <label for="targetSampleRate">Min. Sample Rate (kHz)</label>
-                <select id="targetSampleRate">
-                  <option value="">Any</option>
+                <label for="targetSampleRate">Sample Rate (multi-select)</label>
+                <select id="targetSampleRate" multiple size="3">
                   <option value="44100">44.1 kHz</option>
                   <option value="48000">48.0 kHz</option>
                   <option value="96000">96.0 kHz</option>
@@ -87,23 +88,25 @@
                 </select>
               </div>
               <div class="criteria-item">
-                <label for="targetBitDepth">Min. Bit Depth</label>
-                <select id="targetBitDepth">
-                  <option value="">Any</option>
+                <label for="targetBitDepth">Bit Depth (multi-select)</label>
+                <select id="targetBitDepth" multiple size="3">
                   <option value="16">16-bit</option>
                   <option value="24">24-bit</option>
                   <option value="32">32-bit</option>
                 </select>
               </div>
               <div class="criteria-item">
-                <label for="targetChannels">Channels</label>
-                <select id="targetChannels">
-                  <option value="">Any</option>
+                <label for="targetChannels">Channels (multi-select)</label>
+                <select id="targetChannels" multiple size="3">
                   <option value="1">Mono (1)</option>
                   <option value="2">Stereo (2)</option>
                   <option value="6">5.1 Surround (6)</option>
                   <option value="8">7.1 Surround (8)</option>
                 </select>
+              </div>
+              <div class="criteria-item">
+                <label for="targetMinDuration">Min. Duration (seconds)</label>
+                <input type="number" id="targetMinDuration" placeholder="e.g., 120" min="0">
               </div>
             </div>
           </div>
@@ -117,7 +120,7 @@
                 <h3>Drop audio file here</h3>
                 <p>Or click to browse files</p>
                 <button class="browse-btn" id="browseBtn">Choose File</button>
-                <input type="file" id="fileInput" accept="audio/*" style="display: none;">
+                <input type="file" id="fileInput" accept="audio/*" multiple style="display: none;">
               </div>
             </div>
           </section>
@@ -134,12 +137,12 @@
             </div>
 
             <div class="gdrive-input">
-              <label for="driveUrl">Google Drive File URL</label>
+              <label for="driveUrl">Google Drive File or Folder URL</label>
               <div class="input-group">
                 <input
                   type="url"
                   id="driveUrl"
-                  placeholder="https://drive.google.com/file/d/FILE_ID/view"
+                  placeholder="https://drive.google.com/file/d/... or .../folders/..."
                   class="gdrive-url-input"
                 >
                 <button id="analyzeUrl" class="analyze-btn">
@@ -147,7 +150,7 @@
                 </button>
               </div>
               <p class="input-hint">
-                Paste a Google Drive file link to analyze audio files stored in your Drive.
+                Paste a Google Drive file or folder link. For folders, all audio files will be batch analyzed.
                 Authentication will be prompted if needed.
               </p>
             </div>
@@ -158,6 +161,19 @@
         <div id="loading" class="loading" style="display: none;">
           <div class="spinner"></div>
           <p>Analyzing audio file...</p>
+        </div>
+
+        <!-- Batch Progress -->
+        <div id="batchProgress" class="batch-progress" style="display: none;">
+          <h3>Processing Batch</h3>
+          <div class="progress-info">
+            <span id="batchCurrentFile">file.mp3</span>
+            <span id="batchProgressText">0/0 (0%)</span>
+          </div>
+          <div class="progress-bar">
+            <div id="batchProgressBar" class="progress-fill" style="width: 0%"></div>
+          </div>
+          <button id="cancelBatch" class="cancel-btn">Cancel</button>
         </div>
 
         <!-- Error State -->
@@ -268,6 +284,56 @@
                 <span id="normalization">-</span>
               </div>
             </div>
+          </div>
+        </section>
+
+        <!-- Batch Results Section -->
+        <section id="batchResultsSection" class="batch-results-section" style="display: none;">
+          <h2>Batch Analysis Results</h2>
+
+          <div class="batch-summary">
+            <div class="summary-stats">
+              <div class="stat-item pass">
+                <span class="count" id="batchPassCount">0</span>
+                <span class="label">Pass</span>
+              </div>
+              <div class="stat-item warning">
+                <span class="count" id="batchWarningCount">0</span>
+                <span class="label">Warnings</span>
+              </div>
+              <div class="stat-item fail">
+                <span class="count" id="batchFailCount">0</span>
+                <span class="label">Failed</span>
+              </div>
+              <div class="stat-item error">
+                <span class="count" id="batchErrorCount">0</span>
+                <span class="label">Errors</span>
+              </div>
+            </div>
+            <div class="total-duration">
+              <span class="duration-label">Total Duration (Pass):</span>
+              <span class="duration-value" id="batchTotalDuration">0h 0m</span>
+            </div>
+          </div>
+
+          <div class="batch-table-container">
+            <table class="batch-results-table">
+              <thead>
+                <tr>
+                  <th>Filename</th>
+                  <th>Status</th>
+                  <th>Format</th>
+                  <th>Sample Rate</th>
+                  <th>Bit Depth</th>
+                  <th>Channels</th>
+                  <th>Duration</th>
+                  <th>File Size</th>
+                  <th>Play</th>
+                </tr>
+              </thead>
+              <tbody id="batchTableBody">
+              </tbody>
+            </table>
           </div>
         </section>
       </div>
