@@ -683,6 +683,9 @@ class WebAudioAnalyzer {
       const row = document.createElement('tr');
       row.className = `batch-row ${result.status}`;
 
+      // Format the analysis data using the same formatter as single file view
+      const formatted = result.analysis ? CriteriaValidator.formatDisplayText(result.analysis) : {};
+
       const fileTypeStatus = this.getValidationStatus(result.validation, 'fileType');
       const sampleRateStatus = this.getValidationStatus(result.validation, 'sampleRate');
       const bitDepthStatus = this.getValidationStatus(result.validation, 'bitDepth');
@@ -692,11 +695,11 @@ class WebAudioAnalyzer {
       row.innerHTML = `
         <td class="filename">${result.filename}</td>
         <td><span class="status-badge ${result.status}">${result.status}</span></td>
-        <td class="validation-${fileTypeStatus}">${result.analysis?.fileType || 'Unknown'}</td>
-        <td class="validation-${sampleRateStatus}">${this.formatValue(result.analysis?.sampleRate)}</td>
-        <td class="validation-${bitDepthStatus}">${this.formatValue(result.analysis?.bitDepth)}</td>
-        <td class="validation-${channelsStatus}">${this.formatValue(result.analysis?.channels)}</td>
-        <td class="validation-${durationStatus}">${this.formatDuration(result.analysis?.duration)}</td>
+        <td class="validation-${fileTypeStatus}">${formatted.fileType || 'Unknown'}</td>
+        <td class="validation-${sampleRateStatus}">${formatted.sampleRate || '-'}</td>
+        <td class="validation-${bitDepthStatus}">${formatted.bitDepth || '-'}</td>
+        <td class="validation-${channelsStatus}">${formatted.channels || '-'}</td>
+        <td class="validation-${durationStatus}">${formatted.duration || '-'}</td>
       `;
 
       this.batchTableBody.appendChild(row);

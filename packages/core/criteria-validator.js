@@ -162,7 +162,7 @@ export class CriteriaValidator {
       ? `${results.bitDepth}-bit`
       : results.bitDepth;
     formatted.channels = typeof results.channels === 'number'
-      ? `${results.channels} channel${results.channels !== 1 ? 's' : ''}${results.channels === 1 ? ' (Mono)' : results.channels === 2 ? ' (Stereo)' : ''}`
+      ? `${results.channels}${results.channels === 1 ? ' (Mono)' : results.channels === 2 ? ' (Stereo)' : ''}`
       : results.channels;
     formatted.duration = typeof results.duration === 'number'
       ? this.formatDuration(results.duration)
