@@ -267,7 +267,7 @@ class GoogleAuth {
       const query = `'${folderId}' in parents and (${mimeQuery}) and trashed=false`;
 
       const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,modifiedTime)&pageSize=1000`,
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,modifiedTime,videoMediaMetadata)&pageSize=1000`,
         {
           headers: {
             'Authorization': `Bearer ${token.access_token}`

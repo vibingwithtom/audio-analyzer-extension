@@ -611,6 +611,11 @@ class WebAudioAnalyzer {
           // Analyze headers (will use the overridden file.size)
           const analysis = await this.batchProcessor.analyzer.analyzeHeaders(file);
 
+          // Use Google's duration if available (more accurate than our calculation)
+          if (driveFile.videoMediaMetadata?.durationMillis) {
+            analysis.duration = driveFile.videoMediaMetadata.durationMillis / 1000; // Convert ms to seconds
+          }
+
           // Apply validation
           const validation = CriteriaValidator.validateResults(analysis, criteria);
 
