@@ -806,7 +806,7 @@ class WebAudioAnalyzer {
           }
 
           // Apply validation - get fresh criteria in case user changed it during processing
-          const validation = CriteriaValidator.validateResults(analysis, this.getCriteria());
+          const validation = CriteriaValidator.validateResults(analysis, this.getCriteria(), useMetadataOnly);
 
           return {
             filename: driveFile.name,

@@ -47,7 +47,7 @@ export class CriteriaValidator {
     return result;
   }
 
-  static validateResults(results, criteria) {
+  static validateResults(results, criteria, metadataOnly = false) {
     const validationResults = {};
 
     // Helper to normalize criteria to arrays
@@ -56,46 +56,48 @@ export class CriteriaValidator {
       return Array.isArray(value) ? value : [value];
     };
 
-    // Sample Rate Validation (Exact Match)
-    const sampleRates = toArray(criteria.sampleRate).map(sr => parseInt(sr)).filter(sr => !isNaN(sr));
-    if (sampleRates.length > 0) {
-      const actualSampleRate = results.sampleRate;
-      const matches = sampleRates.includes(actualSampleRate);
+    if (!metadataOnly) {
+      // Sample Rate Validation (Exact Match)
+      const sampleRates = toArray(criteria.sampleRate).map(sr => parseInt(sr)).filter(sr => !isNaN(sr));
+      if (sampleRates.length > 0) {
+        const actualSampleRate = results.sampleRate;
+        const matches = sampleRates.includes(actualSampleRate);
 
-      validationResults.sampleRate = {
-        matches: matches,
-        target: sampleRates,
-        actual: actualSampleRate,
-        status: matches ? 'pass' : 'fail'
-      };
-    }
+        validationResults.sampleRate = {
+          matches: matches,
+          target: sampleRates,
+          actual: actualSampleRate,
+          status: matches ? 'pass' : 'fail'
+        };
+      }
 
-    // Bit Depth Validation (Exact Match)
-    const bitDepths = toArray(criteria.bitDepth).map(bd => parseInt(bd)).filter(bd => !isNaN(bd));
-    if (bitDepths.length > 0) {
-      const actualBitDepth = results.bitDepth;
-      const matches = bitDepths.includes(actualBitDepth);
+      // Bit Depth Validation (Exact Match)
+      const bitDepths = toArray(criteria.bitDepth).map(bd => parseInt(bd)).filter(bd => !isNaN(bd));
+      if (bitDepths.length > 0) {
+        const actualBitDepth = results.bitDepth;
+        const matches = bitDepths.includes(actualBitDepth);
 
-      validationResults.bitDepth = {
-        matches: matches,
-        target: bitDepths,
-        actual: actualBitDepth,
-        status: matches ? 'pass' : 'fail'
-      };
-    }
+        validationResults.bitDepth = {
+          matches: matches,
+          target: bitDepths,
+          actual: actualBitDepth,
+          status: matches ? 'pass' : 'fail'
+        };
+      }
 
-    // Channels Validation (Exact Match)
-    const channels = toArray(criteria.channels).map(ch => parseInt(ch)).filter(ch => !isNaN(ch));
-    if (channels.length > 0) {
-      const actualChannels = results.channels;
-      const matches = channels.includes(actualChannels);
+      // Channels Validation (Exact Match)
+      const channels = toArray(criteria.channels).map(ch => parseInt(ch)).filter(ch => !isNaN(ch));
+      if (channels.length > 0) {
+        const actualChannels = results.channels;
+        const matches = channels.includes(actualChannels);
 
-      validationResults.channels = {
-        matches: matches,
-        target: channels,
-        actual: actualChannels,
-        status: matches ? 'pass' : 'fail'
-      };
+        validationResults.channels = {
+          matches: matches,
+          target: channels,
+          actual: actualChannels,
+          status: matches ? 'pass' : 'fail'
+        };
+      }
     }
 
     // File Type Validation (Exact Match)
