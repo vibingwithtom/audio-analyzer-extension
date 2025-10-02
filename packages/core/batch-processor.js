@@ -255,6 +255,7 @@ export class BatchProcessor {
 
         results.push({
           filename: file.name,
+          file: file, // Keep File object for playback
           analysis,
           validation,
           status: this.getOverallStatus(validation)
@@ -273,6 +274,7 @@ export class BatchProcessor {
       } catch (error) {
         results.push({
           filename: file.name,
+          file: file, // Keep File object even on error
           analysis: null,
           validation: null,
           status: 'error',

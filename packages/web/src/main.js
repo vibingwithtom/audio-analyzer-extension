@@ -679,7 +679,7 @@ class WebAudioAnalyzer {
 
     // Populate table
     this.batchTableBody.innerHTML = '';
-    results.forEach(result => {
+    results.forEach((result, index) => {
       const row = document.createElement('tr');
       row.className = `batch-row ${result.status}`;
 
@@ -700,9 +700,22 @@ class WebAudioAnalyzer {
         <td class="validation-${bitDepthStatus}">${formatted.bitDepth || '-'}</td>
         <td class="validation-${channelsStatus}">${formatted.channels || '-'}</td>
         <td class="validation-${durationStatus}">${formatted.duration || '-'}</td>
+        <td>${formatted.fileSize || '-'}</td>
+        <td><button class="play-btn-small" data-index="${index}">▶</button></td>
       `;
 
       this.batchTableBody.appendChild(row);
+    });
+
+    // Store results for playback access
+    this.batchResults = results;
+
+    // Add event listeners to play buttons
+    this.batchTableBody.querySelectorAll('.play-btn-small').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const index = parseInt(e.target.dataset.index);
+        this.playBatchFile(index);
+      });
     });
   }
 
@@ -723,6 +736,20 @@ class WebAudioAnalyzer {
   getValidationStatus(validation, field) {
     if (!validation || !validation[field]) return '';
     return validation[field].status; // 'pass', 'warning', or 'fail'
+  }
+
+  playBatchFile(index) {
+    if (!this.batchResults || !this.batchResults[index]) return;
+
+    const result = this.batchResults[index];
+    if (!result.file) return;
+
+    // Create a blob URL and open in new window
+    const url = URL.createObjectURL(result.file);
+    window.open(url, '_blank');
+
+    // Revoke URL after a delay to allow it to load
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   cleanupForNewFile() {

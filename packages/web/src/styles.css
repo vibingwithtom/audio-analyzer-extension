@@ -983,3 +983,22 @@ body {
   background: #fecaca;
   color: #991b1b;
 }
+
+.play-btn-small {
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background 0.2s;
+}
+
+.play-btn-small:hover {
+  background: #1d4ed8;
+}
+
+.play-btn-small:active {
+  background: #1e40af;
+}
