@@ -734,7 +734,6 @@ class WebAudioAnalyzer {
         try {
           let analysis;
           let usedFallback = false;
-
           const useMetadataOnly = this.enableFilenameValidation.checked && !this.enableAudioAnalysis.checked;
 
           if (useMetadataOnly) {
@@ -754,6 +753,8 @@ class WebAudioAnalyzer {
             usedFallback = true; // Indicate that this is a limited analysis
           } else {
             // Existing logic: download headers for more detailed analysis
+            const maxRetries = 3;
+            let lastError = null;
             for (let attempt = 0; attempt < maxRetries; attempt++) {
               try {
                 // Try to download file headers (first 100KB) for detailed analysis
