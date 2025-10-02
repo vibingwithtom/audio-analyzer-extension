@@ -573,74 +573,87 @@ class WebAudioAnalyzer {
 
     const criteria = this.getCriteria();
 
-    // Process each file
-    for (let i = 0; i < audioFiles.length; i++) {
+    // Process files in parallel (3 at a time)
+    const PARALLEL_LIMIT = 3;
+    let completed = 0;
+
+    for (let i = 0; i < audioFiles.length; i += PARALLEL_LIMIT) {
       // Check for cancellation
       if (this.batchCancelled) {
         console.log('Batch processing cancelled');
         break;
       }
 
-      const driveFile = audioFiles[i];
-      let result;
+      // Get batch of files to process in parallel
+      const batch = audioFiles.slice(i, i + PARALLEL_LIMIT);
 
-      try {
-        // Update progress
-        this.showBatchProgress(i, audioFiles.length, driveFile.name);
+      // Process batch in parallel
+      const promises = batch.map(async (driveFile) => {
+        if (this.batchCancelled) return null;
 
-        // Download file headers (first 100KB)
-        const headerBlob = await this.googleAuth.downloadFileHeaders(driveFile.id);
+        try {
+          // Download file headers (first 100KB)
+          const headerBlob = await this.googleAuth.downloadFileHeaders(driveFile.id);
 
-        // Create a pseudo-File object for analysis
-        // Note: File constructor doesn't let us override size, so we'll create a custom object
-        const fileSize = parseInt(driveFile.size) || headerBlob.size;
-        const file = new File([headerBlob], driveFile.name, {
-          type: driveFile.mimeType,
-          lastModified: new Date(driveFile.modifiedTime).getTime()
-        });
+          // Create a pseudo-File object for analysis
+          const fileSize = parseInt(driveFile.size) || headerBlob.size;
+          const file = new File([headerBlob], driveFile.name, {
+            type: driveFile.mimeType,
+            lastModified: new Date(driveFile.modifiedTime).getTime()
+          });
 
-        // Add a custom size property that overrides the blob size
-        Object.defineProperty(file, 'size', {
-          value: fileSize,
-          writable: false
-        });
+          // Add a custom size property that overrides the blob size
+          Object.defineProperty(file, 'size', {
+            value: fileSize,
+            writable: false
+          });
 
-        // Analyze headers (will use the overridden file.size)
-        const analysis = await this.batchProcessor.analyzer.analyzeHeaders(file);
+          // Analyze headers (will use the overridden file.size)
+          const analysis = await this.batchProcessor.analyzer.analyzeHeaders(file);
 
-        // Apply validation
-        const validation = CriteriaValidator.validateResults(analysis, criteria);
+          // Apply validation
+          const validation = CriteriaValidator.validateResults(analysis, criteria);
 
-        result = {
-          filename: driveFile.name,
-          file: null, // Don't have local file
-          driveFileId: driveFile.id, // Store Drive file ID for playback
-          analysis,
-          validation,
-          status: this.getOverallStatus(validation)
-        };
+          return {
+            filename: driveFile.name,
+            file: null, // Don't have local file
+            driveFileId: driveFile.id, // Store Drive file ID for playback
+            analysis,
+            validation,
+            status: this.getOverallStatus(validation)
+          };
 
-      } catch (error) {
-        console.error(`Error processing ${driveFile.name}:`, error);
-        result = {
-          filename: driveFile.name,
-          file: null,
-          analysis: null,
-          validation: null,
-          status: 'error',
-          error: error.message
-        };
-      }
+        } catch (error) {
+          console.error(`Error processing ${driveFile.name}:`, error);
+          return {
+            filename: driveFile.name,
+            file: null,
+            analysis: null,
+            validation: null,
+            status: 'error',
+            error: error.message
+          };
+        }
+      });
 
-      // Add result progressively
-      this.batchResults.push(result);
-      this.addBatchResultRow(result);
+      // Wait for all in batch to complete
+      const results = await Promise.all(promises);
+
+      // Add results progressively
+      results.forEach(result => {
+        if (result) {
+          this.batchResults.push(result);
+          this.addBatchResultRow(result);
+          completed++;
+
+          // Update progress (only if not cancelled)
+          if (!this.batchCancelled) {
+            this.showBatchProgress(completed, audioFiles.length, result.filename);
+          }
+        }
+      });
+
       this.updateBatchSummary();
-
-      // Update progress (only if not cancelled)
-      if (!this.batchCancelled) {
-        this.showBatchProgress(i + 1, audioFiles.length, driveFile.name);
-      }
     }
 
     // Hide progress bar when complete
