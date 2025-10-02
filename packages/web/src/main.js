@@ -96,6 +96,18 @@ class WebAudioAnalyzer {
     this.loading = document.getElementById('loading');
     this.error = document.getElementById('error');
     this.errorMessage = document.getElementById('errorMessage');
+
+    // Batch processing elements
+    this.batchProgress = document.getElementById('batchProgress');
+    this.batchCurrentFile = document.getElementById('batchCurrentFile');
+    this.batchProgressText = document.getElementById('batchProgressText');
+    this.batchProgressBar = document.getElementById('batchProgressBar');
+    this.cancelBatch = document.getElementById('cancelBatch');
+    this.batchResultsSection = document.getElementById('batchResultsSection');
+    this.batchPassCount = document.getElementById('batchPassCount');
+    this.batchWarningCount = document.getElementById('batchWarningCount');
+    this.batchFailCount = document.getElementById('batchFailCount');
+    this.batchTableBody = document.getElementById('batchTableBody');
   }
 
   attachEventListeners() {
@@ -644,6 +656,63 @@ class WebAudioAnalyzer {
     this.error.style.display = 'block';
   }
 
+  showBatchProgress(current, total, currentFile) {
+    this.hideAllSections();
+    this.batchProgress.style.display = 'block';
+
+    const percentage = Math.round((current / total) * 100);
+    this.batchProgressBar.style.width = `${percentage}%`;
+    this.batchProgressText.textContent = `${current}/${total} (${percentage}%)`;
+    this.batchCurrentFile.textContent = currentFile || 'Processing...';
+  }
+
+  showBatchResults(results) {
+    this.hideAllSections();
+    this.batchResultsSection.style.display = 'block';
+
+    // Calculate summary stats
+    const passCount = results.filter(r => r.status === 'pass').length;
+    const warningCount = results.filter(r => r.status === 'warning').length;
+    const failCount = results.filter(r => r.status === 'fail').length;
+
+    this.batchPassCount.textContent = passCount;
+    this.batchWarningCount.textContent = warningCount;
+    this.batchFailCount.textContent = failCount;
+
+    // Populate table
+    this.batchTableBody.innerHTML = '';
+    results.forEach(result => {
+      const row = document.createElement('tr');
+      row.className = `batch-row ${result.status}`;
+
+      row.innerHTML = `
+        <td class="filename">${result.filename}</td>
+        <td><span class="status-badge ${result.status}">${result.status}</span></td>
+        <td>${result.analysis?.fileType || 'Unknown'}</td>
+        <td>${this.formatValue(result.analysis?.sampleRate)}</td>
+        <td>${this.formatValue(result.analysis?.bitDepth)}</td>
+        <td>${this.formatValue(result.analysis?.channels)}</td>
+        <td>${this.formatDuration(result.analysis?.duration)}</td>
+      `;
+
+      this.batchTableBody.appendChild(row);
+    });
+  }
+
+  formatValue(value) {
+    if (value === null || value === undefined || value === 'Unknown') {
+      return '-';
+    }
+    return value;
+  }
+
+  formatDuration(seconds) {
+    if (!seconds || seconds === 'Unknown') return '-';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
   cleanupForNewFile() {
     // Clean up previous file data without touching current file input
     if (this.currentFile) {
@@ -691,6 +760,8 @@ class WebAudioAnalyzer {
     this.error.style.display = 'none';
     this.resultsSection.style.display = 'none';
     this.advancedResultsSection.style.display = 'none';
+    this.batchProgress.style.display = 'none';
+    this.batchResultsSection.style.display = 'none';
   }
 }
 
