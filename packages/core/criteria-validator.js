@@ -98,44 +98,20 @@ export class CriteriaValidator {
           status: matches ? 'pass' : 'fail'
         };
       }
-    }
 
-    // File Type Validation (Exact Match)
-    const fileTypes = toArray(criteria.fileType);
-    if (fileTypes.length > 0) {
-      // Check if any of the target types match
-      let bestMatch = { matches: false, status: 'fail' };
+      // Duration Validation (Minimum - only if specified in criteria)
+      if (criteria.minDuration) {
+        const minDurationSeconds = parseInt(criteria.minDuration);
+        const durationSeconds = results.duration;
+        const matches = typeof durationSeconds === 'number' && durationSeconds >= minDurationSeconds;
 
-      for (const targetType of fileTypes) {
-        const matchResult = this.matchesFileType(results.fileType, targetType);
-        if (matchResult.status === 'pass') {
-          bestMatch = matchResult;
-          break; // Found perfect match
-        } else if (matchResult.status === 'warning' && bestMatch.status === 'fail') {
-          bestMatch = matchResult; // Partial match better than no match
-        }
+        validationResults.duration = {
+          matches: matches,
+          target: `${minDurationSeconds}s minimum`,
+          actual: durationSeconds,
+          status: matches ? 'pass' : 'fail'
+        };
       }
-
-      validationResults.fileType = {
-        matches: bestMatch.matches,
-        target: fileTypes,
-        actual: results.fileType,
-        status: bestMatch.status
-      };
-    }
-
-    // Duration Validation (Minimum - only if specified in criteria)
-    if (criteria.minDuration) {
-      const minDurationSeconds = parseInt(criteria.minDuration);
-      const durationSeconds = results.duration;
-      const matches = typeof durationSeconds === 'number' && durationSeconds >= minDurationSeconds;
-
-      validationResults.duration = {
-        matches: matches,
-        target: `${minDurationSeconds}s minimum`,
-        actual: durationSeconds,
-        status: matches ? 'pass' : 'fail'
-      };
     }
 
     return validationResults;
