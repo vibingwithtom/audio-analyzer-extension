@@ -17,8 +17,8 @@
   <meta property="og:description" content="Professional audio file analysis tool">
   <meta property="og:type" content="website">
 
-  <script type="module" crossorigin src="/beta/assets/index-BNga0fcn.js"></script>
-  <link rel="stylesheet" crossorigin href="/beta/assets/index-DPoFi13-.css">
+  <script type="module" crossorigin src="/beta/assets/index-D60t-5wP.js"></script>
+  <link rel="stylesheet" crossorigin href="/beta/assets/index-fhlHg-aV.css">
 </head>
 <body>
   <div id="app">
@@ -38,6 +38,17 @@
           <button class="tab-button" data-tab="gdrive">
             ☁️ Google Drive
           </button>
+        </div>
+
+        <!-- Google Drive Auth (only shown when on Google Drive tab) -->
+        <div class="gdrive-auth-global tab-content" data-tab="gdrive" style="display: none;">
+          <div class="gdrive-auth" id="driveAuth">
+            <div class="auth-status" id="authStatus">
+              <span id="authText">Not signed in to Google</span>
+              <button id="signInBtn" class="sign-in-btn" style="display: none;">Sign In</button>
+              <button id="signOutBtn" class="sign-out-btn" style="display: none;">Sign Out</button>
+            </div>
+          </div>
         </div>
 
         <!-- Target Criteria Section -->
@@ -128,14 +139,6 @@
 
         <div class="tab-content" data-tab="gdrive">
           <section class="gdrive-section">
-            <div class="gdrive-auth" id="driveAuth">
-              <div class="auth-status" id="authStatus">
-                <span id="authText">Not signed in to Google</span>
-                <button id="signInBtn" class="sign-in-btn" style="display: none;">Sign In</button>
-                <button id="signOutBtn" class="sign-out-btn" style="display: none;">Sign Out</button>
-              </div>
-            </div>
-
             <!-- Analysis Type Selection (only shown for presets with filename validation) -->
             <div id="analysisTypeSection" class="analysis-type-section" style="display: none;">
               <h3>Analysis Options</h3>
