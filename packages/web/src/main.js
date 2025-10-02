@@ -1,6 +1,7 @@
 import { AudioAnalyzer } from '../../core/audio-analyzer.js';
 import { CriteriaValidator } from '../../core/criteria-validator.js';
 import { LevelAnalyzer } from '../../core/level-analyzer.js';
+import { BatchProcessor } from '../../core/batch-processor.js';
 
 // Simplified engine class to avoid circular import issues
 class AudioAnalyzerEngine {
@@ -39,11 +40,14 @@ class WebAudioAnalyzer {
   constructor() {
     this.engine = new AudioAnalyzerEngine();
     this.googleAuth = new GoogleAuth();
+    this.batchProcessor = new BatchProcessor(CriteriaValidator);
     this.currentFile = null;
     this.audioBuffer = null;
     this.isAnalyzing = false;
     this.currentResults = null;
     this.processingFile = false;  // Prevent double file processing
+    this.batchMode = false;
+    this.batchResults = null;
 
     this.initializeElements();
     this.attachEventListeners();
@@ -113,8 +117,9 @@ class WebAudioAnalyzer {
     });
 
     this.fileInput.addEventListener('change', (e) => {
-      if (e.target.files[0]) {
-        this.handleFileSelect(e.target.files[0]);
+      const files = Array.from(e.target.files || []);
+      if (files.length > 0) {
+        this.handleFilesSelect(files);
       }
     });
 
@@ -131,9 +136,9 @@ class WebAudioAnalyzer {
     this.dropZone.addEventListener('drop', (e) => {
       e.preventDefault();
       this.dropZone.classList.remove('drag-over');
-      const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('audio/')) {
-        this.handleFileSelect(file);
+      const files = Array.from(e.dataTransfer.files || []).filter(f => f.type.startsWith('audio/'));
+      if (files.length > 0) {
+        this.handleFilesSelect(files);
       }
     });
 
@@ -336,6 +341,24 @@ class WebAudioAnalyzer {
     document.querySelector(`.tab-content[data-tab="${tabName}"]`).classList.add('active');
   }
 
+  async handleFilesSelect(files) {
+    if (!files || files.length === 0) return;
+
+    if (this.processingFile) {
+      console.log('Already processing files, ignoring duplicate call');
+      return;
+    }
+
+    // Detect mode: single file vs batch
+    if (files.length === 1) {
+      this.batchMode = false;
+      await this.handleFileSelect(files[0]);
+    } else {
+      this.batchMode = true;
+      await this.handleBatchFiles(files);
+    }
+  }
+
   async handleFileSelect(file) {
     console.log('handleFileSelect called with:', file);
     if (!file) {
@@ -382,6 +405,41 @@ class WebAudioAnalyzer {
     } finally {
       this.processingFile = false;
       console.log('File processing completed');
+    }
+  }
+
+  async handleBatchFiles(files) {
+    this.processingFile = true;
+    this.cleanupForNewFile();
+
+    console.log(`Starting batch processing of ${files.length} files`);
+
+    this.showBatchProgress(0, files.length, 'Initializing...');
+
+    try {
+      const criteria = this.getCriteria();
+
+      const results = await this.batchProcessor.processBatch(
+        files,
+        criteria,
+        (progress) => {
+          this.showBatchProgress(
+            progress.current,
+            progress.total,
+            progress.currentFile
+          );
+        }
+      );
+
+      this.batchResults = results;
+      this.showBatchResults(results);
+
+    } catch (error) {
+      console.error('Batch processing error:', error);
+      this.showError(`Failed to process batch: ${error.message}`);
+      this.cleanupForNewFile();
+    } finally {
+      this.processingFile = false;
     }
   }
 

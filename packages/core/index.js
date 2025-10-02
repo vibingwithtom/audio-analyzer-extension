@@ -7,6 +7,7 @@ export { AudioAnalyzer } from './audio-analyzer.js';
 export { LevelAnalyzer } from './level-analyzer.js';
 export { CriteriaValidator } from './criteria-validator.js';
 export { GoogleDriveHandler } from './google-drive.js';
+export { StreamingAudioAnalyzer, BatchProcessor } from './batch-processor.js';
 
 // Convenience class that combines all functionality
 export class AudioAnalyzerEngine {
