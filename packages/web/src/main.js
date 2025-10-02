@@ -613,7 +613,8 @@ class WebAudioAnalyzer {
 
         result = {
           filename: driveFile.name,
-          file: null, // Can't play Drive files directly without downloading
+          file: null, // Don't have local file
+          driveFileId: driveFile.id, // Store Drive file ID for playback
           analysis,
           validation,
           status: this.getOverallStatus(validation)
@@ -839,8 +840,8 @@ class WebAudioAnalyzer {
     const channelsStatus = this.getValidationStatus(result.validation, 'channels');
     const durationStatus = this.getValidationStatus(result.validation, 'duration');
 
-    // Only show play button if we have the actual file
-    const playButton = result.file
+    // Show play button if we have local file or Drive file ID
+    const playButton = (result.file || result.driveFileId)
       ? `<button class="play-btn-small" data-index="${index}">▶</button>`
       : '-';
 
@@ -858,8 +859,8 @@ class WebAudioAnalyzer {
 
     this.batchTableBody.appendChild(row);
 
-    // Add event listener to play button (only if it exists)
-    if (result.file) {
+    // Add event listener to play button
+    if (result.file || result.driveFileId) {
       const playBtn = row.querySelector('.play-btn-small');
       if (playBtn) {
         playBtn.addEventListener('click', (e) => {
@@ -959,14 +960,18 @@ class WebAudioAnalyzer {
     if (!this.batchResults || !this.batchResults[index]) return;
 
     const result = this.batchResults[index];
-    if (!result.file) return;
 
-    // Create a blob URL and open in new window
-    const url = URL.createObjectURL(result.file);
-    window.open(url, '_blank');
-
-    // Revoke URL after a delay to allow it to load
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    if (result.file) {
+      // Local file - create blob URL and open
+      const url = URL.createObjectURL(result.file);
+      window.open(url, '_blank');
+      // Revoke URL after a delay to allow it to load
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } else if (result.driveFileId) {
+      // Google Drive file - open Drive preview URL
+      const driveUrl = `https://drive.google.com/file/d/${result.driveFileId}/view`;
+      window.open(driveUrl, '_blank');
+    }
   }
 
   revalidateBatchResults() {
