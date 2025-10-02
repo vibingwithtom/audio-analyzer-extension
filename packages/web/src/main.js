@@ -815,7 +815,7 @@ class WebAudioAnalyzer {
             driveFileId: driveFile.id, // Store Drive file ID for playback
             analysis,
             validation,
-            status: this.getOverallStatus(validation),
+            status: this.getOverallStatus(validation, useMetadataOnly),
             warning: usedFallback ? 'Limited analysis (Google Drive error)' : null
           };
 
@@ -1256,8 +1256,16 @@ class WebAudioAnalyzer {
     this.showBatchResults(this.batchResults);
   }
 
-  getOverallStatus(validation) {
-    const statuses = Object.values(validation).map(v => v.status);
+  getOverallStatus(validation, useMetadataOnly = false) {
+    let statuses = Object.values(validation).map(v => v.status);
+
+    if (useMetadataOnly) {
+      // In metadata-only mode, we don't care about these fields
+      const fieldsToIgnore = ['sampleRate', 'bitDepth', 'channels'];
+      statuses = Object.entries(validation)
+        .filter(([key]) => !fieldsToIgnore.includes(key))
+        .map(([, v]) => v.status);
+    }
 
     if (statuses.includes('fail')) return 'fail';
     if (statuses.includes('warning')) return 'warning';
