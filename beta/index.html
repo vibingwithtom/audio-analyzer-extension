@@ -17,7 +17,7 @@
   <meta property="og:description" content="Professional audio file analysis tool">
   <meta property="og:type" content="website">
 
-  <script type="module" crossorigin src="/beta/assets/index-D9K-_o8c.js"></script>
+  <script type="module" crossorigin src="/beta/assets/index-Bfj_d4xl.js"></script>
   <link rel="stylesheet" crossorigin href="/beta/assets/index-DihmHFQ2.css">
 </head>
 <body>
@@ -159,15 +159,31 @@
 
             <!-- Filename Validation Fields (only shown when checkbox is checked) -->
             <div id="filenameValidationFields" class="filename-validation-fields" style="display: none;">
-              <h3>Filename Validation Settings</h3>
-              <div class="validation-inputs">
-                <div class="criteria-item">
-                  <label for="speakerId">Speaker ID</label>
-                  <input type="text" id="speakerId" placeholder="e.g., SPK123">
+              <!-- Three Hour Validation (script-match) -->
+              <div id="driveThreeHourFields" style="display: none;">
+                <h3>Filename Validation Settings</h3>
+                <div class="validation-inputs">
+                  <div class="criteria-item">
+                    <label for="speakerId">Speaker ID</label>
+                    <input type="text" id="speakerId" placeholder="e.g., SPK123">
+                  </div>
+                  <div class="criteria-item">
+                    <label for="scriptsFolderUrl">Scripts Folder URL</label>
+                    <input type="url" id="scriptsFolderUrl" placeholder="https://drive.google.com/folders/...">
+                  </div>
                 </div>
-                <div class="criteria-item">
-                  <label for="scriptsFolderUrl">Scripts Folder URL</label>
-                  <input type="url" id="scriptsFolderUrl" placeholder="https://drive.google.com/folders/...">
+              </div>
+
+              <!-- Bilingual Validation (bilingual-pattern) -->
+              <div id="driveBilingualFields" style="display: none;">
+                <h3>Filename Validation Settings</h3>
+                <div class="validation-inputs">
+                  <p class="input-hint">
+                    Filenames will be validated against the pattern:<br>
+                    <code>[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
+                    <br>
+                    Example: <code>vdlg1_001_budgeting_app-en_us-user-10101-agent-10102</code>
+                  </p>
                 </div>
               </div>
             </div>
