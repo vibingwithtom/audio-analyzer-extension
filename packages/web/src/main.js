@@ -258,6 +258,8 @@ class WebAudioAnalyzer {
 
   updateAuthStatus() {
     const isSignedIn = this.googleAuth.isSignedIn();
+    console.log('updateAuthStatus called, isSignedIn:', isSignedIn);
+    console.log('signInBtn element:', this.signInBtn);
 
     if (isSignedIn) {
       const userInfo = this.googleAuth.getUserInfo();
@@ -272,6 +274,7 @@ class WebAudioAnalyzer {
       this.authText.textContent = 'Not signed in to Google';
       this.signInBtn.style.display = 'inline-block';
       this.signOutBtn.style.display = 'none';
+      console.log('Set signInBtn display to inline-block');
     }
   }
 
@@ -446,6 +449,12 @@ class WebAudioAnalyzer {
         // Show/hide filename validation section based on preset support
         if (config.supportsFilenameValidation) {
           this.analysisTypeSection.style.display = 'block';
+          // Show fields only if checkbox is checked
+          if (this.enableFilenameValidation.checked) {
+            this.filenameValidationFields.style.display = 'block';
+          } else {
+            this.filenameValidationFields.style.display = 'none';
+          }
         } else {
           this.analysisTypeSection.style.display = 'none';
           this.filenameValidationFields.style.display = 'none';
@@ -496,9 +505,15 @@ class WebAudioAnalyzer {
         this.speakerId.value = settings.speakerId || '';
         this.scriptsFolderUrl.value = settings.scriptsFolderUrl || '';
 
-        // Show fields if checkbox is checked
-        if (this.enableFilenameValidation.checked) {
+        // Show fields only if checkbox is checked AND current preset supports filename validation
+        const selectedPreset = this.presetSelector.value;
+        const presets = this.getPresetConfigurations();
+        const config = presets[selectedPreset];
+
+        if (this.enableFilenameValidation.checked && config && config.supportsFilenameValidation) {
           this.filenameValidationFields.style.display = 'block';
+        } else {
+          this.filenameValidationFields.style.display = 'none';
         }
       } catch (e) {
         console.error('Error loading filename validation settings:', e);
@@ -511,8 +526,13 @@ class WebAudioAnalyzer {
     this.tabButtons.forEach(btn => btn.classList.remove('active'));
     this.tabContents.forEach(content => content.classList.remove('active'));
 
+    // Activate the tab button
     document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-    document.querySelector(`.tab-content[data-tab="${tabName}"]`).classList.add('active');
+
+    // Activate ALL tab content sections for this tab (there may be multiple)
+    document.querySelectorAll(`.tab-content[data-tab="${tabName}"]`).forEach(content => {
+      content.classList.add('active');
+    });
   }
 
   async handleFilesSelect(files) {
@@ -694,6 +714,52 @@ class WebAudioAnalyzer {
     this.showResults();
   }
 
+  async fetchScriptFiles(scriptsFolderId) {
+    // Fetch all .txt files from scripts folder
+    try {
+      const scriptFiles = await this.googleAuth.listFilesInFolder(scriptsFolderId, '.txt');
+      // Extract base names (without .txt extension)
+      const scriptBaseNames = scriptFiles.map(file =>
+        file.name.trim().replace(/\.txt$/i, '')
+      );
+      console.log(`Found ${scriptBaseNames.length} script files:`, scriptBaseNames);
+      return scriptBaseNames;
+    } catch (error) {
+      console.error('Error fetching script files:', error);
+      throw new Error('Failed to fetch script files. Check the scripts folder URL.');
+    }
+  }
+
+  validateFilename(filename, scriptBaseNames, speakerId) {
+    // Based on Google Apps Script logic
+    const wavName = filename.trim();
+    const nameWithoutExt = wavName.replace(/\.wav$/i, '');
+
+    // Get what's before the speaker ID
+    const possibleBase = nameWithoutExt.split(`_${speakerId}`)[0];
+    const expectedName = `${possibleBase}_${speakerId}.wav`;
+
+    if (!scriptBaseNames.includes(possibleBase)) {
+      return {
+        status: 'fail',
+        expectedFormat: '-',
+        issue: 'No matching script file found'
+      };
+    } else if (wavName === expectedName) {
+      return {
+        status: 'pass',
+        expectedFormat: expectedName,
+        issue: ''
+      };
+    } else {
+      return {
+        status: 'fail',
+        expectedFormat: `${possibleBase}_${speakerId}.wav`,
+        issue: 'Incorrect filename for existing script'
+      };
+    }
+  }
+
   async handleGoogleDriveFolder(folderId) {
     // List all audio files in folder
     const audioFiles = await this.googleAuth.listAudioFilesInFolder(folderId);
@@ -704,10 +770,33 @@ class WebAudioAnalyzer {
 
     console.log(`Found ${audioFiles.length} audio files in folder`);
 
+    // Fetch script files if filename validation is enabled
+    let scriptBaseNames = [];
+    if (this.enableFilenameValidation.checked) {
+      const scriptsFolderUrl = this.scriptsFolderUrl.value.trim();
+      const speakerId = this.speakerId.value.trim();
+
+      if (!speakerId) {
+        throw new Error('Speaker ID is required for filename validation');
+      }
+
+      if (scriptsFolderUrl) {
+        const scriptsFolderId = this.extractFolderId(scriptsFolderUrl);
+        if (scriptsFolderId) {
+          scriptBaseNames = await this.fetchScriptFiles(scriptsFolderId);
+        } else {
+          throw new Error('Invalid scripts folder URL');
+        }
+      } else {
+        throw new Error('Scripts folder URL is required for filename validation');
+      }
+    }
+
     // Switch to batch mode
     this.batchMode = true;
     this.batchResults = [];
     this.batchCancelled = false;
+    this.scriptBaseNames = scriptBaseNames; // Store for use in validation
 
     // Initialize table and show progress
     this.showBatchProgress(0, audioFiles.length, 'Initializing...');
@@ -739,6 +828,7 @@ class WebAudioAnalyzer {
           if (useMetadataOnly) {
             // Metadata-only mode: faster, but less detailed analysis
             const metadata = await this.googleAuth.getFileMetadata(driveFile);
+            console.log('Full metadata for', metadata.name, ':', metadata);
             analysis = {
               filename: metadata.name,
               fileSize: parseInt(metadata.size) || 0,
@@ -809,13 +899,21 @@ class WebAudioAnalyzer {
           // Apply validation - get fresh criteria in case user changed it during processing
           const validation = CriteriaValidator.validateResults(analysis, this.getCriteria(), useMetadataOnly);
 
+          // Apply filename validation if enabled
+          let filenameValidation = null;
+          if (this.enableFilenameValidation.checked && this.scriptBaseNames.length > 0) {
+            const speakerId = this.speakerId.value.trim();
+            filenameValidation = this.validateFilename(driveFile.name, this.scriptBaseNames, speakerId);
+          }
+
           return {
             filename: driveFile.name,
             file: null, // Don't have local file
             driveFileId: driveFile.id, // Store Drive file ID for playback
             analysis,
             validation,
-            status: this.getOverallStatus(validation, useMetadataOnly),
+            filenameValidation, // Add filename validation results
+            status: this.getOverallStatus(validation, useMetadataOnly, filenameValidation),
             warning: usedFallback ? 'Limited analysis (Google Drive error)' : null
           };
 
@@ -874,6 +972,12 @@ class WebAudioAnalyzer {
     }
 
     return null;
+  }
+
+  extractFolderId(url) {
+    // Extract folder ID from Google Drive URL (based on Apps Script logic)
+    const match = url.match(/[-\w]{25,}/);
+    return match ? match[0] : null;
   }
 
   setupAudioPlayer(file) {
@@ -1030,6 +1134,34 @@ class WebAudioAnalyzer {
     this.batchResultsSection.style.display = 'block';
     this.batchTableBody.innerHTML = '';
 
+    // Detect metadata-only mode
+    const isMetadataOnly = this.enableFilenameValidation.checked && !this.enableAudioAnalysis.checked;
+
+    // Add metadata-only class to table for wider filename column
+    const table = document.querySelector('.batch-results-table');
+    if (table) {
+      if (isMetadataOnly) {
+        table.classList.add('metadata-only');
+      } else {
+        table.classList.remove('metadata-only');
+      }
+    }
+
+    // Show/hide filename check column based on whether filename validation is enabled
+    const filenameCheckHeader = document.getElementById('filenameCheckHeader');
+    if (filenameCheckHeader) {
+      filenameCheckHeader.style.display = this.enableFilenameValidation.checked ? '' : 'none';
+    }
+
+    // Hide audio-specific columns in metadata-only mode
+    const audioHeaders = ['sampleRateHeader', 'bitDepthHeader', 'channelsHeader', 'durationHeader'];
+    audioHeaders.forEach(headerId => {
+      const header = document.getElementById(headerId);
+      if (header) {
+        header.style.display = isMetadataOnly ? 'none' : '';
+      }
+    });
+
     // Initialize summary stats to zero
     this.batchPassCount.textContent = '0';
     this.batchWarningCount.textContent = '0';
@@ -1053,7 +1185,7 @@ class WebAudioAnalyzer {
         if (result.validation.duration) result.validation.duration.status = 'unknown';
       }
 
-      result.status = this.getOverallStatus(result.validation);
+      result.status = this.getOverallStatus(result.validation, false, result.filenameValidation);
     }
 
     const index = this.batchResults.length - 1;
@@ -1069,6 +1201,29 @@ class WebAudioAnalyzer {
     const channelsStatus = this.getValidationStatus(result.validation, 'channels');
     const durationStatus = this.getValidationStatus(result.validation, 'duration');
 
+    // Detect metadata-only mode
+    const isMetadataOnly = this.enableFilenameValidation.checked && !this.enableAudioAnalysis.checked;
+
+    // Filename validation cell (only show if filename validation is enabled)
+    let filenameCheckCell = '';
+    if (this.enableFilenameValidation.checked) {
+      if (result.filenameValidation) {
+        const icon = result.filenameValidation.status === 'pass' ? '✅' : '❌';
+        const title = result.filenameValidation.issue || result.filenameValidation.expectedFormat;
+        filenameCheckCell = `<td class="filename-check-${result.filenameValidation.status}" title="${title}">${icon}</td>`;
+      } else {
+        filenameCheckCell = `<td style="display: none;"></td>`;
+      }
+    } else {
+      filenameCheckCell = `<td style="display: none;"></td>`;
+    }
+
+    // Audio-specific cells (hide in metadata-only mode)
+    const sampleRateCell = isMetadataOnly ? '' : `<td class="validation-${sampleRateStatus}">${formatted.sampleRate || '-'}</td>`;
+    const bitDepthCell = isMetadataOnly ? '' : `<td class="validation-${bitDepthStatus}">${formatted.bitDepth || '-'}</td>`;
+    const channelsCell = isMetadataOnly ? '' : `<td class="validation-${channelsStatus}">${formatted.channels || '-'}</td>`;
+    const durationCell = isMetadataOnly ? '' : `<td class="validation-${durationStatus}">${formatted.duration || '-'}</td>`;
+
     // Show play button if we have local file or Drive file ID
     const playButton = (result.file || result.driveFileId)
       ? `<button class="play-btn-small" data-index="${index}">▶</button>`
@@ -1077,11 +1232,12 @@ class WebAudioAnalyzer {
     row.innerHTML = `
       <td class="filename">${result.filename}</td>
       <td><span class="status-badge ${result.status}">${result.status}</span></td>
+      ${filenameCheckCell}
       <td class="validation-${fileTypeStatus}">${formatted.fileType || 'Unknown'}</td>
-      <td class="validation-${sampleRateStatus}">${formatted.sampleRate || '-'}</td>
-      <td class="validation-${bitDepthStatus}">${formatted.bitDepth || '-'}</td>
-      <td class="validation-${channelsStatus}">${formatted.channels || '-'}</td>
-      <td class="validation-${durationStatus}">${formatted.duration || '-'}</td>
+      ${sampleRateCell}
+      ${bitDepthCell}
+      ${channelsCell}
+      ${durationCell}
       <td>${formatted.fileSize || '-'}</td>
       <td>${playButton}</td>
     `;
@@ -1258,7 +1414,7 @@ class WebAudioAnalyzer {
     this.batchResults.forEach(result => {
       if (result.analysis) {
         result.validation = CriteriaValidator.validateResults(result.analysis, criteria);
-        result.status = this.getOverallStatus(result.validation);
+        result.status = this.getOverallStatus(result.validation, false, result.filenameValidation);
       }
     });
 
@@ -1266,7 +1422,7 @@ class WebAudioAnalyzer {
     this.showBatchResults(this.batchResults);
   }
 
-  getOverallStatus(validation, useMetadataOnly = false) {
+  getOverallStatus(validation, useMetadataOnly = false, filenameValidation = null) {
     let statuses = Object.values(validation).map(v => v.status);
 
     if (useMetadataOnly) {
@@ -1275,6 +1431,11 @@ class WebAudioAnalyzer {
       statuses = Object.entries(validation)
         .filter(([key]) => !fieldsToIgnore.includes(key))
         .map(([, v]) => v.status);
+    }
+
+    // Add filename validation status if present
+    if (filenameValidation && filenameValidation.status) {
+      statuses.push(filenameValidation.status);
     }
 
     if (statuses.includes('fail')) return 'fail';

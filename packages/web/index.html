@@ -39,6 +39,17 @@
           </button>
         </div>
 
+        <!-- Google Drive Auth (only shown when on Google Drive tab) -->
+        <div class="gdrive-auth-global tab-content" data-tab="gdrive">
+          <div class="gdrive-auth" id="driveAuth">
+            <div class="auth-status" id="authStatus">
+              <span id="authText">Not signed in to Google</span>
+              <button id="signInBtn" class="sign-in-btn" style="display: none;">Sign In</button>
+              <button id="signOutBtn" class="sign-out-btn" style="display: none;">Sign Out</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Target Criteria Section -->
         <section class="criteria-section">
           <h2>Analysis Criteria</h2>
@@ -127,14 +138,6 @@
 
         <div class="tab-content" data-tab="gdrive">
           <section class="gdrive-section">
-            <div class="gdrive-auth" id="driveAuth">
-              <div class="auth-status" id="authStatus">
-                <span id="authText">Not signed in to Google</span>
-                <button id="signInBtn" class="sign-in-btn" style="display: none;">Sign In</button>
-                <button id="signOutBtn" class="sign-out-btn" style="display: none;">Sign Out</button>
-              </div>
-            </div>
-
             <!-- Analysis Type Selection (only shown for presets with filename validation) -->
             <div id="analysisTypeSection" class="analysis-type-section" style="display: none;">
               <h3>Analysis Options</h3>
@@ -351,11 +354,12 @@
                 <tr>
                   <th>Filename</th>
                   <th>Status</th>
-                  <th>Format</th>
-                  <th>Sample Rate</th>
-                  <th>Bit Depth</th>
-                  <th>Channels</th>
-                  <th>Duration</th>
+                  <th id="filenameCheckHeader" style="display: none;">Filename Check</th>
+                  <th id="formatHeader">Format</th>
+                  <th id="sampleRateHeader">Sample Rate</th>
+                  <th id="bitDepthHeader">Bit Depth</th>
+                  <th id="channelsHeader">Channels</th>
+                  <th id="durationHeader">Duration</th>
                   <th>File Size</th>
                   <th>Play</th>
                 </tr>

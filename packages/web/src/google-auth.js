@@ -291,6 +291,47 @@ class GoogleAuth {
     }
   }
 
+  async listFilesInFolder(folderId, extension) {
+    const token = await this.getValidToken();
+
+    try {
+      // Query for files in the folder with specific extension
+      const query = `'${folderId}' in parents and trashed=false`;
+
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType)&pageSize=1000`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token.access_token}`
+          }
+        }
+      );
+
+      if (!response.ok) {
+        if (response.status === 403) {
+          this.signOut();
+          throw new Error('Insufficient permissions to access Google Drive folder. Please sign in again.');
+        }
+        throw new Error(`Failed to list folder contents: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const allFiles = data.files || [];
+
+      // Filter by extension if provided
+      if (extension) {
+        return allFiles.filter(file =>
+          file.name.toLowerCase().endsWith(extension.toLowerCase())
+        );
+      }
+
+      return allFiles;
+
+    } catch (error) {
+      throw new Error(`Failed to list folder: ${error.message}`);
+    }
+  }
+
   async downloadFileHeaders(fileId, bytesLimit = 102400) {
     const token = await this.getValidToken();
 

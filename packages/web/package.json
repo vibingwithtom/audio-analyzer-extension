@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "serve": "serve dist",
     "deploy": "npm run build && echo audio-analyzer.tinytech.site > dist/CNAME && gh-pages -d dist",
-    "deploy:beta": "npm run build:beta && gh-pages -d dist --dest beta"
+    "deploy:beta": "npm run build:beta && gh-pages -d dist -e beta"
   },
   "dependencies": {
     "@audio-analyzer/core": "^1.0.0"
