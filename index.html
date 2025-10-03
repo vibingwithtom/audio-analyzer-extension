@@ -17,8 +17,8 @@
   <meta property="og:description" content="Professional audio file analysis tool">
   <meta property="og:type" content="website">
 
-  <script type="module" crossorigin src="/assets/index-YcFOSD4F.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-CQfTmHo5.css">
+  <script type="module" crossorigin src="/assets/index-BzRRsx57.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-fhlHg-aV.css">
 </head>
 <body>
   <div id="app">
@@ -40,6 +40,17 @@
           </button>
         </div>
 
+        <!-- Google Drive Auth (only shown when on Google Drive tab) -->
+        <div class="gdrive-auth-global tab-content" data-tab="gdrive">
+          <div class="gdrive-auth" id="driveAuth">
+            <div class="auth-status" id="authStatus">
+              <span id="authText">Not signed in to Google</span>
+              <button id="signInBtn" class="sign-in-btn" style="display: none;">Sign In</button>
+              <button id="signOutBtn" class="sign-out-btn" style="display: none;">Sign Out</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Target Criteria Section -->
         <section class="criteria-section">
           <h2>Analysis Criteria</h2>
@@ -50,8 +61,11 @@
             <select id="presetSelector" class="preset-selector">
               <option value="auditions">Auditions</option>
               <option value="character-recordings">Character Recordings</option>
-              <option value="p2b2-pairs">P2B2 Pairs</option>
+              <option value="p2b2-pairs-mono">P2B2 Pairs (Mono)</option>
+              <option value="p2b2-pairs-stereo">P2B2 Pairs (Stereo)</option>
+              <option value="p2b2-pairs-mixed">P2B2 Pairs (Mixed)</option>
               <option value="three-hour">Three Hour</option>
+              <option value="bilingual-conversational">Bilingual Conversational</option>
               <option disabled>────────────</option>
               <option value="custom">Custom</option>
             </select>
@@ -65,9 +79,8 @@
           <div id="customCriteriaSection" class="custom-criteria" style="display: none;">
             <div class="criteria-grid">
               <div class="criteria-item">
-                <label for="targetFileType">File Type</label>
-                <select id="targetFileType">
-                  <option value="">Any</option>
+                <label for="targetFileType">File Type (multi-select)</label>
+                <select id="targetFileType" multiple size="3">
                   <option value="wav">WAV</option>
                   <option value="mp3">MP3</option>
                   <option value="flac">FLAC</option>
@@ -77,9 +90,8 @@
                 </select>
               </div>
               <div class="criteria-item">
-                <label for="targetSampleRate">Min. Sample Rate (kHz)</label>
-                <select id="targetSampleRate">
-                  <option value="">Any</option>
+                <label for="targetSampleRate">Sample Rate (multi-select)</label>
+                <select id="targetSampleRate" multiple size="3">
                   <option value="44100">44.1 kHz</option>
                   <option value="48000">48.0 kHz</option>
                   <option value="96000">96.0 kHz</option>
@@ -87,23 +99,25 @@
                 </select>
               </div>
               <div class="criteria-item">
-                <label for="targetBitDepth">Min. Bit Depth</label>
-                <select id="targetBitDepth">
-                  <option value="">Any</option>
+                <label for="targetBitDepth">Bit Depth (multi-select)</label>
+                <select id="targetBitDepth" multiple size="3">
                   <option value="16">16-bit</option>
                   <option value="24">24-bit</option>
                   <option value="32">32-bit</option>
                 </select>
               </div>
               <div class="criteria-item">
-                <label for="targetChannels">Channels</label>
-                <select id="targetChannels">
-                  <option value="">Any</option>
+                <label for="targetChannels">Channels (multi-select)</label>
+                <select id="targetChannels" multiple size="3">
                   <option value="1">Mono (1)</option>
                   <option value="2">Stereo (2)</option>
                   <option value="6">5.1 Surround (6)</option>
                   <option value="8">7.1 Surround (8)</option>
                 </select>
+              </div>
+              <div class="criteria-item">
+                <label for="targetMinDuration">Min. Duration (seconds)</label>
+                <input type="number" id="targetMinDuration" placeholder="e.g., 120" min="0">
               </div>
             </div>
           </div>
@@ -125,11 +139,33 @@
 
         <div class="tab-content" data-tab="gdrive">
           <section class="gdrive-section">
-            <div class="gdrive-auth" id="driveAuth">
-              <div class="auth-status" id="authStatus">
-                <span id="authText">Not signed in to Google</span>
-                <button id="signInBtn" class="sign-in-btn" style="display: none;">Sign In</button>
-                <button id="signOutBtn" class="sign-out-btn" style="display: none;">Sign Out</button>
+            <!-- Analysis Type Selection (only shown for presets with filename validation) -->
+            <div id="analysisTypeSection" class="analysis-type-section" style="display: none;">
+              <h3>Analysis Options</h3>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="enableAudioAnalysis" checked>
+                  <span>Audio Quality Analysis</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="enableFilenameValidation">
+                  <span>Filename Validation</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Filename Validation Fields (only shown when checkbox is checked) -->
+            <div id="filenameValidationFields" class="filename-validation-fields" style="display: none;">
+              <h3>Filename Validation Settings</h3>
+              <div class="validation-inputs">
+                <div class="criteria-item">
+                  <label for="speakerId">Speaker ID</label>
+                  <input type="text" id="speakerId" placeholder="e.g., SPK123">
+                </div>
+                <div class="criteria-item">
+                  <label for="scriptsFolderUrl">Scripts Folder URL</label>
+                  <input type="url" id="scriptsFolderUrl" placeholder="https://drive.google.com/folders/...">
+                </div>
               </div>
             </div>
 
@@ -319,11 +355,12 @@
                 <tr>
                   <th>Filename</th>
                   <th>Status</th>
-                  <th>Format</th>
-                  <th>Sample Rate</th>
-                  <th>Bit Depth</th>
-                  <th>Channels</th>
-                  <th>Duration</th>
+                  <th id="filenameCheckHeader" style="display: none;">Filename Check</th>
+                  <th id="formatHeader">Format</th>
+                  <th id="sampleRateHeader">Sample Rate</th>
+                  <th id="bitDepthHeader">Bit Depth</th>
+                  <th id="channelsHeader">Channels</th>
+                  <th id="durationHeader">Duration</th>
                   <th>File Size</th>
                   <th>Play</th>
                 </tr>
