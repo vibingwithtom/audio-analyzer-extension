@@ -17,7 +17,7 @@
   <meta property="og:description" content="Professional audio file analysis tool">
   <meta property="og:type" content="website">
 
-  <script type="module" crossorigin src="/beta/assets/index-7S-PihjW.js"></script>
+  <script type="module" crossorigin src="/beta/assets/index-CzphdX8-.js"></script>
   <link rel="stylesheet" crossorigin href="/beta/assets/index-ByluGvrL.css">
 </head>
 <body>
@@ -55,10 +55,10 @@
         </div>
 
         <!-- Box Auth (only shown when on Box tab) -->
-        <div class="box-auth-global tab-content" data-tab="box">
+        <div class="box-auth-global tab-content" data-tab="box" style="display: none;">
           <div class="box-auth" id="boxAuth">
             <div class="auth-status" id="boxAuthStatus">
-              <span id="boxAuthText">Not signed in to Box</span>
+              <span id="boxAuthText">Using shared links (no authentication required)</span>
               <button id="boxSignInBtn" class="sign-in-btn" style="display: none;">Sign In</button>
               <button id="boxSignOutBtn" class="sign-out-btn" style="display: none;">Sign Out</button>
             </div>
@@ -251,8 +251,8 @@
                 </button>
               </div>
               <p class="input-hint">
-                Paste a Box file or folder link. For folders, all audio files will be batch analyzed.
-                Authentication will be prompted if needed.
+                Paste a Box shared link (public file or folder). For folders, all audio files will be batch analyzed.
+                Note: Files must be publicly shared for access without authentication.
               </p>
             </div>
           </section>
