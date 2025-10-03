@@ -17,7 +17,7 @@
   <meta property="og:description" content="Professional audio file analysis tool">
   <meta property="og:type" content="website">
 
-  <script type="module" crossorigin src="/beta/assets/index-rNax9NFZ.js"></script>
+  <script type="module" crossorigin src="/beta/assets/index-BSnhF7p-.js"></script>
   <link rel="stylesheet" crossorigin href="/beta/assets/index-XIuXk_0R.css">
 </head>
 <body>
@@ -224,14 +224,12 @@
             <div id="boxFilenameValidationFields" class="filename-validation-fields" style="display: none;">
               <h3>Filename Validation Settings</h3>
               <div class="validation-inputs">
-                <div class="criteria-item">
-                  <label for="boxSpeakerId">Speaker ID</label>
-                  <input type="text" id="boxSpeakerId" placeholder="e.g., SPK123">
-                </div>
-                <div class="criteria-item">
-                  <label for="boxScriptsFolderUrl">Scripts Folder URL</label>
-                  <input type="url" id="boxScriptsFolderUrl" placeholder="https://app.box.com/folder/...">
-                </div>
+                <p class="input-hint">
+                  Filenames will be validated against the pattern:<br>
+                  <code>[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
+                  <br>
+                  Example: <code>vdlg1_001_budgeting_app-en_us-user-10101-agent-10102</code>
+                </p>
               </div>
             </div>
 
