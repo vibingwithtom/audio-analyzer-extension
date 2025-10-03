@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Audio Analyzer - Professional Audio File Analysis</title>
   <meta name="description" content="Analyze audio file properties, validate against criteria, and perform advanced audio analysis">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com https://www.gstatic.com https://*.googleapis.com https://*.gstatic.com; frame-src 'self' https://accounts.google.com https://content.googleapis.com https://*.googleapis.com; connect-src 'self' https://accounts.google.com https://*.googleapis.com https://www.googleapis.com https://content.googleapis.com https://oauth2.googleapis.com; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com https://www.gstatic.com https://*.googleapis.com https://*.gstatic.com https://account.box.com; frame-src 'self' https://accounts.google.com https://content.googleapis.com https://*.googleapis.com https://account.box.com; connect-src 'self' https://accounts.google.com https://*.googleapis.com https://www.googleapis.com https://content.googleapis.com https://oauth2.googleapis.com https://api.box.com https://account.box.com https://*.box.com https://*.boxcloud.com https://*.run.app; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'">
   <link rel="icon" type="image/x-icon" href="./favicon.ico">
 
   <!-- PWA Meta Tags -->
@@ -36,6 +36,9 @@
           </button>
           <button class="tab-button" data-tab="gdrive">
             ☁️ Google Drive
+          </button>
+          <button class="tab-button" data-tab="box">
+            📦 Box
           </button>
         </div>
 
@@ -184,6 +187,69 @@
               <p class="input-hint">
                 Paste a Google Drive file or folder link. For folders, all audio files will be batch analyzed.
                 Authentication will be prompted if needed.
+              </p>
+            </div>
+          </section>
+        </div>
+
+        <!-- Box Tab Content -->
+        <div class="tab-content" data-tab="box">
+          <section class="box-section">
+            <!-- Box Authentication Status -->
+            <div class="auth-section">
+              <div class="auth-status">
+                <span id="boxAuthText" class="auth-text">Not signed in to Box</span>
+                <button id="boxSignInBtn" class="sign-in-btn">Sign In to Box</button>
+                <button id="boxSignOutBtn" class="sign-out-btn" style="display: none;">Sign Out</button>
+              </div>
+            </div>
+
+            <!-- Analysis Type Selection (only shown for presets with filename validation) -->
+            <div id="boxAnalysisTypeSection" class="analysis-type-section" style="display: none;">
+              <h3>Analysis Options</h3>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="boxEnableAudioAnalysis" checked>
+                  <span>Audio Quality Analysis</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="boxEnableFilenameValidation">
+                  <span>Filename Validation</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Filename Validation Fields (only shown when checkbox is checked) -->
+            <div id="boxFilenameValidationFields" class="filename-validation-fields" style="display: none;">
+              <h3>Filename Validation Settings</h3>
+              <div class="validation-inputs">
+                <div class="criteria-item">
+                  <label for="boxSpeakerId">Speaker ID</label>
+                  <input type="text" id="boxSpeakerId" placeholder="e.g., SPK123">
+                </div>
+                <div class="criteria-item">
+                  <label for="boxScriptsFolderUrl">Scripts Folder URL</label>
+                  <input type="url" id="boxScriptsFolderUrl" placeholder="https://app.box.com/folder/...">
+                </div>
+              </div>
+            </div>
+
+            <div class="box-input">
+              <label for="boxUrl">Box File or Folder URL</label>
+              <div class="input-group">
+                <input
+                  type="url"
+                  id="boxUrl"
+                  placeholder="https://app.box.com/file/... or .../folder/..."
+                  class="box-url-input"
+                >
+                <button id="analyzeBoxUrl" class="analyze-btn">
+                  Analyze
+                </button>
+              </div>
+              <p class="input-hint">
+                Paste a Box file or folder URL. Authentication is required - you'll be prompted to sign in if needed.
+                For folders, all audio files will be batch analyzed.
               </p>
             </div>
           </section>

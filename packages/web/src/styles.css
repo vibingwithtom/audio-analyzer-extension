@@ -310,6 +310,45 @@ body {
   border-left: 4px solid #3b82f6;
 }
 
+/* Box Styles */
+.box-section {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.box-auth-global {
+  margin-bottom: 1.5rem;
+}
+
+.box-auth-global .box-auth {
+  margin-bottom: 0;
+}
+
+.box-auth {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border-left: 4px solid #0061d5;
+}
+
+.box-input label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.box-url-input {
+  flex: 1;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
 .auth-status {
   display: flex;
   align-items: center;
@@ -1119,4 +1158,10 @@ body {
 
 .play-btn-small:active {
   background: #1e40af;
+}
+
+a.box-link {
+  /* Inherit button styles when used with play-btn-small class */
+  text-decoration: none;
+  display: inline-block;
 }

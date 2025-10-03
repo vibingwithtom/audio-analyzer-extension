@@ -44,7 +44,9 @@ export class AudioAnalyzer {
     }
 
     try {
-      this.audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+      // decodeAudioData consumes/detaches the ArrayBuffer, so make a copy for fallback
+      const arrayBufferCopy = arrayBuffer.slice(0);
+      this.audioBuffer = await this.audioContext.decodeAudioData(arrayBufferCopy);
 
       return {
         fileType: this.getFileType(file.name),
@@ -55,7 +57,7 @@ export class AudioAnalyzer {
         bitDepth: this.estimateBitDepth(arrayBuffer, file.name)
       };
     } catch (error) {
-      // Fallback to header analysis
+      // Fallback to header analysis using the original arrayBuffer
       return await this.analyzeFileHeaders(arrayBuffer, file.name, file.size);
     }
   }
