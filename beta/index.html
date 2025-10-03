@@ -17,7 +17,7 @@
   <meta property="og:description" content="Professional audio file analysis tool">
   <meta property="og:type" content="website">
 
-  <script type="module" crossorigin src="/beta/assets/index-Bfj_d4xl.js"></script>
+  <script type="module" crossorigin src="/beta/assets/index-DHOJf7Y_.js"></script>
   <link rel="stylesheet" crossorigin href="/beta/assets/index-DihmHFQ2.css">
 </head>
 <body>
@@ -129,6 +129,34 @@
         <!-- File Input Sections -->
         <div class="tab-content active" data-tab="local">
           <section class="upload-section">
+            <!-- Analysis Options for Local Files -->
+            <div id="localAnalysisTypeSection" class="analysis-type-section" style="display: none;">
+              <h3>Analysis Options</h3>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="localEnableAudioAnalysis" checked>
+                  <span>Audio Quality Analysis</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="localEnableFilenameValidation">
+                  <span>Filename Validation</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Filename Validation Fields for Local (bilingual only) -->
+            <div id="localFilenameValidationFields" class="filename-validation-fields" style="display: none;">
+              <h3>Filename Validation Settings</h3>
+              <div class="validation-inputs">
+                <p class="input-hint">
+                  Filenames will be validated against the pattern:<br>
+                  <code>[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
+                  <br>
+                  Example: <code>vdlg1_001_budgeting_app-en_us-user-10101-agent-10102</code>
+                </p>
+              </div>
+            </div>
+
             <div class="drop-zone" id="dropZone">
               <div class="drop-zone-content">
                 <h3>Drop audio file here</h3>
