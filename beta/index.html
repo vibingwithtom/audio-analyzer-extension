@@ -17,7 +17,7 @@
   <meta property="og:description" content="Professional audio file analysis tool">
   <meta property="og:type" content="website">
 
-  <script type="module" crossorigin src="/beta/assets/index-DZkA2I0K.js"></script>
+  <script type="module" crossorigin src="/beta/assets/index-6n9Qp5Eu.js"></script>
   <link rel="stylesheet" crossorigin href="/beta/assets/index-CbRbzZRr.css">
 </head>
 <body>
@@ -349,6 +349,29 @@
           <button onclick="location.reload()" class="retry-btn">Try Again</button>
         </div>
 
+        <!-- Validation Legend (Global) -->
+        <div id="validationLegend" class="validation-legend" style="display: none;">
+          <h3>Validation Legend:</h3>
+          <div class="legend-items">
+            <div class="legend-item">
+              <span class="legend-color red"></span>
+              <span class="legend-text"><strong>Red (fail):</strong> Candidate must resubmit</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-color yellow"></span>
+              <span class="legend-text"><strong>Yellow:</strong> Not exact match but safe to submit</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-color green"></span>
+              <span class="legend-text"><strong>Green:</strong> Safe to submit</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-color grey"></span>
+              <span class="legend-text"><strong>Grey:</strong> Informational</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Results Section -->
         <section id="resultsSection" class="results-section" style="display: none;">
           <h2>Analysis Results</h2>
@@ -362,63 +385,26 @@
             </div>
           </div>
 
-          <!-- Basic Results -->
-          <div class="results-grid">
-            <div class="result-item" id="fileNameRow">
-              <label>File Name:</label>
-              <span id="fileName">-</span>
-            </div>
-            <div class="result-item" id="fileTypeRow">
-              <label>File Type:</label>
-              <span id="fileType">-</span>
-            </div>
-            <div class="result-item" id="sampleRateRow">
-              <label>Sample Rate:</label>
-              <span id="sampleRate">-</span>
-            </div>
-            <div class="result-item" id="bitDepthRow">
-              <label>Bit Depth:</label>
-              <span id="bitDepth">-</span>
-            </div>
-            <div class="result-item" id="channelsRow">
-              <label>Channels:</label>
-              <span id="channels">-</span>
-            </div>
-            <div class="result-item" id="durationRow">
-              <label>Duration:</label>
-              <span id="duration">-</span>
-            </div>
-            <div class="result-item">
-              <label>File Size:</label>
-              <span id="fileSize">-</span>
-            </div>
-            <div class="result-item" id="filenameValidationRow" style="display: none;">
-              <label>Filename Validation:</label>
-              <span id="filenameValidationResult">-</span>
-            </div>
-          </div>
-
-          <!-- Validation Legend -->
-          <div class="validation-legend">
-            <h3>Validation Legend:</h3>
-            <div class="legend-items">
-              <div class="legend-item">
-                <span class="legend-color red"></span>
-                <span class="legend-text"><strong>Red (fail):</strong> Candidate must resubmit</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-color yellow"></span>
-                <span class="legend-text"><strong>Yellow:</strong> Not exact match but safe to submit</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-color green"></span>
-                <span class="legend-text"><strong>Green:</strong> Safe to submit</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-color grey"></span>
-                <span class="legend-text"><strong>Grey:</strong> Informational</span>
-              </div>
-            </div>
+          <!-- Results Table -->
+          <div class="batch-table-container">
+            <table class="batch-results-table">
+              <thead>
+                <tr>
+                  <th>Filename</th>
+                  <th>Status</th>
+                  <th id="singleFilenameCheckHeader" style="display: none;">Filename Check</th>
+                  <th id="singleFormatHeader">Format</th>
+                  <th id="singleSampleRateHeader">Sample Rate</th>
+                  <th id="singleBitDepthHeader">Bit Depth</th>
+                  <th id="singleChannelsHeader">Channels</th>
+                  <th id="singleDurationHeader">Duration</th>
+                  <th>File Size</th>
+                  <th>Play</th>
+                </tr>
+              </thead>
+              <tbody id="singleTableBody">
+              </tbody>
+            </table>
           </div>
 
           <!-- Advanced Analysis -->
