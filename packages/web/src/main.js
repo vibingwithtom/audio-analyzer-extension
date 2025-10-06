@@ -2117,6 +2117,8 @@ class WebAudioAnalyzer {
         results.peakDb === -Infinity ? '-∞ dB' : `${results.peakDb.toFixed(1)} dB`;
       document.getElementById('noiseFloor').textContent =
         results.noiseFloorDb === -Infinity ? '-∞ dB' : `${results.noiseFloorDb.toFixed(1)} dB`;
+      document.getElementById('noiseFloorHistogram').textContent =
+        results.noiseFloorDbHistogram === -Infinity ? '-∞ dB' : `${results.noiseFloorDbHistogram.toFixed(1)} dB`;
       document.getElementById('normalization').textContent = results.normalizationStatus.message;
 
       // Also run stereo separation analysis

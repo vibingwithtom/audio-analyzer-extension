@@ -56,6 +56,7 @@ export class LevelAnalyzer {
       // 2. Noise Floor Analysis
       if (progressCallback) progressCallback('Analyzing noise floor...', 0.5);
       const noiseFloorDb = await this.analyzeNoiseFloor(channelData, channels, length, progressCallback);
+      const noiseFloorDbHistogram = await this.analyzeNoiseFloorHistogram(channelData, channels, length);
 
       // 3. Normalization Check
       if (progressCallback) progressCallback('Checking normalization...', 0.9);
@@ -66,11 +67,61 @@ export class LevelAnalyzer {
       return {
         peakDb: peakDb,
         noiseFloorDb: noiseFloorDb,
+        noiseFloorDbHistogram: noiseFloorDbHistogram,
         normalizationStatus: normalizationStatus
       };
     } finally {
       this.analysisInProgress = false;
     }
+  }
+
+  async analyzeNoiseFloorHistogram(channelData, channels, length) {
+    // This method uses a histogram to find the most common quiet level.
+    const numBins = 100; // Bins for levels from -100dB to 0dB
+    const histogram = new Array(numBins).fill(0);
+    const minDb = -100.0;
+    const dbRange = 100.0;
+
+    const windowSize = Math.floor(44100 * 0.05); // 50ms windows, assuming at least 44.1kHz
+
+    for (let channel = 0; channel < channels; channel++) {
+      const data = channelData[channel];
+      for (let i = 0; i < length; i += windowSize) {
+        const end = Math.min(i + windowSize, length);
+        let sumSquares = 0;
+        for (let j = i; j < end; j++) {
+          sumSquares += data[j] * data[j];
+        }
+        const rms = Math.sqrt(sumSquares / (end - i));
+        const db = rms > 0 ? 20 * Math.log10(rms) : minDb;
+
+        if (db >= minDb) {
+          const bin = Math.min(
+            Math.floor(((db - minDb) / dbRange) * numBins),
+            numBins - 1
+          );
+          histogram[bin]++;
+        }
+      }
+    }
+
+    // Find the peak of the histogram (the mode)
+    let modeBin = -1;
+    let maxCount = 0;
+    for (let i = 0; i < numBins; i++) {
+      if (histogram[i] > maxCount) {
+        maxCount = histogram[i];
+        modeBin = i;
+      }
+    }
+
+    if (modeBin === -1) {
+      return -Infinity;
+    }
+
+    // Convert the bin index back to a dB value
+    const noiseFloor = modeBin * (dbRange / numBins) + minDb;
+    return noiseFloor;
   }
 
   async analyzeNoiseFloor(channelData, channels, length, progressCallback) {
