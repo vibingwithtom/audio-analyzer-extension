@@ -1,16 +1,44 @@
 # Audio Analyzer Web App
 
-A professional web-based audio file analysis tool that provides detailed technical information about audio files and validates them against specified criteria.
+A professional web-based audio file analysis tool that provides detailed technical information about audio files and validates them against specified criteria. Supports local files, Google Drive, and Box with intelligent batch processing.
 
 ## Features
 
-- **Local File Analysis**: Drag and drop or browse to analyze local audio files
-- **Google Drive Integration**: Analyze audio files directly from Google Drive links (coming soon)
-- **Advanced Audio Analysis**: Peak level detection, noise floor analysis, and normalization recommendations
-- **Criteria Validation**: Set target specifications and get visual pass/fail validation
+### Multi-Source Support
+- **Local File Analysis**: Drag and drop or browse single or multiple local audio files
+- **Google Drive Integration**: Analyze files and folders directly from Google Drive URLs with OAuth authentication
+- **Box Integration**: Analyze files and folders from Box.com with OAuth authentication
+
+### Smart Batch Processing
+- **Automatic Mode Detection**: Single file → detailed analysis; Multiple files → batch mode with summary statistics
+- **Folder Support**: Process entire folders from Google Drive or Box in one operation
+- **Progress Tracking**: Real-time progress indicators with file counts and percentages
+- **Summary Dashboard**: Pass/warning/fail counts with total duration calculations
+
+### Filename Validation
+- **Three Hour Preset**: Script-match validation requiring matching .txt script files
+- **Bilingual Conversational**: Pattern validation for conversation IDs, language codes, and contributor pairs
+- **Metadata-Only Mode**: Fast validation using only filenames and metadata (no audio decoding)
+
+### Analysis Presets
+- Auditions
+- Character Recordings
+- P2B2 Pairs (Mono, Stereo, Mixed)
+- Three Hour (with filename validation)
+- Bilingual Conversational (with filename validation)
+- Custom criteria
+
+### Advanced Audio Analysis
+- Peak level detection
+- Noise floor analysis
+- Normalization recommendations
+- Multi-select criteria (file type, sample rate, bit depth, channels)
+
+### Additional Features
 - **Multiple Format Support**: WAV, MP3, FLAC, AAC, M4A, OGG
 - **Progressive Web App**: Installable on desktop and mobile devices
 - **Responsive Design**: Works perfectly on all screen sizes
+- **Audio Playback**: Preview files directly in the browser (local and Google Drive)
 
 ## Technical Analysis
 
@@ -61,21 +89,36 @@ The web app imports the shared core engine to maintain consistency across all pl
 
 ## Deployment
 
+### Production Deployment
+
+Deploy to https://audio-analyzer.tinytech.site:
+
+```bash
+npm run deploy
+```
+
+This builds the project and deploys to the `gh-pages` branch with the production domain.
+
+### Beta Deployment
+
+Deploy to https://audio-analyzer.tinytech.site/beta for testing:
+
+```bash
+npm run deploy:beta
+```
+
+This builds the project and deploys to the `gh-pages-beta` branch.
+
+### Manual Deployment
+
 The app can be deployed to any static hosting service:
 
-### Netlify / Vercel
-
+**Netlify / Vercel:**
 1. Build the project: `npm run build`
 2. Deploy the `dist/` folder
 3. Configure redirects for SPA routing if needed
 
-### GitHub Pages
-
-1. Build the project: `npm run build`
-2. Deploy the `dist/` folder to your gh-pages branch
-
-### Custom Server
-
+**Custom Server:**
 1. Build the project: `npm run build`
 2. Serve the `dist/` folder with any web server (nginx, Apache, etc.)
 
@@ -96,22 +139,35 @@ Requires modern browser features:
 
 The web app is a Progressive Web App with:
 
-- Offline functionality (coming soon)
 - Install prompts
 - App-like experience
 - Responsive design
 - Web app manifest
+- Offline functionality (planned)
 
-## Google Drive Integration
+## Cloud Integration
 
-Web-based Google Drive integration requires different OAuth setup compared to the desktop app:
+### Google Drive
 
-1. Create a Web Application OAuth client in Google Cloud Console
-2. Configure authorized JavaScript origins
-3. Implement web-based OAuth flow
-4. Handle CORS and security considerations
+Full OAuth 2.0 integration with:
+- Sign in with Google account
+- Access to files and folders via shared URLs
+- Batch processing of folders
+- Audio file playback directly from Drive
 
-*Currently showing placeholder - full implementation coming soon.*
+### Box
+
+Full OAuth 2.0 integration with:
+- Sign in with Box account
+- Access to files and folders via shared URLs
+- Batch processing of folders
+- Cloud function proxy for secure token exchange
+
+## Documentation
+
+- **Future Features**: See `docs/FUTURE_FEATURES.md` for planned enhancements
+- **Batch Experimental Analysis**: See `docs/BATCH_EXPERIMENTAL_OPTIONS.md` for design details
+- **Archived Docs**: Historical planning documents in `docs/archive/`
 
 ## License
 
