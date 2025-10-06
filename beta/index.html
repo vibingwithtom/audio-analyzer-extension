@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio Analyzer - Professional Audio File Analysis</title>
+  <meta name="description" content="Analyze audio file properties, validate against criteria, and perform advanced audio analysis">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com https://www.gstatic.com https://*.googleapis.com https://*.gstatic.com https://account.box.com; frame-src 'self' https://accounts.google.com https://content.googleapis.com https://*.googleapis.com https://account.box.com; connect-src 'self' https://accounts.google.com https://*.googleapis.com https://www.googleapis.com https://content.googleapis.com https://oauth2.googleapis.com https://api.box.com https://account.box.com https://*.box.com https://*.boxcloud.com https://*.run.app; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'">
+  <link rel="icon" type="image/x-icon" href="./favicon.ico">
+
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#2563eb">
+  <link rel="manifest" href="/beta/assets/manifest-DxZNS_xL.json">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Audio Analyzer">
+  <meta property="og:description" content="Professional audio file analysis tool">
+  <meta property="og:type" content="website">
+
+  <script type="module" crossorigin src="/beta/assets/index-4C6Z0Jrh.js"></script>
+  <link rel="stylesheet" crossorigin href="/beta/assets/index-BartXLNw.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <div class="container">
+        <div class="header-content">
+          <h1 class="logo">🎵 Audio Analyzer</h1>
+          <button id="darkModeToggle" class="dark-mode-toggle" aria-label="Toggle dark mode">
+            <span class="light-icon">🌙</span>
+            <span class="dark-icon">☀️</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="container">
+        <!-- Tab Navigation -->
+        <div class="tabs">
+          <button class="tab-button active" data-tab="local">
+            📁 Local Files
+          </button>
+          <button class="tab-button" data-tab="gdrive">
+            ☁️ Google Drive
+          </button>
+          <button class="tab-button" data-tab="box">
+            📦 Box
+          </button>
+        </div>
+
+        <!-- Google Drive Auth (only shown when on Google Drive tab) -->
+        <div class="gdrive-auth-global tab-content" data-tab="gdrive">
+          <div class="gdrive-auth" id="driveAuth">
+            <div class="auth-status" id="authStatus">
+              <span id="authText">Not signed in to Google</span>
+              <button id="signInBtn" class="sign-in-btn" style="display: none;">Sign In</button>
+              <button id="signOutBtn" class="sign-out-btn" style="display: none;">Sign Out</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Box Auth (only shown when on Box tab) -->
+        <div class="box-auth-global tab-content" data-tab="box">
+          <div class="box-auth" id="boxAuth">
+            <div class="auth-status" id="boxAuthStatus">
+              <span id="boxAuthText">Not signed in to Box</span>
+              <button id="boxSignInBtn" class="sign-in-btn" style="display: none;">Sign In</button>
+              <button id="boxSignOutBtn" class="sign-out-btn" style="display: none;">Sign Out</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Target Criteria Section -->
+        <section class="criteria-section">
+          <h2>Analysis Criteria</h2>
+
+          <!-- Preset Selector -->
+          <div class="preset-section">
+            <label for="presetSelector">Select Criteria:</label>
+            <select id="presetSelector" class="preset-selector">
+              <option value="auditions">Auditions</option>
+              <option value="character-recordings">Character Recordings</option>
+              <option value="p2b2-pairs-mono">P2B2 Pairs (Mono)</option>
+              <option value="p2b2-pairs-stereo">P2B2 Pairs (Stereo)</option>
+              <option value="p2b2-pairs-mixed">P2B2 Pairs (Mixed)</option>
+              <option value="three-hour">Three Hour</option>
+              <option value="bilingual-conversational">Bilingual Conversational</option>
+              <option disabled>────────────</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+
+          <!-- No Preset Warning -->
+          <div id="noPresetWarning" class="preset-warning" style="display: none;">
+            ⚠️ Select a preset above to enable validation checks
+          </div>
+
+          <div id="customCriteriaSection" class="custom-criteria" style="display: none;">
+            <div class="criteria-grid">
+              <div class="criteria-item">
+                <label for="targetFileType">File Type (multi-select)</label>
+                <select id="targetFileType" multiple size="3">
+                  <option value="wav">WAV</option>
+                  <option value="mp3">MP3</option>
+                  <option value="flac">FLAC</option>
+                  <option value="aac">AAC</option>
+                  <option value="m4a">M4A</option>
+                  <option value="ogg">OGG</option>
+                </select>
+              </div>
+              <div class="criteria-item">
+                <label for="targetSampleRate">Sample Rate (multi-select)</label>
+                <select id="targetSampleRate" multiple size="3">
+                  <option value="44100">44.1 kHz</option>
+                  <option value="48000">48.0 kHz</option>
+                  <option value="96000">96.0 kHz</option>
+                  <option value="192000">192.0 kHz</option>
+                </select>
+              </div>
+              <div class="criteria-item">
+                <label for="targetBitDepth">Bit Depth (multi-select)</label>
+                <select id="targetBitDepth" multiple size="3">
+                  <option value="16">16-bit</option>
+                  <option value="24">24-bit</option>
+                  <option value="32">32-bit</option>
+                </select>
+              </div>
+              <div class="criteria-item">
+                <label for="targetChannels">Channels (multi-select)</label>
+                <select id="targetChannels" multiple size="3">
+                  <option value="1">Mono (1)</option>
+                  <option value="2">Stereo (2)</option>
+                  <option value="6">5.1 Surround (6)</option>
+                  <option value="8">7.1 Surround (8)</option>
+                </select>
+              </div>
+              <div class="criteria-item">
+                <label for="targetMinDuration">Min. Duration (seconds)</label>
+                <input type="number" id="targetMinDuration" placeholder="e.g., 120" min="0">
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- File Input Sections -->
+        <div class="tab-content active" data-tab="local">
+          <section class="upload-section">
+            <!-- Analysis Options for Local Files -->
+            <div id="localAnalysisTypeSection" class="analysis-type-section" style="display: none;">
+              <h3>Analysis Options</h3>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="localEnableAudioAnalysis" checked>
+                  <span>Audio Quality Analysis</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="localEnableFilenameValidation">
+                  <span>Filename Validation</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Filename Validation Fields for Local (bilingual only) -->
+            <div id="localFilenameValidationFields" class="filename-validation-fields" style="display: none;">
+              <h3>Filename Validation Settings</h3>
+              <div class="validation-inputs">
+                <p class="input-hint">
+                  Filenames will be validated against two patterns:<br>
+                  <br>
+                  <strong>Regular:</strong><br>
+                  <code>[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
+                  Example: <code>vdlg1_001_budgeting_app-en_us-user-10101-agent-10102</code><br>
+                  <br>
+                  <strong>Spontaneous:</strong><br>
+                  <code>SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
+                  Example: <code>SPONTANEOUS_1-en_us-user-10101-agent-10102</code>
+                </p>
+              </div>
+            </div>
+
+            <div class="drop-zone" id="dropZone">
+              <div class="drop-zone-content">
+                <h3>Drop audio file here</h3>
+                <p>Or click to browse files</p>
+                <button class="browse-btn" id="browseBtn">Choose File</button>
+                <input type="file" id="fileInput" accept="audio/*" multiple style="display: none;">
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="tab-content" data-tab="gdrive">
+          <section class="gdrive-section">
+            <!-- Analysis Type Selection (only shown for presets with filename validation) -->
+            <div id="analysisTypeSection" class="analysis-type-section" style="display: none;">
+              <h3>Analysis Options</h3>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="enableAudioAnalysis" checked>
+                  <span>Audio Quality Analysis</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="enableFilenameValidation">
+                  <span>Filename Validation</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Filename Validation Fields (only shown when checkbox is checked) -->
+            <div id="filenameValidationFields" class="filename-validation-fields" style="display: none;">
+              <!-- Three Hour Validation (script-match) -->
+              <div id="driveThreeHourFields" style="display: none;">
+                <h3>Filename Validation Settings</h3>
+                <div class="validation-inputs">
+                  <div class="criteria-item">
+                    <label for="speakerId">Speaker ID</label>
+                    <input type="text" id="speakerId" placeholder="e.g., SPK123">
+                  </div>
+                  <div class="criteria-item">
+                    <label for="scriptsFolderUrl">Scripts Folder URL</label>
+                    <input type="url" id="scriptsFolderUrl" placeholder="https://drive.google.com/folders/...">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Bilingual Validation (bilingual-pattern) -->
+              <div id="driveBilingualFields" style="display: none;">
+                <h3>Filename Validation Settings</h3>
+                <div class="validation-inputs">
+                  <p class="input-hint">
+                    Filenames will be validated against two patterns:<br>
+                    <br>
+                    <strong>Regular:</strong><br>
+                    <code>[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
+                    Example: <code>vdlg1_001_budgeting_app-en_us-user-10101-agent-10102</code><br>
+                    <br>
+                    <strong>Spontaneous:</strong><br>
+                    <code>SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
+                    Example: <code>SPONTANEOUS_1-en_us-user-10101-agent-10102</code>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="gdrive-input">
+              <label for="driveUrl">Google Drive File or Folder URL</label>
+              <div class="input-group">
+                <input
+                  type="url"
+                  id="driveUrl"
+                  placeholder="https://drive.google.com/file/d/... or .../folders/..."
+                  class="gdrive-url-input"
+                >
+                <button id="analyzeUrl" class="analyze-btn">
+                  Analyze
+                </button>
+              </div>
+              <p class="input-hint">
+                Paste a Google Drive file or folder link. For folders, all audio files will be batch analyzed.
+                Authentication will be prompted if needed.
+              </p>
+            </div>
+          </section>
+        </div>
+
+        <!-- Box Tab Content -->
+        <div class="tab-content" data-tab="box">
+          <section class="box-section">
+            <!-- Analysis Type Selection (only shown for presets with filename validation) -->
+            <div id="boxAnalysisTypeSection" class="analysis-type-section" style="display: none;">
+              <h3>Analysis Options</h3>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="boxEnableAudioAnalysis" checked>
+                  <span>Audio Quality Analysis</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="boxEnableFilenameValidation">
+                  <span>Filename Validation</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Filename Validation Fields (only shown when checkbox is checked) -->
+            <div id="boxFilenameValidationFields" class="filename-validation-fields" style="display: none;">
+              <h3>Filename Validation Settings</h3>
+              <div class="validation-inputs">
+                <p class="input-hint">
+                  Filenames will be validated against two patterns:<br>
+                  <br>
+                  <strong>Regular:</strong><br>
+                  <code>[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
+                  Example: <code>vdlg1_001_budgeting_app-en_us-user-10101-agent-10102</code><br>
+                  <br>
+                  <strong>Spontaneous:</strong><br>
+                  <code>SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
+                  Example: <code>SPONTANEOUS_1-en_us-user-10101-agent-10102</code>
+                </p>
+              </div>
+            </div>
+
+            <div class="box-input">
+              <label for="boxUrl">Box File or Folder URL</label>
+              <div class="input-group">
+                <input
+                  type="url"
+                  id="boxUrl"
+                  placeholder="https://app.box.com/file/... or .../folder/..."
+                  class="box-url-input"
+                >
+                <button id="analyzeBoxUrl" class="analyze-btn">
+                  Analyze
+                </button>
+              </div>
+              <p class="input-hint">
+                Paste a Box file or folder URL. Authentication is required - you'll be prompted to sign in if needed.
+                For folders, all audio files will be batch analyzed.
+              </p>
+            </div>
+          </section>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading" class="loading" style="display: none;">
+          <div class="spinner"></div>
+          <p>Analyzing audio file...</p>
+        </div>
+
+        <!-- Batch Progress -->
+        <div id="batchProgress" class="batch-progress" style="display: none;">
+          <h3>Processing Batch</h3>
+          <div class="progress-info">
+            <span id="batchCurrentFile">file.mp3</span>
+            <span id="batchProgressText">0/0 (0%)</span>
+          </div>
+          <div class="progress-bar">
+            <div id="batchProgressBar" class="progress-fill" style="width: 0%"></div>
+          </div>
+          <button id="cancelBatch" class="cancel-btn">Cancel</button>
+        </div>
+
+        <!-- Error State -->
+        <div id="error" class="error-state" style="display: none;">
+          <div class="error-icon">⚠️</div>
+          <h3>Analysis Error</h3>
+          <p id="errorMessage"></p>
+          <button onclick="location.reload()" class="retry-btn">Try Again</button>
+        </div>
+
+        <!-- Results Section -->
+        <section id="resultsSection" class="results-section" style="display: none;">
+          <h2>Analysis Results</h2>
+
+          <!-- Audio Player -->
+          <div id="playerSection" class="player-section" style="display: none;">
+            <h3>Audio Preview</h3>
+            <div class="audio-player">
+              <audio id="audioPlayer" controls preload="metadata"></audio>
+              <button id="playPause" class="play-pause-btn">Play</button>
+            </div>
+          </div>
+
+          <!-- Basic Results -->
+          <div class="results-grid">
+            <div class="result-item" id="fileNameRow">
+              <label>File Name:</label>
+              <span id="fileName">-</span>
+            </div>
+            <div class="result-item" id="fileTypeRow">
+              <label>File Type:</label>
+              <span id="fileType">-</span>
+            </div>
+            <div class="result-item" id="sampleRateRow">
+              <label>Sample Rate:</label>
+              <span id="sampleRate">-</span>
+            </div>
+            <div class="result-item" id="bitDepthRow">
+              <label>Bit Depth:</label>
+              <span id="bitDepth">-</span>
+            </div>
+            <div class="result-item" id="channelsRow">
+              <label>Channels:</label>
+              <span id="channels">-</span>
+            </div>
+            <div class="result-item" id="durationRow">
+              <label>Duration:</label>
+              <span id="duration">-</span>
+            </div>
+            <div class="result-item">
+              <label>File Size:</label>
+              <span id="fileSize">-</span>
+            </div>
+            <div class="result-item" id="filenameValidationRow" style="display: none;">
+              <label>Filename Validation:</label>
+              <span id="filenameValidationResult">-</span>
+            </div>
+          </div>
+
+          <!-- Validation Legend -->
+          <div class="validation-legend">
+            <h3>Validation Legend:</h3>
+            <div class="legend-items">
+              <div class="legend-item">
+                <span class="legend-color red"></span>
+                <span class="legend-text"><strong>Red (fail):</strong> Candidate must resubmit</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color yellow"></span>
+                <span class="legend-text"><strong>Yellow:</strong> Not exact match but safe to submit</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color green"></span>
+                <span class="legend-text"><strong>Green:</strong> Safe to submit</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color grey"></span>
+                <span class="legend-text"><strong>Grey:</strong> Informational</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Advanced Analysis -->
+          <div class="advanced-section">
+            <button id="advancedAnalysisBtn" class="advanced-btn">
+              🔬 Run Experimental Analysis
+            </button>
+
+            <div id="advancedProgress" class="progress-section" style="display: none;">
+              <div class="progress-bar">
+                <div id="progressFill" class="progress-fill"></div>
+              </div>
+              <p id="progressText">Initializing...</p>
+              <button id="cancelAnalysis" class="cancel-btn">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Advanced Results -->
+          <div id="advancedResultsSection" class="advanced-results" style="display: none;">
+            <h3>Advanced Analysis</h3>
+            <div class="advanced-grid">
+              <div class="advanced-item">
+                <label>Peak Level:</label>
+                <span id="peakLevel">-</span>
+              </div>
+              <div class="advanced-item">
+                <label>Noise Floor:</label>
+                <span id="noiseFloor">-</span>
+              </div>
+              <div class="advanced-item">
+                <label>Normalization:</label>
+                <span id="normalization">-</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Batch Results Section -->
+        <section id="batchResultsSection" class="batch-results-section" style="display: none;">
+          <h2>Batch Analysis Results</h2>
+
+          <div class="batch-summary">
+            <div class="summary-stats">
+              <div class="stat-item pass">
+                <span class="count" id="batchPassCount">0</span>
+                <span class="label">Pass</span>
+              </div>
+              <div class="stat-item warning">
+                <span class="count" id="batchWarningCount">0</span>
+                <span class="label">Warnings</span>
+              </div>
+              <div class="stat-item fail">
+                <span class="count" id="batchFailCount">0</span>
+                <span class="label">Failed</span>
+              </div>
+              <div class="stat-item error">
+                <span class="count" id="batchErrorCount">0</span>
+                <span class="label">Errors</span>
+              </div>
+            </div>
+            <div class="total-duration">
+              <span class="duration-label">Total Duration (Pass):</span>
+              <span class="duration-value" id="batchTotalDuration">0h 0m</span>
+            </div>
+          </div>
+
+          <div class="batch-table-container">
+            <table class="batch-results-table">
+              <thead>
+                <tr>
+                  <th>Filename</th>
+                  <th>Status</th>
+                  <th id="filenameCheckHeader" style="display: none;">Filename Check</th>
+                  <th id="formatHeader">Format</th>
+                  <th id="sampleRateHeader">Sample Rate</th>
+                  <th id="bitDepthHeader">Bit Depth</th>
+                  <th id="channelsHeader">Channels</th>
+                  <th id="durationHeader">Duration</th>
+                  <th>File Size</th>
+                  <th>Play</th>
+                </tr>
+              </thead>
+              <tbody id="batchTableBody">
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="container">
+        <p>Audio Analyzer build-2025.01.26-1847</p>
+      </div>
+    </footer>
+  </div>
+
+</body>
+</html><!-- Updated Wed Sep 24 23:50:58 EDT 2025 -->
