@@ -24,6 +24,7 @@
     <header class="header">
       <div class="container">
         <div class="header-content">
+          <div class="header-spacer"></div>
           <h1 class="logo">🎵 Audio Analyzer</h1>
           <button id="darkModeToggle" class="dark-mode-toggle" aria-label="Toggle dark mode">
             <span class="light-icon">🌙</span>
@@ -167,11 +168,11 @@
                 <p class="input-hint">
                   Filenames will be validated against two patterns:<br>
                   <br>
-                  <strong>Regular:</strong><br>
+                  <strong>Scripted:</strong><br>
                   <code>[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
                   Example: <code>vdlg1_001_budgeting_app-en_us-user-10101-agent-10102</code><br>
                   <br>
-                  <strong>Spontaneous:</strong><br>
+                  <strong>Unscripted:</strong><br>
                   <code>SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
                   Example: <code>SPONTANEOUS_1-en_us-user-10101-agent-10102</code>
                 </p>
@@ -230,11 +231,11 @@
                   <p class="input-hint">
                     Filenames will be validated against two patterns:<br>
                     <br>
-                    <strong>Regular:</strong><br>
+                    <strong>Scripted:</strong><br>
                     <code>[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
                     Example: <code>vdlg1_001_budgeting_app-en_us-user-10101-agent-10102</code><br>
                     <br>
-                    <strong>Spontaneous:</strong><br>
+                    <strong>Unscripted:</strong><br>
                     <code>SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
                     Example: <code>SPONTANEOUS_1-en_us-user-10101-agent-10102</code>
                   </p>
@@ -288,11 +289,11 @@
                 <p class="input-hint">
                   Filenames will be validated against two patterns:<br>
                   <br>
-                  <strong>Regular:</strong><br>
+                  <strong>Scripted:</strong><br>
                   <code>[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
                   Example: <code>vdlg1_001_budgeting_app-en_us-user-10101-agent-10102</code><br>
                   <br>
-                  <strong>Spontaneous:</strong><br>
+                  <strong>Unscripted:</strong><br>
                   <code>SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
                   Example: <code>SPONTANEOUS_1-en_us-user-10101-agent-10102</code>
                 </p>
@@ -360,57 +361,43 @@
             </div>
           </div>
 
-          <!-- Basic Results -->
-          <div class="results-grid">
-            <div class="result-item" id="fileNameRow">
-              <label>File Name:</label>
-              <span id="fileName">-</span>
-            </div>
-            <div class="result-item" id="fileTypeRow">
-              <label>File Type:</label>
-              <span id="fileType">-</span>
-            </div>
-            <div class="result-item" id="sampleRateRow">
-              <label>Sample Rate:</label>
-              <span id="sampleRate">-</span>
-            </div>
-            <div class="result-item" id="bitDepthRow">
-              <label>Bit Depth:</label>
-              <span id="bitDepth">-</span>
-            </div>
-            <div class="result-item" id="channelsRow">
-              <label>Channels:</label>
-              <span id="channels">-</span>
-            </div>
-            <div class="result-item" id="durationRow">
-              <label>Duration:</label>
-              <span id="duration">-</span>
-            </div>
-            <div class="result-item">
-              <label>File Size:</label>
-              <span id="fileSize">-</span>
-            </div>
-            <div class="result-item" id="filenameValidationRow" style="display: none;">
-              <label>Filename Validation:</label>
-              <span id="filenameValidationResult">-</span>
-            </div>
+          <!-- Results Table -->
+          <div class="batch-table-container">
+            <table class="batch-results-table">
+              <thead>
+                <tr>
+                  <th>Filename</th>
+                  <th>Status</th>
+                  <th id="singleFilenameCheckHeader" style="display: none;">Filename Check</th>
+                  <th id="singleFormatHeader">Format</th>
+                  <th id="singleSampleRateHeader">Sample Rate</th>
+                  <th id="singleBitDepthHeader">Bit Depth</th>
+                  <th id="singleChannelsHeader">Channels</th>
+                  <th id="singleDurationHeader">Duration</th>
+                  <th>File Size</th>
+                  <th>Play</th>
+                </tr>
+              </thead>
+              <tbody id="singleTableBody">
+              </tbody>
+            </table>
           </div>
 
           <!-- Validation Legend -->
-          <div class="validation-legend">
+          <div id="validationLegend" class="validation-legend" style="display: none;">
             <h3>Validation Legend:</h3>
             <div class="legend-items">
               <div class="legend-item">
                 <span class="legend-color red"></span>
-                <span class="legend-text"><strong>Red (fail):</strong> Candidate must resubmit</span>
+                <span class="legend-text"><strong>Red:</strong> Failed validation</span>
               </div>
               <div class="legend-item">
                 <span class="legend-color yellow"></span>
-                <span class="legend-text"><strong>Yellow:</strong> Not exact match but safe to submit</span>
+                <span class="legend-text"><strong>Yellow:</strong> Warning - review carefully</span>
               </div>
               <div class="legend-item">
                 <span class="legend-color green"></span>
-                <span class="legend-text"><strong>Green:</strong> Safe to submit</span>
+                <span class="legend-text"><strong>Green:</strong> Passed validation check</span>
               </div>
               <div class="legend-item">
                 <span class="legend-color grey"></span>
@@ -478,7 +465,7 @@
               </div>
             </div>
             <div class="total-duration">
-              <span class="duration-label">Total Duration (Pass):</span>
+              <span class="duration-label">Total Duration (Pass + Warning):</span>
               <span class="duration-value" id="batchTotalDuration">0h 0m</span>
             </div>
           </div>
@@ -502,6 +489,29 @@
               <tbody id="batchTableBody">
               </tbody>
             </table>
+          </div>
+
+          <!-- Validation Legend -->
+          <div id="batchValidationLegend" class="validation-legend" style="display: none;">
+            <h3>Validation Legend:</h3>
+            <div class="legend-items">
+              <div class="legend-item">
+                <span class="legend-color red"></span>
+                <span class="legend-text"><strong>Red:</strong> Failed validation</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color yellow"></span>
+                <span class="legend-text"><strong>Yellow:</strong> Warning - review carefully</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color green"></span>
+                <span class="legend-text"><strong>Green:</strong> Passed validation check</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color grey"></span>
+                <span class="legend-text"><strong>Grey:</strong> Informational</span>
+              </div>
+            </div>
           </div>
         </section>
       </div>

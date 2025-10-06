@@ -34,6 +34,14 @@ class AudioAnalyzerEngine {
     this.levelAnalyzer.cancelAnalysis();
   }
 }
+
+// HTML escape utility to prevent XSS and HTML structure issues
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 import GoogleAuth from './google-auth.js';
 import BoxAuth from './box-auth.js';
 import bilingualValidationData from './bilingual-validation-data.json';
@@ -960,6 +968,26 @@ class WebAudioAnalyzer {
               // Recalculate overall status including filename validation
               result.status = this.getOverallStatus(result.validation, false, result.filenameValidation);
             }
+
+            // Check duration for SPONTANEOUS files (must be ≤10 minutes) - works even if filename validation is off
+            if (validationType === 'bilingual-pattern' && result.analysis && result.analysis.duration) {
+              const isSpontaneous = result.filename.replace(/\.\w+$/i, '').startsWith('SPONTANEOUS');
+              if (isSpontaneous) {
+                const durationInSeconds = result.analysis.duration;
+                if (durationInSeconds > 600) {
+                  // Create or update duration validation
+                  if (!result.validation) {
+                    result.validation = {};
+                  }
+                  result.validation.duration = {
+                    status: 'warning',
+                    issue: `SPONTANEOUS recordings must be ≤10 minutes (current: ${Math.round(durationInSeconds / 60)} min)`
+                  };
+                  // Recalculate status with duration warning
+                  result.status = this.getOverallStatus(result.validation, false, result.filenameValidation);
+                }
+              }
+            }
           }
 
           this.batchResults.push(result);
@@ -1139,17 +1167,18 @@ class WebAudioAnalyzer {
 
       // Check that SPONTANEOUS is all caps
       if (!nameWithoutExt.startsWith('SPONTANEOUS_')) {
-        issues.push('Spontaneous recordings must start with "SPONTANEOUS_" (all caps)');
+        issues.push('Unscripted recordings must start with "SPONTANEOUS_" (all caps)');
       }
 
       // Extract the spontaneous ID and rest of filename
       const spontaneousMatch = nameWithoutExt.match(/^SPONTANEOUS_(\d+)-(.+)$/);
       if (!spontaneousMatch) {
-        issues.push('Invalid spontaneous format: expected SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID]');
+        issues.push('Invalid unscripted format: expected SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID]');
         return {
           status: 'fail',
           expectedFormat: 'SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav',
-          issue: issues.join('\n')
+          issue: issues.join('\n'),
+          isSpontaneous: true
         };
       }
 
@@ -1170,7 +1199,8 @@ class WebAudioAnalyzer {
         return {
           status: 'fail',
           expectedFormat: 'SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav',
-          issue: issues.join('\n')
+          issue: issues.join('\n'),
+          isSpontaneous: true
         };
       }
 
@@ -1209,7 +1239,8 @@ class WebAudioAnalyzer {
         return {
           status: 'fail',
           expectedFormat: 'SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav',
-          issue: issues.join('\n')
+          issue: issues.join('\n'),
+          isSpontaneous: true
         };
       }
 
@@ -1218,7 +1249,8 @@ class WebAudioAnalyzer {
       return {
         status: 'pass',
         expectedFormat: expectedFormat,
-        issue: ''
+        issue: '',
+        isSpontaneous: true
       };
 
     } else {
@@ -1240,7 +1272,8 @@ class WebAudioAnalyzer {
         return {
           status: 'fail',
           expectedFormat: '[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav',
-          issue: issues.join('\n')
+          issue: issues.join('\n'),
+          isSpontaneous: false
         };
       }
 
@@ -1288,7 +1321,8 @@ class WebAudioAnalyzer {
         return {
           status: 'fail',
           expectedFormat: '[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav',
-          issue: issues.join('\n')
+          issue: issues.join('\n'),
+          isSpontaneous: false
         };
       }
 
@@ -1297,7 +1331,8 @@ class WebAudioAnalyzer {
       return {
         status: 'pass',
         expectedFormat: expectedFormat,
-        issue: ''
+        issue: '',
+        isSpontaneous: false
       };
     }
   }
@@ -1463,6 +1498,21 @@ class WebAudioAnalyzer {
             } else if (validationType === 'bilingual-pattern') {
               // Bilingual validation
               filenameValidation = this.validateBilingualFilename(driveFile.name);
+            }
+
+            // Check duration for SPONTANEOUS files (must be ≤10 minutes) - works even if filename validation is off
+            if (validationType === 'bilingual-pattern' && analysis && analysis.duration) {
+              const isSpontaneous = driveFile.name.replace(/\.\w+$/i, '').startsWith('SPONTANEOUS');
+              if (isSpontaneous && analysis.duration > 600) {
+                // Create or update duration validation
+                if (!validation) {
+                  validation = {};
+                }
+                validation.duration = {
+                  status: 'warning',
+                  issue: `SPONTANEOUS recordings must be ≤10 minutes (current: ${Math.round(analysis.duration / 60)} min)`
+                };
+              }
             }
           }
 
@@ -1638,6 +1688,24 @@ class WebAudioAnalyzer {
       // Validate and display
       const criteria = this.getCriteria();
       const validationResults = this.engine.validateCriteria(results, criteria);
+
+      // Check duration for SPONTANEOUS files (must be ≤10 minutes) for bilingual preset
+      const isSpontaneous = filename.replace(/\.\w+$/i, '').startsWith('SPONTANEOUS');
+      const isBilingual = useFilenameValidation; // useFilenameValidation is only true for bilingual in this context
+      if (isBilingual && isSpontaneous && results && results.duration && results.duration !== 'Unknown') {
+        const durationInSeconds = results.duration;
+        if (durationInSeconds > 600) {
+          // Create or update duration validation
+          if (!validationResults) {
+            validationResults = {};
+          }
+          validationResults.duration = {
+            status: 'warning',
+            issue: `SPONTANEOUS recordings must be ≤10 minutes (current: ${Math.round(durationInSeconds / 60)} min)`
+          };
+        }
+      }
+
       this.currentResults.validation = validationResults;
       this.currentResults.filenameValidation = filenameValidation;
 
@@ -1723,18 +1791,22 @@ class WebAudioAnalyzer {
               duration: 'Unknown'
             };
           } else {
-            // Full audio analysis mode
+            // Full audio analysis mode - use header-only analysis for batch processing
             metadata = await this.boxAuth.getFileMetadata(boxFile, sharedLink);
             const headerBlob = await this.boxAuth.downloadFileHeaders(boxFile.id, 102400, sharedLink);
             const headerFile = new File([headerBlob], boxFile.name);
-            analysisResults = await this.engine.analyzeFile(headerFile);
 
-            // Override file size with actual size from metadata (not just the header we downloaded)
-            if (analysisResults && metadata && metadata.size) {
-              analysisResults.fileSize = metadata.size;
-            }
+            // Override file size property to be the actual file size (for duration calculation)
+            const fileSize = parseInt(metadata.size) || headerFile.size;
+            Object.defineProperty(headerFile, 'size', {
+              value: fileSize,
+              writable: false
+            });
 
-            if (analysisResults && analysisResults.duration) {
+            // Use batch processor for header-only analysis
+            analysisResults = await this.batchProcessor.analyzer.analyzeHeaders(headerFile);
+
+            if (analysisResults && analysisResults.duration && analysisResults.duration !== 'Unknown') {
               totalDuration += analysisResults.duration;
             }
           }
@@ -1743,6 +1815,23 @@ class WebAudioAnalyzer {
           const validationResults = analysisResults
             ? this.engine.validateCriteria(analysisResults, criteria)
             : {};
+
+          // Check duration for SPONTANEOUS files (must be ≤10 minutes) for bilingual preset
+          const isSpontaneous = boxFile.name.replace(/\.\w+$/i, '').startsWith('SPONTANEOUS');
+          const isBilingual = isFilenameValidationAvailable; // Only true for bilingual in this context
+          if (isBilingual && isSpontaneous && analysisResults && analysisResults.duration && analysisResults.duration !== 'Unknown') {
+            const durationInSeconds = analysisResults.duration;
+            if (durationInSeconds > 600) {
+              // Create or update duration validation
+              if (!validationResults) {
+                validationResults = {};
+              }
+              validationResults.duration = {
+                status: 'warning',
+                issue: `SPONTANEOUS recordings must be ≤10 minutes (current: ${Math.round(durationInSeconds / 60)} min)`
+              };
+            }
+          }
 
           const overallStatus = this.getOverallStatus(validationResults, useMetadataOnly, filenameValidation);
 
@@ -1868,65 +1957,125 @@ class WebAudioAnalyzer {
 
   validateAndDisplayResults(results, filenameValidation = null) {
     const criteria = this.getCriteria();
-    const validationResults = this.engine.validateCriteria(results, criteria);
+    let validationResults = this.engine.validateCriteria(results, criteria);
+
+    // Check duration for SPONTANEOUS files (must be ≤10 minutes) for bilingual preset
+    const presets = this.getPresetConfigurations();
+    const selectedPreset = this.presetSelector.value;
+    const presetConfig = presets[selectedPreset];
+    const validationType = presetConfig?.filenameValidationType;
+
+    const currentFilename = this.currentFile ? this.currentFile.name : (results.filename || '');
+    const isSpontaneous = currentFilename.replace(/\.\w+$/i, '').startsWith('SPONTANEOUS');
+
+    if (validationType === 'bilingual-pattern' && isSpontaneous && results && results.duration && results.duration !== 'Unknown') {
+      const durationInSeconds = results.duration;
+      if (durationInSeconds > 600) {
+        // Create or update duration validation
+        if (!validationResults) {
+          validationResults = {};
+        }
+        validationResults.duration = {
+          status: 'warning',
+          issue: `SPONTANEOUS recordings must be ≤10 minutes (current: ${Math.round(durationInSeconds / 60)} min)`
+        };
+      }
+    }
+
     const formatted = this.engine.formatResults(results);
-
-    // Update display
     const filename = this.currentFile ? this.currentFile.name : (results.filename || '-');
-    document.getElementById('fileName').textContent = filename;
-    document.getElementById('fileType').textContent = formatted.fileType;
-    document.getElementById('sampleRate').textContent = formatted.sampleRate;
-    document.getElementById('bitDepth').textContent = formatted.bitDepth;
-    document.getElementById('channels').textContent = formatted.channels;
-    document.getElementById('duration').textContent = formatted.duration;
-    document.getElementById('fileSize').textContent = formatted.fileSize;
 
-    // Show/hide and update filename validation if provided
-    const filenameValidationRow = document.getElementById('filenameValidationRow');
-    const filenameValidationResult = document.getElementById('filenameValidationResult');
+    // Get overall status
+    const overallStatus = this.getOverallStatus(validationResults, false, filenameValidation);
+
+    // Get validation statuses for each field
+    const fileTypeStatus = this.getValidationStatus(validationResults, 'fileType', results.fileType);
+    const sampleRateStatus = this.getValidationStatus(validationResults, 'sampleRate', results.sampleRate);
+    const bitDepthStatus = this.getValidationStatus(validationResults, 'bitDepth', results.bitDepth);
+    const channelsStatus = this.getValidationStatus(validationResults, 'channels', results.channels);
+    const durationStatus = this.getValidationStatus(validationResults, 'duration', results.duration);
+
+    // Update column headers visibility based on criteria
+    this.updateSingleFileColumnVisibility(criteria, filenameValidation);
+
+    // Create table row
+    const row = document.createElement('tr');
+    row.className = `batch-row ${overallStatus}`;
+
+    // Filename validation cell
+    let filenameCheckCell = '';
     if (filenameValidation) {
-      filenameValidationRow.style.display = '';
-      filenameValidationRow.classList.remove('pass', 'fail', 'warning', 'unknown');
-      filenameValidationRow.classList.add(filenameValidation.status);
-
+      const icon = filenameValidation.status === 'pass' ? '✅' : '❌';
+      let tooltipText = '';
       if (filenameValidation.status === 'pass') {
-        filenameValidationResult.textContent = '✅ Valid';
-        filenameValidationResult.title = 'Filename is valid';
+        tooltipText = 'Filename is valid';
       } else {
-        filenameValidationResult.textContent = '❌ Invalid';
-        let tooltipText = filenameValidation.issue;
+        tooltipText = filenameValidation.issue;
         if (filenameValidation.expectedFormat) {
           tooltipText += `\n\nExpected: ${filenameValidation.expectedFormat}`;
         }
-        filenameValidationResult.title = tooltipText;
       }
-
-      // Add instant tooltip for single file results
-      this.setupFilenameCheckTooltip(filenameValidationResult);
+      filenameCheckCell = `<td class="filename-check-${filenameValidation.status}" title="${tooltipText}">${icon}</td>`;
     } else {
-      filenameValidationRow.style.display = 'none';
+      filenameCheckCell = `<td style="display: none;"></td>`;
     }
 
-    // Apply validation styling
-    this.applyValidationStyling(validationResults);
+    // Play button - always show for single file
+    const playButton = `<button class="play-btn-small" id="singleFilePlayBtn">▶</button>`;
+
+    const escapedFilename = escapeHtml(filename);
+    row.innerHTML = `
+      <td class="filename" title="${escapedFilename}">${escapedFilename}</td>
+      <td><span class="status-badge ${overallStatus}">${overallStatus}</span></td>
+      ${filenameCheckCell}
+      <td class="validation-${fileTypeStatus}">${formatted.fileType || 'Unknown'}</td>
+      <td class="validation-${sampleRateStatus}">${formatted.sampleRate || '-'}</td>
+      <td class="validation-${bitDepthStatus}">${formatted.bitDepth || '-'}</td>
+      <td class="validation-${channelsStatus}">${formatted.channels || '-'}</td>
+      <td class="validation-${durationStatus}">${formatted.duration || '-'}</td>
+      <td>${formatted.fileSize || '-'}</td>
+      <td>${playButton}</td>
+    `;
+
+    // Clear and append row
+    const singleTableBody = document.getElementById('singleTableBody');
+    singleTableBody.innerHTML = '';
+    singleTableBody.appendChild(row);
+
+    // Add event listener to play button
+    const playBtn = row.querySelector('#singleFilePlayBtn');
+    if (playBtn) {
+      playBtn.addEventListener('click', () => {
+        this.togglePlayPause();
+      });
+    }
+
+    // Add tooltip listener for filename check cell
+    const checkCell = row.querySelector('.filename-check-pass, .filename-check-fail');
+    if (checkCell) {
+      this.setupFilenameCheckTooltip(checkCell);
+    }
+
+    // Add tooltip listener for filename cell
+    const filenameCell = row.querySelector('.filename');
+    if (filenameCell) {
+      this.setupFilenameCheckTooltip(filenameCell);
+    }
   }
 
-  applyValidationStyling(validationResults) {
-    const rows = {
-      fileType: document.getElementById('fileTypeRow'),
-      sampleRate: document.getElementById('sampleRateRow'),
-      bitDepth: document.getElementById('bitDepthRow'),
-      channels: document.getElementById('channelsRow'),
-      duration: document.getElementById('durationRow')
-    };
+  updateSingleFileColumnVisibility(criteria, filenameValidation) {
+    // Show/hide filename check column based on whether filename validation is provided
+    const filenameCheckHeader = document.getElementById('singleFilenameCheckHeader');
+    if (filenameCheckHeader) {
+      filenameCheckHeader.style.display = filenameValidation ? '' : 'none';
+    }
 
-    Object.entries(validationResults).forEach(([key, validation]) => {
-      const row = rows[key];
-      if (row) {
-        // Remove existing validation classes
-        row.classList.remove('pass', 'fail', 'warning', 'unknown');
-        // Add new validation class
-        row.classList.add(validation.status);
+    // Always show all other columns for single file view
+    const headers = ['singleFormatHeader', 'singleSampleRateHeader', 'singleBitDepthHeader', 'singleChannelsHeader', 'singleDurationHeader'];
+    headers.forEach(headerId => {
+      const header = document.getElementById(headerId);
+      if (header) {
+        header.style.display = '';
       }
     });
   }
@@ -2004,6 +2153,12 @@ class WebAudioAnalyzer {
   showResults() {
     this.hideAllSections();
     this.resultsSection.style.display = 'block';
+
+    // Show validation legend (needs to be after resultsSection is visible)
+    const legend = document.getElementById('validationLegend');
+    if (legend) {
+      legend.style.display = 'block';
+    }
   }
 
   showError(message) {
@@ -2092,6 +2247,12 @@ class WebAudioAnalyzer {
     this.batchFailCount.textContent = '0';
     this.batchErrorCount.textContent = '0';
     this.batchTotalDuration.textContent = '0h 0m';
+
+    // Show batch validation legend (needs to be after batchResultsSection is visible)
+    const batchLegend = document.getElementById('batchValidationLegend');
+    if (batchLegend) {
+      batchLegend.style.display = 'block';
+    }
   }
 
   addBatchResultRow(result) {
@@ -2122,6 +2283,12 @@ class WebAudioAnalyzer {
     if (result.analysis && !result.error) {
       const currentCriteria = this.getCriteria();
       const useMetadataOnly = enableFilenameValidation && !enableAudioAnalysis;
+
+      // Save SPONTANEOUS duration validation if it exists
+      const spontaneousDurationValidation = result.validation?.duration?.issue?.includes('SPONTANEOUS')
+        ? result.validation.duration
+        : null;
+
       result.validation = CriteriaValidator.validateResults(result.analysis, currentCriteria, useMetadataOnly);
 
       // If in metadata-only mode, override status for audio-specific fields to 'unknown'
@@ -2130,6 +2297,11 @@ class WebAudioAnalyzer {
         if (result.validation.bitDepth) result.validation.bitDepth.status = 'unknown';
         if (result.validation.channels) result.validation.channels.status = 'unknown';
         if (result.validation.duration) result.validation.duration.status = 'unknown';
+      }
+
+      // Restore SPONTANEOUS duration validation if it was set
+      if (spontaneousDurationValidation) {
+        result.validation.duration = spontaneousDurationValidation;
       }
 
       result.status = this.getOverallStatus(result.validation, false, result.filenameValidation);
@@ -2142,11 +2314,11 @@ class WebAudioAnalyzer {
     // Format the analysis data using the same formatter as single file view
     const formatted = result.analysis ? CriteriaValidator.formatDisplayText(result.analysis) : {};
 
-    const fileTypeStatus = this.getValidationStatus(result.validation, 'fileType');
-    const sampleRateStatus = this.getValidationStatus(result.validation, 'sampleRate');
-    const bitDepthStatus = this.getValidationStatus(result.validation, 'bitDepth');
-    const channelsStatus = this.getValidationStatus(result.validation, 'channels');
-    const durationStatus = this.getValidationStatus(result.validation, 'duration');
+    const fileTypeStatus = this.getValidationStatus(result.validation, 'fileType', result.analysis?.fileType);
+    const sampleRateStatus = this.getValidationStatus(result.validation, 'sampleRate', result.analysis?.sampleRate);
+    const bitDepthStatus = this.getValidationStatus(result.validation, 'bitDepth', result.analysis?.bitDepth);
+    const channelsStatus = this.getValidationStatus(result.validation, 'channels', result.analysis?.channels);
+    const durationStatus = this.getValidationStatus(result.validation, 'duration', result.analysis?.duration);
 
     // Detect metadata-only mode
     const isMetadataOnly = enableFilenameValidation && !enableAudioAnalysis;
@@ -2190,8 +2362,9 @@ class WebAudioAnalyzer {
       playButton = `<a href="https://app.box.com/file/${result.boxFileId}" target="_blank" title="Open in Box" class="play-btn-small box-link">▶</a>`;
     }
 
+    const escapedFilename = escapeHtml(result.filename);
     row.innerHTML = `
-      <td class="filename">${result.filename}</td>
+      <td class="filename" title="${escapedFilename}">${escapedFilename}</td>
       <td><span class="status-badge ${result.status}">${result.status}</span></td>
       ${filenameCheckCell}
       <td class="validation-${fileTypeStatus}">${formatted.fileType || 'Unknown'}</td>
@@ -2220,6 +2393,12 @@ class WebAudioAnalyzer {
     const checkCell = row.querySelector('.filename-check-pass, .filename-check-fail');
     if (checkCell) {
       this.setupFilenameCheckTooltip(checkCell);
+    }
+
+    // Add tooltip listener for filename cell
+    const filenameCell = row.querySelector('.filename');
+    if (filenameCell) {
+      this.setupFilenameCheckTooltip(filenameCell);
     }
   }
 
@@ -2269,9 +2448,9 @@ class WebAudioAnalyzer {
     this.batchFailCount.textContent = failCount;
     this.batchErrorCount.textContent = errorCount;
 
-    // Calculate total duration for passed files only
+    // Calculate total duration for passed and warning files (exclude fail/error)
     const totalSeconds = this.batchResults
-      .filter(r => r.status === 'pass')
+      .filter(r => r.status === 'pass' || r.status === 'warning')
       .reduce((sum, r) => {
         const duration = r.analysis?.duration;
         if (typeof duration === 'number' && !isNaN(duration)) {
@@ -2299,9 +2478,9 @@ class WebAudioAnalyzer {
     this.batchFailCount.textContent = failCount;
     this.batchErrorCount.textContent = errorCount;
 
-    // Calculate total duration for passed files only
+    // Calculate total duration for passed and warning files (exclude fail/error)
     const totalSeconds = results
-      .filter(r => r.status === 'pass')
+      .filter(r => r.status === 'pass' || r.status === 'warning')
       .reduce((sum, r) => {
         const duration = r.analysis?.duration;
         if (typeof duration === 'number' && !isNaN(duration)) {
@@ -2344,11 +2523,11 @@ class WebAudioAnalyzer {
       // Format the analysis data using the same formatter as single file view
       const formatted = result.analysis ? CriteriaValidator.formatDisplayText(result.analysis) : {};
 
-      const fileTypeStatus = this.getValidationStatus(result.validation, 'fileType');
-      const sampleRateStatus = this.getValidationStatus(result.validation, 'sampleRate');
-      const bitDepthStatus = this.getValidationStatus(result.validation, 'bitDepth');
-      const channelsStatus = this.getValidationStatus(result.validation, 'channels');
-      const durationStatus = this.getValidationStatus(result.validation, 'duration');
+      const fileTypeStatus = this.getValidationStatus(result.validation, 'fileType', result.analysis?.fileType);
+      const sampleRateStatus = this.getValidationStatus(result.validation, 'sampleRate', result.analysis?.sampleRate);
+      const bitDepthStatus = this.getValidationStatus(result.validation, 'bitDepth', result.analysis?.bitDepth);
+      const channelsStatus = this.getValidationStatus(result.validation, 'channels', result.analysis?.channels);
+      const durationStatus = this.getValidationStatus(result.validation, 'duration', result.analysis?.duration);
 
       // Filename validation cell (only show if filename validation is enabled)
       let filenameCheckCell = '';
@@ -2379,8 +2558,9 @@ class WebAudioAnalyzer {
       const channelsCell = isMetadataOnly ? '' : `<td class="validation-${channelsStatus}">${formatted.channels || '-'}</td>`;
       const durationCell = isMetadataOnly ? '' : `<td class="validation-${durationStatus}">${formatted.duration || '-'}</td>`;
 
+      const escapedFilename = escapeHtml(result.filename);
       row.innerHTML = `
-        <td class="filename">${result.filename}</td>
+        <td class="filename" title="${escapedFilename}">${escapedFilename}</td>
         <td><span class="status-badge ${result.status}">${result.status}</span></td>
         ${filenameCheckCell}
         <td class="validation-${fileTypeStatus}">${formatted.fileType || 'Unknown'}</td>
@@ -2405,6 +2585,14 @@ class WebAudioAnalyzer {
         this.playBatchFile(index);
       });
     });
+
+    // Add tooltip listeners for filename cells
+    this.batchTableBody.querySelectorAll('.filename').forEach(cell => {
+      this.setupFilenameCheckTooltip(cell);
+    });
+
+    // Show validation legend (batch)
+    document.getElementById('batchValidationLegend').style.display = 'block';
   }
 
   formatValue(value) {
@@ -2437,9 +2625,18 @@ class WebAudioAnalyzer {
     }
   }
 
-  getValidationStatus(validation, field) {
-    if (!validation || !validation[field]) return '';
-    return validation[field].status; // 'pass', 'warning', or 'fail'
+  getValidationStatus(validation, field, actualValue) {
+    // If there's a validation result, use it
+    if (validation && validation[field]) {
+      return validation[field].status; // 'pass', 'warning', or 'fail'
+    }
+
+    // No validation for this field - check if actual value is Unknown
+    if (actualValue === 'Unknown') {
+      return 'warning';
+    }
+
+    return 'pass';
   }
 
   playBatchFile(index) {
@@ -2597,6 +2794,8 @@ class WebAudioAnalyzer {
     this.advancedResultsSection.style.display = 'none';
     this.batchProgress.style.display = 'none';
     this.batchResultsSection.style.display = 'none';
+    document.getElementById('validationLegend').style.display = 'none';
+    document.getElementById('batchValidationLegend').style.display = 'none';
   }
 }
 

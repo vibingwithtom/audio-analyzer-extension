@@ -85,13 +85,24 @@ export class CriteriaValidator {
       const sampleRates = toArray(criteria.sampleRate).map(sr => parseInt(sr)).filter(sr => !isNaN(sr));
       if (sampleRates.length > 0) {
         const actualSampleRate = results.sampleRate;
-        const matches = sampleRates.includes(actualSampleRate);
+
+        let status;
+        let matches;
+
+        // Handle Unknown sample rate as warning
+        if (actualSampleRate === 'Unknown' || typeof actualSampleRate !== 'number') {
+          matches = false;
+          status = 'warning';
+        } else {
+          matches = sampleRates.includes(actualSampleRate);
+          status = matches ? 'pass' : 'fail';
+        }
 
         validationResults.sampleRate = {
           matches: matches,
           target: sampleRates,
           actual: actualSampleRate,
-          status: matches ? 'pass' : 'fail'
+          status: status
         };
       }
 
@@ -99,13 +110,24 @@ export class CriteriaValidator {
       const bitDepths = toArray(criteria.bitDepth).map(bd => parseInt(bd)).filter(bd => !isNaN(bd));
       if (bitDepths.length > 0) {
         const actualBitDepth = results.bitDepth;
-        const matches = bitDepths.includes(actualBitDepth);
+
+        let status;
+        let matches;
+
+        // Handle Unknown bit depth as warning
+        if (actualBitDepth === 'Unknown' || typeof actualBitDepth !== 'number') {
+          matches = false;
+          status = 'warning';
+        } else {
+          matches = bitDepths.includes(actualBitDepth);
+          status = matches ? 'pass' : 'fail';
+        }
 
         validationResults.bitDepth = {
           matches: matches,
           target: bitDepths,
           actual: actualBitDepth,
-          status: matches ? 'pass' : 'fail'
+          status: status
         };
       }
 
@@ -113,13 +135,24 @@ export class CriteriaValidator {
       const channels = toArray(criteria.channels).map(ch => parseInt(ch)).filter(ch => !isNaN(ch));
       if (channels.length > 0) {
         const actualChannels = results.channels;
-        const matches = channels.includes(actualChannels);
+
+        let status;
+        let matches;
+
+        // Handle Unknown channels as warning
+        if (actualChannels === 'Unknown' || typeof actualChannels !== 'number') {
+          matches = false;
+          status = 'warning';
+        } else {
+          matches = channels.includes(actualChannels);
+          status = matches ? 'pass' : 'fail';
+        }
 
         validationResults.channels = {
           matches: matches,
           target: channels,
           actual: actualChannels,
-          status: matches ? 'pass' : 'fail'
+          status: status
         };
       }
 
@@ -127,13 +160,24 @@ export class CriteriaValidator {
       if (criteria.minDuration) {
         const minDurationSeconds = parseInt(criteria.minDuration);
         const durationSeconds = results.duration;
-        const matches = typeof durationSeconds === 'number' && durationSeconds >= minDurationSeconds;
+
+        let status;
+        let matches;
+
+        // Handle Unknown duration as warning
+        if (durationSeconds === 'Unknown' || typeof durationSeconds !== 'number') {
+          matches = false;
+          status = 'warning';
+        } else {
+          matches = durationSeconds >= minDurationSeconds;
+          status = matches ? 'pass' : 'fail';
+        }
 
         validationResults.duration = {
           matches: matches,
           target: `${minDurationSeconds}s minimum`,
           actual: durationSeconds,
-          status: matches ? 'pass' : 'fail'
+          status: status
         };
       }
     }
