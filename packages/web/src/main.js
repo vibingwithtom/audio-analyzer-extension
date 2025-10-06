@@ -57,12 +57,16 @@ class WebAudioAnalyzer {
     this.initializeElements();
     this.attachEventListeners();
     this.loadSettings();
+    this.initializeDarkMode();
   }
 
   initializeElements() {
     // Tab elements
     this.tabButtons = document.querySelectorAll('.tab-button');
     this.tabContents = document.querySelectorAll('.tab-content');
+
+    // Dark mode toggle
+    this.darkModeToggle = document.getElementById('darkModeToggle');
 
     // Local file elements
     this.dropZone = document.getElementById('dropZone');
@@ -147,6 +151,9 @@ class WebAudioAnalyzer {
   }
 
   attachEventListeners() {
+    // Dark mode toggle
+    this.darkModeToggle.addEventListener('click', () => this.toggleDarkMode());
+
     // Tab switching
     this.tabButtons.forEach(button => {
       button.addEventListener('click', () => this.switchTab(button.dataset.tab));
@@ -715,6 +722,27 @@ class WebAudioAnalyzer {
 
     // Re-run preset logic to update validation section visibility based on current tab
     this.updateValidationSectionsVisibility();
+  }
+
+  // Dark mode methods
+  toggleDarkMode() {
+    const root = document.documentElement;
+    const isDark = root.classList.contains('dark-mode');
+
+    if (isDark) {
+      root.classList.remove('dark-mode');
+      localStorage.setItem('darkMode', 'false');
+    } else {
+      root.classList.add('dark-mode');
+      localStorage.setItem('darkMode', 'true');
+    }
+  }
+
+  initializeDarkMode() {
+    const darkMode = localStorage.getItem('darkMode');
+    if (darkMode === 'true') {
+      document.documentElement.classList.add('dark-mode');
+    }
   }
 
   updateValidationSectionsVisibility() {
