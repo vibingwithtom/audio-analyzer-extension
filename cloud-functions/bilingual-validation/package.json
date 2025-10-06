@@ -1,0 +1,12 @@
+{
+  "name": "bilingual-validation",
+  "version": "1.0.0",
+  "description": "Cloud Function to provide bilingual validation data",
+  "main": "index.js",
+  "scripts": {
+    "deploy": "gcloud functions deploy bilingualValidation --runtime nodejs20 --trigger-http --allow-unauthenticated --region us-central1"
+  },
+  "keywords": ["validation", "bilingual"],
+  "author": "",
+  "license": "MIT"
+}

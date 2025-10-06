@@ -36,3 +36,8 @@ build/
 # Temporary files
 *.tmp
 *.temp
+
+# Validation data (sensitive)
+cloud-functions/*/data/
+*.csv
+packages/web/src/bilingual-validation-data.json

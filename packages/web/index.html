@@ -53,6 +53,17 @@
           </div>
         </div>
 
+        <!-- Box Auth (only shown when on Box tab) -->
+        <div class="box-auth-global tab-content" data-tab="box">
+          <div class="box-auth" id="boxAuth">
+            <div class="auth-status" id="boxAuthStatus">
+              <span id="boxAuthText">Not signed in to Box</span>
+              <button id="boxSignInBtn" class="sign-in-btn" style="display: none;">Sign In</button>
+              <button id="boxSignOutBtn" class="sign-out-btn" style="display: none;">Sign Out</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Target Criteria Section -->
         <section class="criteria-section">
           <h2>Analysis Criteria</h2>
@@ -128,6 +139,39 @@
         <!-- File Input Sections -->
         <div class="tab-content active" data-tab="local">
           <section class="upload-section">
+            <!-- Analysis Options for Local Files -->
+            <div id="localAnalysisTypeSection" class="analysis-type-section" style="display: none;">
+              <h3>Analysis Options</h3>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="localEnableAudioAnalysis" checked>
+                  <span>Audio Quality Analysis</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="localEnableFilenameValidation">
+                  <span>Filename Validation</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Filename Validation Fields for Local (bilingual only) -->
+            <div id="localFilenameValidationFields" class="filename-validation-fields" style="display: none;">
+              <h3>Filename Validation Settings</h3>
+              <div class="validation-inputs">
+                <p class="input-hint">
+                  Filenames will be validated against two patterns:<br>
+                  <br>
+                  <strong>Regular:</strong><br>
+                  <code>[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
+                  Example: <code>vdlg1_001_budgeting_app-en_us-user-10101-agent-10102</code><br>
+                  <br>
+                  <strong>Spontaneous:</strong><br>
+                  <code>SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
+                  Example: <code>SPONTANEOUS_1-en_us-user-10101-agent-10102</code>
+                </p>
+              </div>
+            </div>
+
             <div class="drop-zone" id="dropZone">
               <div class="drop-zone-content">
                 <h3>Drop audio file here</h3>
@@ -158,15 +202,36 @@
 
             <!-- Filename Validation Fields (only shown when checkbox is checked) -->
             <div id="filenameValidationFields" class="filename-validation-fields" style="display: none;">
-              <h3>Filename Validation Settings</h3>
-              <div class="validation-inputs">
-                <div class="criteria-item">
-                  <label for="speakerId">Speaker ID</label>
-                  <input type="text" id="speakerId" placeholder="e.g., SPK123">
+              <!-- Three Hour Validation (script-match) -->
+              <div id="driveThreeHourFields" style="display: none;">
+                <h3>Filename Validation Settings</h3>
+                <div class="validation-inputs">
+                  <div class="criteria-item">
+                    <label for="speakerId">Speaker ID</label>
+                    <input type="text" id="speakerId" placeholder="e.g., SPK123">
+                  </div>
+                  <div class="criteria-item">
+                    <label for="scriptsFolderUrl">Scripts Folder URL</label>
+                    <input type="url" id="scriptsFolderUrl" placeholder="https://drive.google.com/folders/...">
+                  </div>
                 </div>
-                <div class="criteria-item">
-                  <label for="scriptsFolderUrl">Scripts Folder URL</label>
-                  <input type="url" id="scriptsFolderUrl" placeholder="https://drive.google.com/folders/...">
+              </div>
+
+              <!-- Bilingual Validation (bilingual-pattern) -->
+              <div id="driveBilingualFields" style="display: none;">
+                <h3>Filename Validation Settings</h3>
+                <div class="validation-inputs">
+                  <p class="input-hint">
+                    Filenames will be validated against two patterns:<br>
+                    <br>
+                    <strong>Regular:</strong><br>
+                    <code>[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
+                    Example: <code>vdlg1_001_budgeting_app-en_us-user-10101-agent-10102</code><br>
+                    <br>
+                    <strong>Spontaneous:</strong><br>
+                    <code>SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
+                    Example: <code>SPONTANEOUS_1-en_us-user-10101-agent-10102</code>
+                  </p>
                 </div>
               </div>
             </div>
@@ -195,15 +260,6 @@
         <!-- Box Tab Content -->
         <div class="tab-content" data-tab="box">
           <section class="box-section">
-            <!-- Box Authentication Status -->
-            <div class="auth-section">
-              <div class="auth-status">
-                <span id="boxAuthText" class="auth-text">Not signed in to Box</span>
-                <button id="boxSignInBtn" class="sign-in-btn">Sign In to Box</button>
-                <button id="boxSignOutBtn" class="sign-out-btn" style="display: none;">Sign Out</button>
-              </div>
-            </div>
-
             <!-- Analysis Type Selection (only shown for presets with filename validation) -->
             <div id="boxAnalysisTypeSection" class="analysis-type-section" style="display: none;">
               <h3>Analysis Options</h3>
@@ -223,14 +279,17 @@
             <div id="boxFilenameValidationFields" class="filename-validation-fields" style="display: none;">
               <h3>Filename Validation Settings</h3>
               <div class="validation-inputs">
-                <div class="criteria-item">
-                  <label for="boxSpeakerId">Speaker ID</label>
-                  <input type="text" id="boxSpeakerId" placeholder="e.g., SPK123">
-                </div>
-                <div class="criteria-item">
-                  <label for="boxScriptsFolderUrl">Scripts Folder URL</label>
-                  <input type="url" id="boxScriptsFolderUrl" placeholder="https://app.box.com/folder/...">
-                </div>
+                <p class="input-hint">
+                  Filenames will be validated against two patterns:<br>
+                  <br>
+                  <strong>Regular:</strong><br>
+                  <code>[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
+                  Example: <code>vdlg1_001_budgeting_app-en_us-user-10101-agent-10102</code><br>
+                  <br>
+                  <strong>Spontaneous:</strong><br>
+                  <code>SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID]</code><br>
+                  Example: <code>SPONTANEOUS_1-en_us-user-10101-agent-10102</code>
+                </p>
               </div>
             </div>
 
@@ -324,6 +383,10 @@
             <div class="result-item">
               <label>File Size:</label>
               <span id="fileSize">-</span>
+            </div>
+            <div class="result-item" id="filenameValidationRow" style="display: none;">
+              <label>Filename Validation:</label>
+              <span id="filenameValidationResult">-</span>
             </div>
           </div>
 
