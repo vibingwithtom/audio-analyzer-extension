@@ -23,5 +23,4 @@
 - Save analysis history
 
 ## UI/UX Improvements
-- Dark mode support
 - Mobile responsive design improvements
