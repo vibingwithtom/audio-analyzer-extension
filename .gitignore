@@ -40,4 +40,3 @@ build/
 # Validation data (sensitive)
 cloud-functions/*/data/
 *.csv
-packages/web/src/bilingual-validation-data.json
