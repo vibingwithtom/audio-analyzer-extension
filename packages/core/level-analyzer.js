@@ -121,4 +121,105 @@ export class LevelAnalyzer {
   cancelAnalysis() {
     this.analysisInProgress = false;
   }
+
+  /**
+   * Analyzes the stereo separation of an audio buffer.
+   * @param {AudioBuffer} audioBuffer The audio buffer to analyze.
+   * @returns {object|null} An object with stereo analysis results, or null if not stereo.
+   */
+  analyzeStereoSeparation(audioBuffer) {
+    if (audioBuffer.numberOfChannels !== 2) {
+      return null; // Not a stereo file
+    }
+
+    const leftChannel = audioBuffer.getChannelData(0);
+    const rightChannel = audioBuffer.getChannelData(1);
+    const sampleRate = audioBuffer.sampleRate;
+    const length = audioBuffer.length;
+
+    const blockSize = Math.floor(sampleRate * 0.25); // 250ms blocks
+    const dominanceRatioThreshold = 1.1; // How much louder one channel must be to be "dominant"
+    const silenceThreshold = 0.001; // RMS threshold for silence
+
+    let leftDominantBlocks = 0;
+    let rightDominantBlocks = 0;
+    let balancedBlocks = 0;
+    let silentBlocks = 0;
+    let totalBlocks = 0;
+
+    for (let i = 0; i < length; i += blockSize) {
+      let sumSquaresLeft = 0;
+      let sumSquaresRight = 0;
+      const blockEnd = Math.min(i + blockSize, length);
+      const currentBlockSize = blockEnd - i;
+
+      for (let j = i; j < blockEnd; j++) {
+        sumSquaresLeft += leftChannel[j] * leftChannel[j];
+        sumSquaresRight += rightChannel[j] * rightChannel[j];
+      }
+
+      const rmsLeft = Math.sqrt(sumSquaresLeft / currentBlockSize);
+      const rmsRight = Math.sqrt(sumSquaresRight / currentBlockSize);
+
+      totalBlocks++;
+
+      if (rmsLeft < silenceThreshold && rmsRight < silenceThreshold) {
+        silentBlocks++;
+        continue;
+      }
+
+      const ratio = rmsLeft / rmsRight;
+
+      if (ratio > dominanceRatioThreshold) {
+        leftDominantBlocks++;
+      } else if (ratio < 1 / dominanceRatioThreshold) {
+        rightDominantBlocks++;
+      } else {
+        balancedBlocks++;
+      }
+    }
+
+    const activeBlocks = totalBlocks - silentBlocks;
+    let stereoType = 'Undetermined';
+    let stereoConfidence = 0;
+    let leftPct = 0, rightPct = 0, balancedPct = 0;
+
+    if (activeBlocks > 0) {
+      balancedPct = balancedBlocks / activeBlocks;
+      leftPct = leftDominantBlocks / activeBlocks;
+      rightPct = rightDominantBlocks / activeBlocks;
+
+      if (balancedPct > 0.9) {
+        stereoType = 'Mono as Stereo';
+        stereoConfidence = balancedPct;
+      } else if (leftPct > 0.1 && rightPct > 0.1) {
+        stereoType = 'Conversational Stereo';
+        // Confidence is based on how much of the audio is separated
+        stereoConfidence = leftPct + rightPct;
+      } else if (leftPct > 0.9) {
+        stereoType = 'Mono in Left Channel';
+        stereoConfidence = leftPct;
+      } else if (rightPct > 0.9) {
+        stereoType = 'Mono in Right Channel';
+        stereoConfidence = rightPct;
+      } else {
+        stereoType = 'Mixed Stereo';
+        stereoConfidence = 1 - balancedPct;
+      }
+    } else {
+      stereoType = 'Silent';
+      stereoConfidence = 1;
+    }
+
+    return {
+      totalBlocks,
+      activeBlocks,
+      silentBlocks,
+      leftDominantBlocks,
+      rightDominantBlocks,
+      balancedBlocks,
+      stereoType,
+      stereoConfidence: Math.min(stereoConfidence, 1.0) // Cap at 1.0
+    };
+  }
 }

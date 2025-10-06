@@ -18,6 +18,10 @@ class AudioAnalyzerEngine {
     return await this.levelAnalyzer.analyzeAudioBuffer(audioBuffer, progressCallback);
   }
 
+  analyzeStereoSeparation(audioBuffer) {
+    return this.levelAnalyzer.analyzeStereoSeparation(audioBuffer);
+  }
+
   validateCriteria(results, criteria) {
     return CriteriaValidator.validateResults(results, criteria);
   }
@@ -2114,6 +2118,15 @@ class WebAudioAnalyzer {
       document.getElementById('noiseFloor').textContent =
         results.noiseFloorDb === -Infinity ? '-∞ dB' : `${results.noiseFloorDb.toFixed(1)} dB`;
       document.getElementById('normalization').textContent = results.normalizationStatus.message;
+
+      // Also run stereo separation analysis
+      const stereoResults = this.engine.analyzeStereoSeparation(this.audioBuffer);
+      if (stereoResults) {
+        document.getElementById('stereoSeparation').textContent = 
+          `${stereoResults.stereoType} (Confidence: ${Math.round(stereoResults.stereoConfidence * 100)}%)`;
+      } else {
+        document.getElementById('stereoSeparation').textContent = 'Not applicable (mono file)';
+      }
 
       this.advancedResultsSection.style.display = 'block';
 
