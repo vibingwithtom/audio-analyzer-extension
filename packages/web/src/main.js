@@ -35,11 +35,14 @@ class AudioAnalyzerEngine {
   }
 }
 import GoogleAuth from './google-auth.js';
+import BoxAuth from './box-auth.js';
+import bilingualValidationData from './bilingual-validation-data.json';
 
 class WebAudioAnalyzer {
   constructor() {
     this.engine = new AudioAnalyzerEngine();
     this.googleAuth = new GoogleAuth();
+    this.boxAuth = new BoxAuth();
     this.batchProcessor = new BatchProcessor(CriteriaValidator);
     this.currentFile = null;
     this.audioBuffer = null;
@@ -49,6 +52,7 @@ class WebAudioAnalyzer {
     this.batchMode = false;
     this.batchResults = null;
     this.batchCancelled = false;
+    this.currentBatchSource = null; // Track whether batch is from 'drive', 'box', or 'local'
 
     this.initializeElements();
     this.attachEventListeners();
@@ -72,6 +76,13 @@ class WebAudioAnalyzer {
     this.signInBtn = document.getElementById('signInBtn');
     this.signOutBtn = document.getElementById('signOutBtn');
 
+    // Box elements
+    this.boxUrl = document.getElementById('boxUrl');
+    this.analyzeBoxUrl = document.getElementById('analyzeBoxUrl');
+    this.boxAuthText = document.getElementById('boxAuthText');
+    this.boxSignInBtn = document.getElementById('boxSignInBtn');
+    this.boxSignOutBtn = document.getElementById('boxSignOutBtn');
+
     // Analysis type elements (for filename validation)
     this.analysisTypeSection = document.getElementById('analysisTypeSection');
     this.enableAudioAnalysis = document.getElementById('enableAudioAnalysis');
@@ -79,6 +90,18 @@ class WebAudioAnalyzer {
     this.filenameValidationFields = document.getElementById('filenameValidationFields');
     this.speakerId = document.getElementById('speakerId');
     this.scriptsFolderUrl = document.getElementById('scriptsFolderUrl');
+
+    // Box analysis type elements
+    this.boxAnalysisTypeSection = document.getElementById('boxAnalysisTypeSection');
+    this.boxEnableAudioAnalysis = document.getElementById('boxEnableAudioAnalysis');
+    this.boxEnableFilenameValidation = document.getElementById('boxEnableFilenameValidation');
+    this.boxFilenameValidationFields = document.getElementById('boxFilenameValidationFields');
+
+    // Local analysis type elements
+    this.localAnalysisTypeSection = document.getElementById('localAnalysisTypeSection');
+    this.localEnableAudioAnalysis = document.getElementById('localEnableAudioAnalysis');
+    this.localEnableFilenameValidation = document.getElementById('localEnableFilenameValidation');
+    this.localFilenameValidationFields = document.getElementById('localFilenameValidationFields');
 
     // Criteria elements
     this.presetSelector = document.getElementById('presetSelector');
@@ -119,6 +142,7 @@ class WebAudioAnalyzer {
     this.batchFailCount = document.getElementById('batchFailCount');
     this.batchErrorCount = document.getElementById('batchErrorCount');
     this.batchTotalDuration = document.getElementById('batchTotalDuration');
+    this.batchTotalDurationContainer = document.querySelector('.total-duration');
     this.batchTableBody = document.getElementById('batchTableBody');
   }
 
@@ -176,16 +200,32 @@ class WebAudioAnalyzer {
     this.signInBtn.addEventListener('click', () => this.handleSignIn());
     this.signOutBtn.addEventListener('click', () => this.handleSignOut());
 
+    // Box URL and auth
+    this.analyzeBoxUrl.addEventListener('click', () => this.handleBoxUrl());
+    this.boxUrl.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') this.handleBoxUrl();
+    });
+    this.boxSignInBtn.addEventListener('click', () => this.handleBoxSignIn());
+    this.boxSignOutBtn.addEventListener('click', () => this.handleBoxSignOut());
+
     // Preset functionality
     this.presetSelector.addEventListener('change', () => this.handlePresetChange());
 
-    // Filename validation checkboxes
+    // Filename validation checkboxes (Google Drive)
     this.enableFilenameValidation.addEventListener('change', () => this.toggleFilenameValidationFields());
     this.enableAudioAnalysis.addEventListener('change', () => this.validateAnalysisTypeSelection());
 
-    // Filename validation inputs
+    // Filename validation inputs (Google Drive)
     this.speakerId.addEventListener('input', () => this.saveFilenameValidationSettings());
     this.scriptsFolderUrl.addEventListener('input', () => this.saveFilenameValidationSettings());
+
+    // Filename validation checkboxes (Box)
+    this.boxEnableFilenameValidation.addEventListener('change', () => this.toggleBoxFilenameValidationFields());
+    this.boxEnableAudioAnalysis.addEventListener('change', () => this.validateBoxAnalysisTypeSelection());
+
+    // Filename validation checkboxes (Local)
+    this.localEnableFilenameValidation.addEventListener('change', () => this.toggleLocalFilenameValidationFields());
+    this.localEnableAudioAnalysis.addEventListener('change', () => this.validateLocalAnalysisTypeSelection());
 
     // Criteria changes
     [this.targetFileType, this.targetSampleRate, this.targetBitDepth, this.targetChannels].forEach(select => {
@@ -251,9 +291,23 @@ class WebAudioAnalyzer {
 
     // Load filename validation settings
     this.loadFilenameValidationSettings();
+    this.loadBoxFilenameValidationSettings();
+    this.loadLocalFilenameValidationSettings();
 
-    // Update auth status
+    // Initialize and update auth status
+    this.googleAuth.init().catch(err => console.error('Google Auth init error:', err));
     this.updateAuthStatus();
+
+    // Initialize Box auth and handle post-OAuth callback
+    this.boxAuth.init().then(() => {
+      this.updateBoxAuthStatus();
+
+      // Check if we just authenticated with Box and switch to Box tab
+      if (localStorage.getItem('box_just_authenticated') === 'true') {
+        localStorage.removeItem('box_just_authenticated');
+        this.switchTab('box');
+      }
+    }).catch(err => console.error('Box Auth init error:', err));
   }
 
   updateAuthStatus() {
@@ -291,6 +345,40 @@ class WebAudioAnalyzer {
   handleSignOut() {
     this.googleAuth.signOut();
     this.updateAuthStatus();
+  }
+
+  updateBoxAuthStatus() {
+    const isSignedIn = this.boxAuth.isSignedIn();
+
+    if (isSignedIn) {
+      const userInfo = this.boxAuth.userInfo;
+      if (userInfo && userInfo.name) {
+        this.boxAuthText.textContent = `✓ Signed in as ${userInfo.name}`;
+      } else {
+        this.boxAuthText.textContent = '✓ Signed in to Box';
+      }
+      this.boxSignInBtn.style.display = 'none';
+      this.boxSignOutBtn.style.display = 'inline-block';
+    } else {
+      this.boxAuthText.textContent = 'Not signed in to Box';
+      this.boxSignInBtn.style.display = 'inline-block';
+      this.boxSignOutBtn.style.display = 'none';
+    }
+  }
+
+  async handleBoxSignIn() {
+    try {
+      await this.boxAuth.signIn();
+      this.updateBoxAuthStatus();
+    } catch (error) {
+      console.error('Box sign-in failed:', error);
+      this.showError(`Box sign-in failed: ${error.message}`);
+    }
+  }
+
+  handleBoxSignOut() {
+    this.boxAuth.signOut();
+    this.updateBoxAuthStatus();
   }
 
   getCriteria() {
@@ -378,7 +466,8 @@ class WebAudioAnalyzer {
         channels: ['1'],
         minDuration: '',
         supportsFilenameValidation: true,
-        filenameValidationType: 'script-match' // Requires matching .txt script file
+        filenameValidationType: 'script-match', // Requires matching .txt script file
+        gdriveOnly: true // Only available on Google Drive tab
       },
       'bilingual-conversational': {
         name: 'Bilingual Conversational',
@@ -386,7 +475,9 @@ class WebAudioAnalyzer {
         sampleRate: ['48000'],
         bitDepth: ['16', '24'],
         channels: ['2'],
-        minDuration: ''
+        minDuration: '',
+        supportsFilenameValidation: true,
+        filenameValidationType: 'bilingual-pattern' // Validates [ConversationID]-[LangCode]-user-[UserID]-agent-[AgentID]
       },
       'custom': {
         name: 'Custom',
@@ -446,19 +537,8 @@ class WebAudioAnalyzer {
           this.revalidateBatchResults();
         }
 
-        // Show/hide filename validation section based on preset support
-        if (config.supportsFilenameValidation) {
-          this.analysisTypeSection.style.display = 'block';
-          // Show fields only if checkbox is checked
-          if (this.enableFilenameValidation.checked) {
-            this.filenameValidationFields.style.display = 'block';
-          } else {
-            this.filenameValidationFields.style.display = 'none';
-          }
-        } else {
-          this.analysisTypeSection.style.display = 'none';
-          this.filenameValidationFields.style.display = 'none';
-        }
+        // Update validation sections visibility based on current tab and preset
+        this.updateValidationSectionsVisibility();
       }
     }
 
@@ -521,6 +601,101 @@ class WebAudioAnalyzer {
     }
   }
 
+  // Box filename validation methods
+  toggleBoxFilenameValidationFields() {
+    if (this.boxEnableFilenameValidation.checked) {
+      this.boxFilenameValidationFields.style.display = 'block';
+    } else {
+      this.boxFilenameValidationFields.style.display = 'none';
+    }
+    this.saveBoxFilenameValidationSettings();
+  }
+
+  validateBoxAnalysisTypeSelection() {
+    // Ensure at least one analysis type is selected
+    if (!this.boxEnableAudioAnalysis.checked && !this.boxEnableFilenameValidation.checked) {
+      // If user unchecked the last option, re-check it
+      this.boxEnableAudioAnalysis.checked = true;
+      alert('At least one analysis type must be selected');
+    }
+    this.saveBoxFilenameValidationSettings();
+  }
+
+  saveBoxFilenameValidationSettings() {
+    const settings = {
+      enableAudioAnalysis: this.boxEnableAudioAnalysis.checked,
+      enableFilenameValidation: this.boxEnableFilenameValidation.checked
+    };
+    localStorage.setItem('audio-analyzer-box-filename-validation', JSON.stringify(settings));
+  }
+
+  loadBoxFilenameValidationSettings() {
+    const saved = localStorage.getItem('audio-analyzer-box-filename-validation');
+    if (saved) {
+      try {
+        const settings = JSON.parse(saved);
+        this.boxEnableAudioAnalysis.checked = settings.enableAudioAnalysis !== false; // Default true
+        this.boxEnableFilenameValidation.checked = settings.enableFilenameValidation || false;
+
+        // Visibility controlled by preset configuration in handlePresetChange()
+      } catch (e) {
+        console.error('Error loading Box filename validation settings:', e);
+      }
+    }
+  }
+
+  // Local filename validation methods
+  toggleLocalFilenameValidationFields() {
+    if (this.localEnableFilenameValidation.checked) {
+      // Only show fields if current preset is bilingual
+      const presets = this.getPresetConfigurations();
+      const selectedPreset = this.presetSelector.value;
+      const config = presets[selectedPreset];
+      const validationType = config?.filenameValidationType;
+
+      if (validationType === 'bilingual-pattern') {
+        this.localFilenameValidationFields.style.display = 'block';
+      } else {
+        this.localFilenameValidationFields.style.display = 'none';
+      }
+    } else {
+      this.localFilenameValidationFields.style.display = 'none';
+    }
+    this.saveLocalFilenameValidationSettings();
+  }
+
+  validateLocalAnalysisTypeSelection() {
+    // Ensure at least one analysis type is selected
+    if (!this.localEnableAudioAnalysis.checked && !this.localEnableFilenameValidation.checked) {
+      // If user unchecked the last option, re-check it
+      this.localEnableAudioAnalysis.checked = true;
+      alert('At least one analysis type must be selected');
+    }
+    this.saveLocalFilenameValidationSettings();
+  }
+
+  saveLocalFilenameValidationSettings() {
+    const settings = {
+      enableAudioAnalysis: this.localEnableAudioAnalysis.checked,
+      enableFilenameValidation: this.localEnableFilenameValidation.checked
+    };
+    localStorage.setItem('audio-analyzer-local-filename-validation', JSON.stringify(settings));
+  }
+
+  loadLocalFilenameValidationSettings() {
+    const saved = localStorage.getItem('audio-analyzer-local-filename-validation');
+    if (saved) {
+      try {
+        const settings = JSON.parse(saved);
+        this.localEnableAudioAnalysis.checked = settings.enableAudioAnalysis !== false; // Default true
+        this.localEnableFilenameValidation.checked = settings.enableFilenameValidation || false;
+
+        // Visibility controlled by preset configuration in handlePresetChange()
+      } catch (e) {
+        console.error('Error loading local filename validation settings:', e);
+      }
+    }
+  }
 
   switchTab(tabName) {
     this.tabButtons.forEach(btn => btn.classList.remove('active'));
@@ -533,6 +708,96 @@ class WebAudioAnalyzer {
     document.querySelectorAll(`.tab-content[data-tab="${tabName}"]`).forEach(content => {
       content.classList.add('active');
     });
+
+    // Clear any existing results to avoid confusion between tabs
+    this.cleanupForNewFile();
+    this.hideAllSections();
+
+    // Re-run preset logic to update validation section visibility based on current tab
+    this.updateValidationSectionsVisibility();
+  }
+
+  updateValidationSectionsVisibility() {
+    // Get current active tab
+    const activeTabButton = document.querySelector('.tab-button.active');
+    const currentTab = activeTabButton ? activeTabButton.dataset.tab : 'local';
+
+    const presets = this.getPresetConfigurations();
+    const selectedPreset = this.presetSelector.value;
+    const config = presets[selectedPreset];
+
+    if (!config) return;
+
+    const validationType = config.filenameValidationType;
+
+    // Google Drive validation - show for presets that support validation
+    if (currentTab === 'gdrive' && config.supportsFilenameValidation) {
+      this.analysisTypeSection.style.display = 'block';
+
+      // Show appropriate fields based on validation type
+      if (this.enableFilenameValidation.checked) {
+        this.filenameValidationFields.style.display = 'block';
+
+        const driveThreeHourFields = document.getElementById('driveThreeHourFields');
+        const driveBilingualFields = document.getElementById('driveBilingualFields');
+
+        if (validationType === 'script-match') {
+          // Three Hour validation - show speaker ID and scripts folder fields
+          if (driveThreeHourFields) driveThreeHourFields.style.display = 'block';
+          if (driveBilingualFields) driveBilingualFields.style.display = 'none';
+        } else if (validationType === 'bilingual-pattern') {
+          // Bilingual validation - show pattern info
+          if (driveThreeHourFields) driveThreeHourFields.style.display = 'none';
+          if (driveBilingualFields) driveBilingualFields.style.display = 'block';
+        } else {
+          if (driveThreeHourFields) driveThreeHourFields.style.display = 'none';
+          if (driveBilingualFields) driveBilingualFields.style.display = 'none';
+        }
+      } else {
+        this.filenameValidationFields.style.display = 'none';
+      }
+    } else {
+      this.analysisTypeSection.style.display = 'none';
+      this.filenameValidationFields.style.display = 'none';
+    }
+
+    // Box validation - show for presets that support validation (exclude gdrive-only presets)
+    if (currentTab === 'box' && config.supportsFilenameValidation && !config.gdriveOnly) {
+      this.boxAnalysisTypeSection.style.display = 'block';
+
+      if (this.boxEnableFilenameValidation.checked) {
+        if (validationType === 'bilingual-pattern') {
+          // Bilingual validation - show pattern info
+          this.boxFilenameValidationFields.style.display = 'block';
+        } else {
+          this.boxFilenameValidationFields.style.display = 'none';
+        }
+      } else {
+        this.boxFilenameValidationFields.style.display = 'none';
+      }
+    } else {
+      this.boxAnalysisTypeSection.style.display = 'none';
+      this.boxFilenameValidationFields.style.display = 'none';
+    }
+
+    // Local validation - show for presets that support validation (exclude gdrive-only presets)
+    if (currentTab === 'local' && config.supportsFilenameValidation && !config.gdriveOnly) {
+      this.localAnalysisTypeSection.style.display = 'block';
+
+      if (this.localEnableFilenameValidation.checked) {
+        if (validationType === 'bilingual-pattern') {
+          // Bilingual validation - show pattern info
+          this.localFilenameValidationFields.style.display = 'block';
+        } else {
+          this.localFilenameValidationFields.style.display = 'none';
+        }
+      } else {
+        this.localFilenameValidationFields.style.display = 'none';
+      }
+    } else {
+      this.localAnalysisTypeSection.style.display = 'none';
+      this.localFilenameValidationFields.style.display = 'none';
+    }
   }
 
   async handleFilesSelect(files) {
@@ -611,6 +876,7 @@ class WebAudioAnalyzer {
 
     // Initialize batch mode and show empty table with progress
     this.batchMode = true;
+    this.currentBatchSource = 'local';
     this.batchResults = [];
     this.showBatchProgress(0, files.length, 'Initializing...');
     this.initializeBatchResultsTable();
@@ -628,6 +894,21 @@ class WebAudioAnalyzer {
         },
         (result) => {
           // Progressive callback - add result as each file completes
+
+          // Add filename validation if enabled for bilingual preset
+          if (this.localEnableFilenameValidation && this.localEnableFilenameValidation.checked) {
+            const presets = this.getPresetConfigurations();
+            const selectedPreset = this.presetSelector.value;
+            const config = presets[selectedPreset];
+            const validationType = config?.filenameValidationType;
+
+            if (validationType === 'bilingual-pattern') {
+              result.filenameValidation = this.validateBilingualFilename(result.filename);
+              // Recalculate overall status including filename validation
+              result.status = this.getOverallStatus(result.validation, false, result.filenameValidation);
+            }
+          }
+
           this.batchResults.push(result);
           this.addBatchResultRow(result);
           this.updateBatchSummary();
@@ -760,6 +1041,214 @@ class WebAudioAnalyzer {
     }
   }
 
+  validateBilingualFilename(filename) {
+    // Validate bilingual filename pattern:
+    // Regular: [ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav
+    // Spontaneous: SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav
+    // Example regular: vdlg1_001_budgeting_app-en_us-user-10101-agent-10102.wav
+    // Example spontaneous: SPONTANEOUS_1-en_us-user-10101-agent-10102.wav
+
+    // Collect all validation issues
+    const issues = [];
+
+    // Check for leading/trailing whitespace (DO NOT trim - we want to catch this as an error)
+    if (filename !== filename.trim()) {
+      issues.push('Filename has leading or trailing whitespace');
+    }
+
+    // Check for embedded whitespace
+    if (/\s/.test(filename)) {
+      issues.push('Filename contains whitespace characters');
+    }
+
+    // Check file extension - must end with exactly .wav (case insensitive)
+    const hasWavExtension = /\.wav$/i.test(filename);
+    if (!hasWavExtension) {
+      issues.push('Filename must end with .wav extension');
+    }
+
+    // Check for double extensions like .mp3.wav or .wav.wav (only if .wav extension exists)
+    if (hasWavExtension) {
+      const nameWithoutWav = filename.replace(/\.wav$/i, '');
+      if (/\.\w+$/.test(nameWithoutWav)) {
+        issues.push('Filename has multiple extensions (e.g., .mp3.wav or .wav.wav)');
+      }
+    }
+
+    // Remove any extension for parsing
+    const nameWithoutExt = filename.replace(/\.\w+$/i, '');
+
+    // Check if this is a spontaneous recording
+    const isSpontaneous = nameWithoutExt.startsWith('SPONTANEOUS_');
+
+    if (isSpontaneous) {
+      // Validate spontaneous format: SPONTANEOUS_[number]-[rest]
+
+      // Check that SPONTANEOUS is all caps
+      if (!nameWithoutExt.startsWith('SPONTANEOUS_')) {
+        issues.push('Spontaneous recordings must start with "SPONTANEOUS_" (all caps)');
+      }
+
+      // Extract the spontaneous ID and rest of filename
+      const spontaneousMatch = nameWithoutExt.match(/^SPONTANEOUS_(\d+)-(.+)$/);
+      if (!spontaneousMatch) {
+        issues.push('Invalid spontaneous format: expected SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID]');
+        return {
+          status: 'fail',
+          expectedFormat: 'SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav',
+          issue: issues.join('\n')
+        };
+      }
+
+      const spontaneousId = spontaneousMatch[1];
+      const restOfFilename = spontaneousMatch[2];
+
+      // Validate that rest of filename (after SPONTANEOUS_[number]-) is lowercase
+      if (restOfFilename !== restOfFilename.toLowerCase()) {
+        issues.push('All text after "SPONTANEOUS_[number]-" must be lowercase');
+      }
+
+      // Parse the rest of the filename
+      const parts = restOfFilename.toLowerCase().split('-');
+
+      // Expected: [LanguageCode]-user-[UserID]-agent-[AgentID]
+      if (parts.length !== 5) {
+        issues.push(`Invalid format: expected 5 parts after SPONTANEOUS_[number]-, got ${parts.length}`);
+        return {
+          status: 'fail',
+          expectedFormat: 'SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav',
+          issue: issues.join('\n')
+        };
+      }
+
+      const languageCode = parts[0];
+      const userLabel = parts[1];
+      const userId = parts[2];
+      const agentLabel = parts[3];
+      const agentId = parts[4];
+
+      // Validate labels
+      if (userLabel !== 'user') {
+        issues.push(`Expected 'user' label, got '${userLabel}'`);
+      }
+
+      if (agentLabel !== 'agent') {
+        issues.push(`Expected 'agent' label, got '${agentLabel}'`);
+      }
+
+      // Validate language code
+      if (!bilingualValidationData.languageCodes.includes(languageCode)) {
+        issues.push(`Invalid language code: '${languageCode}'`);
+      }
+
+      // Validate contributor pair (order doesn't matter)
+      const isValidPair = bilingualValidationData.contributorPairs.some(pair =>
+        (pair[0] === userId && pair[1] === agentId) ||
+        (pair[0] === agentId && pair[1] === userId)
+      );
+
+      if (!isValidPair) {
+        issues.push(`Invalid contributor pair: user-${userId}, agent-${agentId}`);
+      }
+
+      // If there are any issues, return failure with all issues
+      if (issues.length > 0) {
+        return {
+          status: 'fail',
+          expectedFormat: 'SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav',
+          issue: issues.join('\n')
+        };
+      }
+
+      // All validations passed
+      const expectedFormat = `SPONTANEOUS_${spontaneousId}-${languageCode}-user-${userId}-agent-${agentId}.wav`;
+      return {
+        status: 'pass',
+        expectedFormat: expectedFormat,
+        issue: ''
+      };
+
+    } else {
+      // Regular (non-spontaneous) recording validation
+
+      // Check that filename is lowercase (except .wav extension)
+      if (nameWithoutExt !== nameWithoutExt.toLowerCase()) {
+        issues.push('Filename must be all lowercase');
+      }
+
+      // Use lowercase version for parsing to extract parts even if original wasn't lowercase
+      const parts = nameWithoutExt.toLowerCase().split('-');
+
+      // Expected format: [ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]
+      // This should result in exactly 6 parts when split by '-'
+      if (parts.length !== 6) {
+        issues.push(`Invalid format: expected 6 parts separated by '-', got ${parts.length}`);
+        // Can't continue validation without proper parts
+        return {
+          status: 'fail',
+          expectedFormat: '[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav',
+          issue: issues.join('\n')
+        };
+      }
+
+      const conversationId = parts[0];
+      const languageCode = parts[1];
+      const userLabel = parts[2];
+      const userId = parts[3];
+      const agentLabel = parts[4];
+      const agentId = parts[5];
+
+      // Validate "user" and "agent" labels
+      if (userLabel !== 'user') {
+        issues.push(`Expected 'user' label, got '${userLabel}'`);
+      }
+
+      if (agentLabel !== 'agent') {
+        issues.push(`Expected 'agent' label, got '${agentLabel}'`);
+      }
+
+      // Validate language code
+      if (!bilingualValidationData.languageCodes.includes(languageCode)) {
+        issues.push(`Invalid language code: '${languageCode}'`);
+      }
+
+      // Validate conversation ID for this language (only if language code is valid)
+      if (bilingualValidationData.languageCodes.includes(languageCode)) {
+        const validConversations = bilingualValidationData.conversationsByLanguage[languageCode] || [];
+        if (!validConversations.includes(conversationId)) {
+          issues.push(`Invalid conversation ID: '${conversationId}' for language '${languageCode}'`);
+        }
+      }
+
+      // Validate contributor pair (order doesn't matter)
+      const isValidPair = bilingualValidationData.contributorPairs.some(pair =>
+        (pair[0] === userId && pair[1] === agentId) ||
+        (pair[0] === agentId && pair[1] === userId)
+      );
+
+      if (!isValidPair) {
+        issues.push(`Invalid contributor pair: user-${userId}, agent-${agentId}`);
+      }
+
+      // If there are any issues, return failure with all issues
+      if (issues.length > 0) {
+        return {
+          status: 'fail',
+          expectedFormat: '[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav',
+          issue: issues.join('\n')
+        };
+      }
+
+      // All validations passed
+      const expectedFormat = `${conversationId}-${languageCode}-user-${userId}-agent-${agentId}.wav`;
+      return {
+        status: 'pass',
+        expectedFormat: expectedFormat,
+        issue: ''
+      };
+    }
+  }
+
   async handleGoogleDriveFolder(folderId) {
     // List all audio files in folder
     const audioFiles = await this.googleAuth.listAudioFilesInFolder(folderId);
@@ -770,33 +1259,44 @@ class WebAudioAnalyzer {
 
     console.log(`Found ${audioFiles.length} audio files in folder`);
 
-    // Fetch script files if filename validation is enabled
+    // Determine validation type and fetch necessary data
+    const presets = this.getPresetConfigurations();
+    const selectedPreset = this.presetSelector.value;
+    const config = presets[selectedPreset];
+    const validationType = config?.filenameValidationType;
+
     let scriptBaseNames = [];
     if (this.enableFilenameValidation.checked) {
-      const scriptsFolderUrl = this.scriptsFolderUrl.value.trim();
-      const speakerId = this.speakerId.value.trim();
+      if (validationType === 'script-match') {
+        // Three Hour validation - fetch script files
+        const scriptsFolderUrl = this.scriptsFolderUrl.value.trim();
+        const speakerId = this.speakerId.value.trim();
 
-      if (!speakerId) {
-        throw new Error('Speaker ID is required for filename validation');
-      }
-
-      if (scriptsFolderUrl) {
-        const scriptsFolderId = this.extractFolderId(scriptsFolderUrl);
-        if (scriptsFolderId) {
-          scriptBaseNames = await this.fetchScriptFiles(scriptsFolderId);
-        } else {
-          throw new Error('Invalid scripts folder URL');
+        if (!speakerId) {
+          throw new Error('Speaker ID is required for filename validation');
         }
-      } else {
-        throw new Error('Scripts folder URL is required for filename validation');
+
+        if (scriptsFolderUrl) {
+          const scriptsFolderId = this.extractFolderId(scriptsFolderUrl);
+          if (scriptsFolderId) {
+            scriptBaseNames = await this.fetchScriptFiles(scriptsFolderId);
+          } else {
+            throw new Error('Invalid scripts folder URL');
+          }
+        } else {
+          throw new Error('Scripts folder URL is required for filename validation');
+        }
       }
+      // For bilingual-pattern validation, no additional data needed (uses bundled data)
     }
 
     // Switch to batch mode
     this.batchMode = true;
+    this.currentBatchSource = 'drive';
     this.batchResults = [];
     this.batchCancelled = false;
     this.scriptBaseNames = scriptBaseNames; // Store for use in validation
+    this.currentValidationType = validationType; // Store validation type
 
     // Initialize table and show progress
     this.showBatchProgress(0, audioFiles.length, 'Initializing...');
@@ -821,6 +1321,7 @@ class WebAudioAnalyzer {
         if (this.batchCancelled) return null;
 
         try {
+          const validationType = this.currentValidationType;
           let analysis;
           let usedFallback = false;
           const useMetadataOnly = this.enableFilenameValidation.checked && !this.enableAudioAnalysis.checked;
@@ -901,9 +1402,15 @@ class WebAudioAnalyzer {
 
           // Apply filename validation if enabled
           let filenameValidation = null;
-          if (this.enableFilenameValidation.checked && this.scriptBaseNames.length > 0) {
-            const speakerId = this.speakerId.value.trim();
-            filenameValidation = this.validateFilename(driveFile.name, this.scriptBaseNames, speakerId);
+          if (this.enableFilenameValidation.checked) {
+            if (validationType === 'script-match' && this.scriptBaseNames.length > 0) {
+              // Three Hour validation
+              const speakerId = this.speakerId.value.trim();
+              filenameValidation = this.validateFilename(driveFile.name, this.scriptBaseNames, speakerId);
+            } else if (validationType === 'bilingual-pattern') {
+              // Bilingual validation
+              filenameValidation = this.validateBilingualFilename(driveFile.name);
+            }
           }
 
           return {
@@ -980,6 +1487,315 @@ class WebAudioAnalyzer {
     return match ? match[0] : null;
   }
 
+  // Box URL handlers
+  async handleBoxUrl() {
+    const url = this.boxUrl.value.trim();
+    if (!url) return;
+
+    if (this.processingFile) {
+      console.log('Already processing a file, ignoring Box request');
+      return;
+    }
+
+    // Check if user is signed in to Box
+    if (!this.boxAuth.isSignedIn()) {
+      // Trigger sign-in flow
+      await this.handleBoxSignIn();
+      // After sign-in redirect, they'll need to click Analyze again
+      return;
+    }
+
+    this.processingFile = true;
+    this.cleanupForNewFile();
+    this.showLoading();
+
+    try {
+      const parsed = this.extractBoxIdFromUrl(url);
+      if (!parsed) {
+        throw new Error('Invalid Box URL. Please ensure it\'s a valid Box file or folder link.');
+      }
+
+      // Store the shared link for API calls
+      this.currentBoxSharedLink = url;
+
+      this.updateBoxAuthStatus();
+
+      // Always use authenticated access (null for sharedLink parameter)
+      const useSharedLink = null;
+
+      if (parsed.isFolder) {
+        await this.handleBoxFolder(parsed.id, useSharedLink);
+      } else {
+        await this.handleBoxFile(parsed.id, useSharedLink);
+      }
+
+    } catch (error) {
+      console.error('Box error:', error);
+      this.cleanupForNewFile();
+
+      // For shared links, don't prompt for sign-in
+      if (error.message.includes('sign-in') || error.message.includes('auth') || error.message.includes('Session expired')) {
+        if (!this.currentBoxSharedLink) {
+          this.showError('Please sign in to Box to access files. Click "Analyze" to authenticate.');
+        } else {
+          this.showError(`Failed to access Box file: ${error.message}. The file may not be publicly shared.`);
+        }
+      } else {
+        this.showError(`Failed to process Box: ${error.message}`);
+      }
+    } finally {
+      this.processingFile = false;
+      this.currentBoxSharedLink = null;
+    }
+  }
+
+  async handleBoxFile(fileId, sharedLink = null) {
+    // Check if filename validation is available and enabled
+    const isFilenameValidationAvailable = this.boxAnalysisTypeSection.style.display !== 'none';
+    const useFilenameValidation = isFilenameValidationAvailable && this.boxEnableFilenameValidation.checked;
+    const useMetadataOnly = useFilenameValidation && !this.boxEnableAudioAnalysis.checked;
+
+    // Get file metadata first (for filename and size)
+    const metadata = await this.boxAuth.getFileMetadata({ id: fileId }, sharedLink);
+    const filename = metadata.name;
+
+    let filenameValidation = null;
+    if (useFilenameValidation) {
+      // Validate bilingual filename pattern
+      filenameValidation = this.validateBilingualFilename(filename);
+    }
+
+    let results;
+    if (useMetadataOnly) {
+      // Metadata-only mode: skip audio analysis
+      results = {
+        filename: filename,
+        fileSize: parseInt(metadata.size) || 0,
+        fileType: this.getFileTypeFromName(filename),
+        sampleRate: 'Unknown',
+        bitDepth: 'Unknown',
+        channels: 'Unknown',
+        duration: 'Unknown'
+      };
+
+      // Don't need to download file or setup audio player in metadata-only mode
+      this.currentFile = null;
+      this.currentResults = results;
+
+      // Validate and display
+      const criteria = this.getCriteria();
+      const validationResults = this.engine.validateCriteria(results, criteria);
+      this.currentResults.validation = validationResults;
+      this.currentResults.filenameValidation = filenameValidation;
+
+      this.validateAndDisplayResults(results, filenameValidation);
+      this.showResults();
+    } else {
+      // Full audio analysis mode
+      const file = await this.boxAuth.downloadFile(fileId, sharedLink);
+      this.currentFile = file;
+
+      results = await this.engine.analyzeFile(file);
+
+      // Override file size with actual size from metadata
+      if (results && metadata && metadata.size) {
+        results.fileSize = metadata.size;
+      }
+
+      this.currentResults = results;
+      this.currentResults.filenameValidation = filenameValidation;
+
+      this.setupAudioPlayer(file);
+      this.validateAndDisplayResults(results, filenameValidation);
+      this.showResults();
+    }
+  }
+
+  async handleBoxFolder(folderId, sharedLink = null) {
+    // Similar to Google Drive folder handling
+    const audioFiles = await this.boxAuth.listAudioFilesInFolder(folderId, sharedLink);
+
+    if (audioFiles.length === 0) {
+      throw new Error('No audio files found in the Box folder');
+    }
+
+    this.batchMode = true;
+    this.currentBatchSource = 'box';
+    this.batchCancelled = false;
+    this.showBatchProgress();
+
+    // Only use filename validation if the UI section is visible (meaning preset supports it)
+    const isFilenameValidationAvailable = this.boxAnalysisTypeSection.style.display !== 'none';
+    const useMetadataOnly = isFilenameValidationAvailable && this.boxEnableFilenameValidation.checked && !this.boxEnableAudioAnalysis.checked;
+
+    try {
+      this.batchResults = [];
+      let passCount = 0;
+      let warningCount = 0;
+      let failCount = 0;
+      let errorCount = 0;
+      let totalDuration = 0;
+
+      this.initializeBatchResultsTable();
+
+      for (let i = 0; i < audioFiles.length; i++) {
+        if (this.batchCancelled) {
+          console.log('Batch processing cancelled by user');
+          break;
+        }
+
+        const boxFile = audioFiles[i];
+        this.showBatchProgress(i + 1, audioFiles.length, boxFile.name);
+
+        try {
+          let analysisResults = null;
+          let filenameValidation = null;
+
+          if (isFilenameValidationAvailable && this.boxEnableFilenameValidation.checked) {
+            // Validate bilingual filename pattern
+            filenameValidation = this.validateBilingualFilename(boxFile.name);
+          }
+
+          let metadata = null;
+          if (useMetadataOnly) {
+            // Metadata-only mode: faster, skip audio analysis
+            metadata = await this.boxAuth.getFileMetadata(boxFile, sharedLink);
+            analysisResults = {
+              filename: boxFile.name,
+              fileSize: parseInt(metadata.size) || 0,
+              fileType: this.getFileTypeFromName(boxFile.name),
+              sampleRate: 'Unknown',
+              bitDepth: 'Unknown',
+              channels: 'Unknown',
+              duration: 'Unknown'
+            };
+          } else {
+            // Full audio analysis mode
+            metadata = await this.boxAuth.getFileMetadata(boxFile, sharedLink);
+            const headerBlob = await this.boxAuth.downloadFileHeaders(boxFile.id, 102400, sharedLink);
+            const headerFile = new File([headerBlob], boxFile.name);
+            analysisResults = await this.engine.analyzeFile(headerFile);
+
+            // Override file size with actual size from metadata (not just the header we downloaded)
+            if (analysisResults && metadata && metadata.size) {
+              analysisResults.fileSize = metadata.size;
+            }
+
+            if (analysisResults && analysisResults.duration) {
+              totalDuration += analysisResults.duration;
+            }
+          }
+
+          const criteria = this.getCriteria();
+          const validationResults = analysisResults
+            ? this.engine.validateCriteria(analysisResults, criteria)
+            : {};
+
+          const overallStatus = this.getOverallStatus(validationResults, useMetadataOnly, filenameValidation);
+
+          if (overallStatus === 'pass') passCount++;
+          else if (overallStatus === 'warning') warningCount++;
+          else if (overallStatus === 'fail') failCount++;
+
+          const result = {
+            name: boxFile.name,
+            filename: boxFile.name,
+            analysis: analysisResults,
+            validation: validationResults,
+            filenameValidation: filenameValidation,
+            status: overallStatus,
+            error: null,
+            boxFileId: boxFile.id  // Store Box file ID for potential future use, but don't show play button
+          };
+          this.batchResults.push(result);
+
+          this.addBatchResultRow(result);
+
+        } catch (error) {
+          console.error(`Error processing ${boxFile.name}:`, error);
+          errorCount++;
+          const errorResult = {
+            name: boxFile.name,
+            filename: boxFile.name,
+            analysis: null,
+            validation: {},
+            filenameValidation: null,
+            status: 'error',
+            error: error.message
+          };
+          this.batchResults.push(errorResult);
+
+          this.addBatchResultRow(errorResult);
+        }
+      }
+
+      this.updateBatchSummary(passCount, warningCount, failCount, errorCount, totalDuration);
+
+      // Hide progress bar when complete
+      if (!this.batchCancelled) {
+        this.batchProgress.style.display = 'none';
+      }
+
+    } catch (error) {
+      console.error('Batch processing error:', error);
+      this.showError(`Failed to process batch: ${error.message}`);
+      this.cleanupForNewFile();
+    } finally {
+      this.processingFile = false;
+    }
+  }
+
+  async fetchBoxScriptFiles(scriptsFolderId, scriptsSharedLink = null) {
+    try {
+      const scriptFiles = await this.boxAuth.listFilesInFolder(scriptsFolderId, '.txt', scriptsSharedLink);
+      const scriptBaseNames = scriptFiles.map(file =>
+        file.name.trim().replace(/\.txt$/i, '')
+      );
+      console.log(`Found ${scriptBaseNames.length} Box script files:`, scriptBaseNames);
+      return scriptBaseNames;
+    } catch (error) {
+      console.error('Error fetching Box script files:', error);
+      throw new Error('Failed to fetch script files. Check the scripts folder URL.');
+    }
+  }
+
+  extractBoxIdFromUrl(url) {
+    // Handle Box URL formats
+    // Shared file: https://voices.app.box.com/s/v1rhafzrznsebbgwubst5ewbu4hlh0ej/file/2001196103399
+    // Shared folder: https://voices.app.box.com/s/v1rhafzrznsebbgwubst5ewbu4hlh0ej/folder/343278172663
+    // Direct links: https://app.box.com/file/123456789 or /folder/123456789
+
+    // Check for shared link format first
+    const sharedFileMatch = url.match(/\/s\/[^/]+\/file\/(\d+)/);
+    if (sharedFileMatch) {
+      return { id: sharedFileMatch[1], isFolder: false, sharedLink: url };
+    }
+
+    const sharedFolderMatch = url.match(/\/s\/[^/]+\/folder\/(\d+)/);
+    if (sharedFolderMatch) {
+      return { id: sharedFolderMatch[1], isFolder: true, sharedLink: url };
+    }
+
+    // Fallback to direct link patterns
+    const patterns = [
+      /\/file\/(\d+)/,    // File link
+      /\/folder\/(\d+)/,  // Folder link
+      /^(\d+)$/           // Just the ID
+    ];
+
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) return { id: match[1], isFolder: pattern === patterns[1], sharedLink: null };
+    }
+
+    return null;
+  }
+
+  extractBoxFolderId(url) {
+    const match = url.match(/\/folder\/(\d+)/);
+    return match ? match[1] : null;
+  }
+
   setupAudioPlayer(file) {
     const url = URL.createObjectURL(file);
     this.audioPlayer.src = url;
@@ -997,19 +1813,46 @@ class WebAudioAnalyzer {
     }
   }
 
-  validateAndDisplayResults(results) {
+  validateAndDisplayResults(results, filenameValidation = null) {
     const criteria = this.getCriteria();
     const validationResults = this.engine.validateCriteria(results, criteria);
     const formatted = this.engine.formatResults(results);
 
     // Update display
-    document.getElementById('fileName').textContent = this.currentFile.name;
+    const filename = this.currentFile ? this.currentFile.name : (results.filename || '-');
+    document.getElementById('fileName').textContent = filename;
     document.getElementById('fileType').textContent = formatted.fileType;
     document.getElementById('sampleRate').textContent = formatted.sampleRate;
     document.getElementById('bitDepth').textContent = formatted.bitDepth;
     document.getElementById('channels').textContent = formatted.channels;
     document.getElementById('duration').textContent = formatted.duration;
     document.getElementById('fileSize').textContent = formatted.fileSize;
+
+    // Show/hide and update filename validation if provided
+    const filenameValidationRow = document.getElementById('filenameValidationRow');
+    const filenameValidationResult = document.getElementById('filenameValidationResult');
+    if (filenameValidation) {
+      filenameValidationRow.style.display = '';
+      filenameValidationRow.classList.remove('pass', 'fail', 'warning', 'unknown');
+      filenameValidationRow.classList.add(filenameValidation.status);
+
+      if (filenameValidation.status === 'pass') {
+        filenameValidationResult.textContent = '✅ Valid';
+        filenameValidationResult.title = 'Filename is valid';
+      } else {
+        filenameValidationResult.textContent = '❌ Invalid';
+        let tooltipText = filenameValidation.issue;
+        if (filenameValidation.expectedFormat) {
+          tooltipText += `\n\nExpected: ${filenameValidation.expectedFormat}`;
+        }
+        filenameValidationResult.title = tooltipText;
+      }
+
+      // Add instant tooltip for single file results
+      this.setupFilenameCheckTooltip(filenameValidationResult);
+    } else {
+      filenameValidationRow.style.display = 'none';
+    }
 
     // Apply validation styling
     this.applyValidationStyling(validationResults);
@@ -1134,8 +1977,31 @@ class WebAudioAnalyzer {
     this.batchResultsSection.style.display = 'block';
     this.batchTableBody.innerHTML = '';
 
+    // Check if current preset supports filename validation
+    const presets = this.getPresetConfigurations();
+    const selectedPreset = this.presetSelector.value;
+    const presetConfig = presets[selectedPreset];
+    const presetSupportsFilenameValidation = presetConfig?.supportsFilenameValidation || false;
+
+    // Get the appropriate checkboxes based on source
+    // Only enable filename validation if both: (1) preset supports it AND (2) checkbox is checked
+    const enableFilenameValidation = this.currentBatchSource === 'box'
+      ? (presetSupportsFilenameValidation && this.boxEnableFilenameValidation.checked)
+      : (this.currentBatchSource === 'drive'
+          ? (presetSupportsFilenameValidation && this.enableFilenameValidation.checked)
+          : (this.currentBatchSource === 'local'
+              ? (presetSupportsFilenameValidation && this.localEnableFilenameValidation.checked)
+              : false));
+    const enableAudioAnalysis = this.currentBatchSource === 'box'
+      ? this.boxEnableAudioAnalysis.checked
+      : (this.currentBatchSource === 'drive'
+          ? this.enableAudioAnalysis.checked
+          : (this.currentBatchSource === 'local'
+              ? this.localEnableAudioAnalysis.checked
+              : true));
+
     // Detect metadata-only mode
-    const isMetadataOnly = this.enableFilenameValidation.checked && !this.enableAudioAnalysis.checked;
+    const isMetadataOnly = enableFilenameValidation && !enableAudioAnalysis;
 
     // Add metadata-only class to table for wider filename column
     const table = document.querySelector('.batch-results-table');
@@ -1150,7 +2016,7 @@ class WebAudioAnalyzer {
     // Show/hide filename check column based on whether filename validation is enabled
     const filenameCheckHeader = document.getElementById('filenameCheckHeader');
     if (filenameCheckHeader) {
-      filenameCheckHeader.style.display = this.enableFilenameValidation.checked ? '' : 'none';
+      filenameCheckHeader.style.display = enableFilenameValidation ? '' : 'none';
     }
 
     // Hide audio-specific columns in metadata-only mode
@@ -1162,6 +2028,11 @@ class WebAudioAnalyzer {
       }
     });
 
+    // Hide total duration in metadata-only mode
+    if (this.batchTotalDurationContainer) {
+      this.batchTotalDurationContainer.style.display = isMetadataOnly ? 'none' : '';
+    }
+
     // Initialize summary stats to zero
     this.batchPassCount.textContent = '0';
     this.batchWarningCount.textContent = '0';
@@ -1171,10 +2042,33 @@ class WebAudioAnalyzer {
   }
 
   addBatchResultRow(result) {
+    // Check if current preset supports filename validation
+    const presets = this.getPresetConfigurations();
+    const selectedPreset = this.presetSelector.value;
+    const presetConfig = presets[selectedPreset];
+    const presetSupportsFilenameValidation = presetConfig?.supportsFilenameValidation || false;
+
+    // Get the appropriate checkboxes based on source
+    // Only enable filename validation if both: (1) preset supports it AND (2) checkbox is checked
+    const enableFilenameValidation = this.currentBatchSource === 'box'
+      ? (presetSupportsFilenameValidation && this.boxEnableFilenameValidation.checked)
+      : (this.currentBatchSource === 'drive'
+          ? (presetSupportsFilenameValidation && this.enableFilenameValidation.checked)
+          : (this.currentBatchSource === 'local'
+              ? (presetSupportsFilenameValidation && this.localEnableFilenameValidation.checked)
+              : false));
+    const enableAudioAnalysis = this.currentBatchSource === 'box'
+      ? this.boxEnableAudioAnalysis.checked
+      : (this.currentBatchSource === 'drive'
+          ? this.enableAudioAnalysis.checked
+          : (this.currentBatchSource === 'local'
+              ? this.localEnableAudioAnalysis.checked
+              : true));
+
     // Re-validate with current criteria before displaying (in case criteria changed during processing)
     if (result.analysis && !result.error) {
       const currentCriteria = this.getCriteria();
-      const useMetadataOnly = this.enableFilenameValidation.checked && !this.enableAudioAnalysis.checked;
+      const useMetadataOnly = enableFilenameValidation && !enableAudioAnalysis;
       result.validation = CriteriaValidator.validateResults(result.analysis, currentCriteria, useMetadataOnly);
 
       // If in metadata-only mode, override status for audio-specific fields to 'unknown'
@@ -1202,15 +2096,24 @@ class WebAudioAnalyzer {
     const durationStatus = this.getValidationStatus(result.validation, 'duration');
 
     // Detect metadata-only mode
-    const isMetadataOnly = this.enableFilenameValidation.checked && !this.enableAudioAnalysis.checked;
+    const isMetadataOnly = enableFilenameValidation && !enableAudioAnalysis;
 
     // Filename validation cell (only show if filename validation is enabled)
     let filenameCheckCell = '';
-    if (this.enableFilenameValidation.checked) {
+    if (enableFilenameValidation) {
       if (result.filenameValidation) {
         const icon = result.filenameValidation.status === 'pass' ? '✅' : '❌';
-        const title = result.filenameValidation.issue || result.filenameValidation.expectedFormat;
-        filenameCheckCell = `<td class="filename-check-${result.filenameValidation.status}" title="${title}">${icon}</td>`;
+        let tooltipText = '';
+        if (result.filenameValidation.status === 'pass') {
+          tooltipText = 'Filename is valid';
+        } else {
+          // Show issue and expected format for failures
+          tooltipText = result.filenameValidation.issue;
+          if (result.filenameValidation.expectedFormat) {
+            tooltipText += `\n\nExpected: ${result.filenameValidation.expectedFormat}`;
+          }
+        }
+        filenameCheckCell = `<td class="filename-check-${result.filenameValidation.status}" title="${tooltipText}">${icon}</td>`;
       } else {
         filenameCheckCell = `<td style="display: none;"></td>`;
       }
@@ -1224,10 +2127,15 @@ class WebAudioAnalyzer {
     const channelsCell = isMetadataOnly ? '' : `<td class="validation-${channelsStatus}">${formatted.channels || '-'}</td>`;
     const durationCell = isMetadataOnly ? '' : `<td class="validation-${durationStatus}">${formatted.duration || '-'}</td>`;
 
-    // Show play button if we have local file or Drive file ID
-    const playButton = (result.file || result.driveFileId)
-      ? `<button class="play-btn-small" data-index="${index}">▶</button>`
-      : '-';
+    // Show play button/link based on source
+    let playButton = '-';
+    if (result.file || result.driveFileId) {
+      // Local file or Google Drive - show play button
+      playButton = `<button class="play-btn-small" data-index="${index}">▶</button>`;
+    } else if (result.boxFileId) {
+      // Box file - show link to open in Box (styled as button)
+      playButton = `<a href="https://app.box.com/file/${result.boxFileId}" target="_blank" title="Open in Box" class="play-btn-small box-link">▶</a>`;
+    }
 
     row.innerHTML = `
       <td class="filename">${result.filename}</td>
@@ -1254,6 +2162,47 @@ class WebAudioAnalyzer {
         });
       }
     }
+
+    // Add tooltip listeners for filename check cells
+    const checkCell = row.querySelector('.filename-check-pass, .filename-check-fail');
+    if (checkCell) {
+      this.setupFilenameCheckTooltip(checkCell);
+    }
+  }
+
+  setupFilenameCheckTooltip(cell) {
+    let tooltip = null;
+
+    cell.addEventListener('mouseenter', (e) => {
+      const text = cell.getAttribute('title');
+      if (!text) return;
+
+      // Remove title to prevent default browser tooltip
+      cell.removeAttribute('title');
+      cell.dataset.originalTitle = text;
+
+      // Create tooltip element
+      tooltip = document.createElement('div');
+      tooltip.className = 'filename-tooltip';
+      tooltip.textContent = text;
+      document.body.appendChild(tooltip);
+
+      // Position tooltip below the cell
+      const rect = cell.getBoundingClientRect();
+      tooltip.style.left = rect.left + rect.width / 2 + 'px';
+      tooltip.style.top = rect.bottom + 5 + 'px';
+    });
+
+    cell.addEventListener('mouseleave', () => {
+      if (tooltip) {
+        tooltip.remove();
+        tooltip = null;
+      }
+      // Restore title
+      if (cell.dataset.originalTitle) {
+        cell.setAttribute('title', cell.dataset.originalTitle);
+      }
+    });
   }
 
   updateBatchSummary() {
@@ -1310,6 +2259,29 @@ class WebAudioAnalyzer {
 
     this.batchTotalDuration.textContent = this.formatTotalDuration(totalSeconds);
 
+    // Check if current preset supports filename validation
+    const presets = this.getPresetConfigurations();
+    const selectedPreset = this.presetSelector.value;
+    const presetConfig = presets[selectedPreset];
+    const presetSupportsFilenameValidation = presetConfig?.supportsFilenameValidation || false;
+
+    const enableFilenameValidation = this.currentBatchSource === 'box'
+      ? false
+      : (this.currentBatchSource === 'drive'
+          ? (presetSupportsFilenameValidation && this.enableFilenameValidation.checked)
+          : (this.currentBatchSource === 'local'
+              ? (presetSupportsFilenameValidation && this.localEnableFilenameValidation.checked)
+              : false));
+    const enableAudioAnalysis = this.currentBatchSource === 'box'
+      ? this.boxEnableAudioAnalysis.checked
+      : (this.currentBatchSource === 'drive'
+          ? this.enableAudioAnalysis.checked
+          : (this.currentBatchSource === 'local'
+              ? this.localEnableAudioAnalysis.checked
+              : true));
+
+    const isMetadataOnly = enableFilenameValidation && !enableAudioAnalysis;
+
     // Rebuild table
     this.batchTableBody.innerHTML = '';
     results.forEach((result, index) => {
@@ -1325,14 +2297,44 @@ class WebAudioAnalyzer {
       const channelsStatus = this.getValidationStatus(result.validation, 'channels');
       const durationStatus = this.getValidationStatus(result.validation, 'duration');
 
+      // Filename validation cell (only show if filename validation is enabled)
+      let filenameCheckCell = '';
+      if (enableFilenameValidation) {
+        if (result.filenameValidation) {
+          const icon = result.filenameValidation.status === 'pass' ? '✅' : '❌';
+          let tooltipText = '';
+          if (result.filenameValidation.status === 'pass') {
+            tooltipText = 'Filename is valid';
+          } else {
+            // Show issue and expected format for failures
+            tooltipText = result.filenameValidation.issue;
+            if (result.filenameValidation.expectedFormat) {
+              tooltipText += `\n\nExpected: ${result.filenameValidation.expectedFormat}`;
+            }
+          }
+          filenameCheckCell = `<td class="filename-check-${result.filenameValidation.status}" title="${tooltipText}">${icon}</td>`;
+        } else {
+          filenameCheckCell = `<td style="display: none;"></td>`;
+        }
+      } else {
+        filenameCheckCell = `<td style="display: none;"></td>`;
+      }
+
+      // Audio-specific cells (hide in metadata-only mode)
+      const sampleRateCell = isMetadataOnly ? '' : `<td class="validation-${sampleRateStatus}">${formatted.sampleRate || '-'}</td>`;
+      const bitDepthCell = isMetadataOnly ? '' : `<td class="validation-${bitDepthStatus}">${formatted.bitDepth || '-'}</td>`;
+      const channelsCell = isMetadataOnly ? '' : `<td class="validation-${channelsStatus}">${formatted.channels || '-'}</td>`;
+      const durationCell = isMetadataOnly ? '' : `<td class="validation-${durationStatus}">${formatted.duration || '-'}</td>`;
+
       row.innerHTML = `
         <td class="filename">${result.filename}</td>
         <td><span class="status-badge ${result.status}">${result.status}</span></td>
+        ${filenameCheckCell}
         <td class="validation-${fileTypeStatus}">${formatted.fileType || 'Unknown'}</td>
-        <td class="validation-${sampleRateStatus}">${formatted.sampleRate || '-'}</td>
-        <td class="validation-${bitDepthStatus}">${formatted.bitDepth || '-'}</td>
-        <td class="validation-${channelsStatus}">${formatted.channels || '-'}</td>
-        <td class="validation-${durationStatus}">${formatted.duration || '-'}</td>
+        ${sampleRateCell}
+        ${bitDepthCell}
+        ${channelsCell}
+        ${durationCell}
         <td>${formatted.fileSize || '-'}</td>
         <td><button class="play-btn-small" data-index="${index}">▶</button></td>
       `;
@@ -1409,6 +2411,43 @@ class WebAudioAnalyzer {
     if (!this.batchResults) return;
 
     const criteria = this.getCriteria();
+
+    // Update table headers based on current preset
+    const presets = this.getPresetConfigurations();
+    const selectedPreset = this.presetSelector.value;
+    const presetConfig = presets[selectedPreset];
+    const presetSupportsFilenameValidation = presetConfig?.supportsFilenameValidation || false;
+
+    const enableFilenameValidation = this.currentBatchSource === 'box'
+      ? (presetSupportsFilenameValidation && this.boxEnableFilenameValidation.checked)
+      : (this.currentBatchSource === 'drive'
+          ? (presetSupportsFilenameValidation && this.enableFilenameValidation.checked)
+          : (this.currentBatchSource === 'local'
+              ? (presetSupportsFilenameValidation && this.localEnableFilenameValidation.checked)
+              : false));
+    const enableAudioAnalysis = this.currentBatchSource === 'box'
+      ? this.boxEnableAudioAnalysis.checked
+      : (this.currentBatchSource === 'drive'
+          ? this.enableAudioAnalysis.checked
+          : (this.currentBatchSource === 'local'
+              ? this.localEnableAudioAnalysis.checked
+              : true));
+
+    const isMetadataOnly = enableFilenameValidation && !enableAudioAnalysis;
+
+    // Update table structure (headers)
+    const filenameCheckHeader = document.getElementById('filenameCheckHeader');
+    if (filenameCheckHeader) {
+      filenameCheckHeader.style.display = enableFilenameValidation ? '' : 'none';
+    }
+
+    const audioHeaders = ['sampleRateHeader', 'bitDepthHeader', 'channelsHeader', 'durationHeader'];
+    audioHeaders.forEach(headerId => {
+      const header = document.getElementById(headerId);
+      if (header) {
+        header.style.display = isMetadataOnly ? 'none' : '';
+      }
+    });
 
     // Re-run validation on all batch results
     this.batchResults.forEach(result => {
