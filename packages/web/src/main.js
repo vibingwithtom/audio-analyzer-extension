@@ -58,6 +58,7 @@ class WebAudioAnalyzer {
     this.attachEventListeners();
     this.loadSettings();
     this.initializeDarkMode();
+    this.updateBuildInfo();
   }
 
   initializeElements() {
@@ -739,9 +740,33 @@ class WebAudioAnalyzer {
   }
 
   initializeDarkMode() {
-    const darkMode = localStorage.getItem('darkMode');
-    if (darkMode === 'true') {
-      document.documentElement.classList.add('dark-mode');
+    const savedPreference = localStorage.getItem('darkMode');
+
+    // If user has saved a preference, use that
+    if (savedPreference !== null) {
+      if (savedPreference === 'true') {
+        document.documentElement.classList.add('dark-mode');
+      }
+    } else {
+      // Otherwise, check system preference
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (prefersDark) {
+        document.documentElement.classList.add('dark-mode');
+      }
+    }
+  }
+
+  updateBuildInfo() {
+    const buildInfoElement = document.getElementById('buildInfo');
+    if (buildInfoElement) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const buildNumber = `${year}.${month}.${day}-${hours}${minutes}`;
+      buildInfoElement.textContent = `Audio Analyzer build-${buildNumber}`;
     }
   }
 
