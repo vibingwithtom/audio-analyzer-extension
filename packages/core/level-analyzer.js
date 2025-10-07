@@ -62,17 +62,222 @@ export class LevelAnalyzer {
       if (progressCallback) progressCallback('Checking normalization...', 0.9);
       const normalizationStatus = this.checkNormalization(peakDb);
 
-      if (progressCallback) progressCallback('Analysis complete!', 1.0);
-
-      return {
-        peakDb: peakDb,
-        noiseFloorDb: noiseFloorDb,
-        noiseFloorDbHistogram: noiseFloorDbHistogram,
-        normalizationStatus: normalizationStatus
-      };
-    } finally {
-      this.analysisInProgress = false;
+            // 4. Reverb Estimation
+            if (progressCallback) progressCallback('Estimating reverb...', 0.95);
+            const reverbTime = await this.estimateReverb(channelData, channels, length, sampleRate, noiseFloorDbHistogram);
+            const reverbInfo = this.interpretReverb(reverbTime);
+      
+            // 5. Silence Analysis
+            if (progressCallback) progressCallback('Analyzing silence...', 0.98);
+            const { leadingSilence, trailingSilence, longestSilence } = this.analyzeSilence(channelData, channels, length, sampleRate, noiseFloorDbHistogram, peakDb);
+      
+            if (progressCallback) progressCallback('Analysis complete!', 1.0);
+      
+            return {
+              peakDb: peakDb,
+              noiseFloorDb: noiseFloorDb,
+              noiseFloorDbHistogram: noiseFloorDbHistogram,
+              normalizationStatus: normalizationStatus,
+              reverbInfo: reverbInfo,
+              leadingSilence: leadingSilence,
+              trailingSilence: trailingSilence,
+              longestSilence: longestSilence
+            };
+          } finally {
+            this.analysisInProgress = false;
+          }
+        }
+      
+          interpretReverb(rt60) {
+            if (rt60 <= 0) {
+              return { time: rt60, label: 'N/A', description: 'No reverb detected.' };
+            }
+            if (rt60 < 0.3) {
+              return { time: rt60, label: 'Excellent (Dry)', description: 'Ideal for voiceover. Matches a vocal booth or well-treated studio environment.' };
+            }
+            if (rt60 < 0.5) {
+              return { time: rt60, label: 'Good (Controlled)', description: 'A well-controlled room with minimal reflections. Acceptable for most recording.' };
+            }
+            if (rt60 < 0.8) {
+              return { time: rt60, label: 'Fair (Slightly Live)', description: 'Noticeable room reflections. May reduce clarity for voiceover work.' };
+            }
+            if (rt60 < 1.2) {
+              return { time: rt60, label: 'Poor (Reverberant)', description: 'Significant reverb is present, making the recording sound distant and unprofessional.' };
+            }
+            return { time: rt60, label: 'Very Poor (Echoey)', description: 'Excessive echo and reverb. Unsuitable for professional voice recording.' };
+          }        analyzeSilence(channelData, channels, length, sampleRate, noiseFloorDb, peakDb) {
+          // Set threshold 25% of the way between the noise floor and the peak
+          const dynamicRange = peakDb - noiseFloorDb;
+          const thresholdRatio = 0.25;
+          // Handle case where peak is quieter than noise floor (unlikely but possible)
+          const effectiveDynamicRange = Math.max(0, dynamicRange);
+          const silenceThresholdDb = noiseFloorDb + (effectiveDynamicRange * thresholdRatio);
+          const silenceThresholdLinear = Math.pow(10, silenceThresholdDb / 20);
+      
+          const chunkSizeMs = 50; // 50ms chunks
+          const chunkSamples = Math.floor(sampleRate * (chunkSizeMs / 1000));
+          const numChunks = Math.ceil(length / chunkSamples);
+      
+          const minSoundDurationMs = 150; // Minimum duration for a sound to not be considered a tick
+          const minSoundChunks = Math.ceil(minSoundDurationMs / chunkSizeMs);
+      
+          const chunks = new Array(numChunks).fill(0); // 0 for silence, 1 for sound
+      
+          // Step 1: Classify chunks as sound or silence
+          for (let i = 0; i < numChunks; i++) {
+            const start = i * chunkSamples;
+            const end = Math.min(start + chunkSamples, length);
+            let maxSampleInChunk = 0;
+      
+            // Find the absolute max sample in this chunk across all channels
+            for (let channel = 0; channel < channels; channel++) {
+              const data = channelData[channel];
+              for (let j = start; j < end; j++) {
+                const sample = Math.abs(data[j]);
+                if (sample > maxSampleInChunk) {
+                  maxSampleInChunk = sample;
+                }
+              }
+            }
+      
+            if (maxSampleInChunk > silenceThresholdLinear) {
+              chunks[i] = 1; // Sound
+            }
+          }    // Step 2: Filter out small "islands" of sound
+    let currentSoundStreak = 0;
+    for (let i = 0; i < numChunks; i++) {
+      if (chunks[i] === 1) {
+        currentSoundStreak++;
+      } else {
+        if (currentSoundStreak > 0 && currentSoundStreak < minSoundChunks) {
+          // This was an insignificant sound island, so revert it to silence
+          for (let j = 1; j <= currentSoundStreak; j++) {
+            chunks[i - j] = 0;
+          }
+        }
+        currentSoundStreak = 0;
+      }
     }
+    // Check for trailing sound island
+    if (currentSoundStreak > 0 && currentSoundStreak < minSoundChunks) {
+      for (let j = 1; j <= currentSoundStreak; j++) {
+        chunks[numChunks - j] = 0;
+      }
+    }
+
+    // Step 3: Find longest silence streak *after* filtering
+    let longestSilenceStreak = 0;
+    let currentSilenceStreak = 0;
+    for (let i = 0; i < numChunks; i++) {
+      if (chunks[i] === 0) {
+        currentSilenceStreak++;
+      } else {
+        if (currentSilenceStreak > longestSilenceStreak) {
+          longestSilenceStreak = currentSilenceStreak;
+        }
+        currentSilenceStreak = 0;
+      }
+    }
+    if (currentSilenceStreak > longestSilenceStreak) {
+      longestSilenceStreak = currentSilenceStreak; // Check trailing silence
+    }
+    const longestSilence = longestSilenceStreak * (chunkSizeMs / 1000);
+
+    // Step 4: Find leading and trailing silence from the *filtered* chunks
+    const firstSoundIndex = chunks.indexOf(1);
+    const lastSoundIndex = chunks.lastIndexOf(1);
+
+    let leadingSilence = 0;
+    let trailingSilence = 0;
+
+    if (firstSoundIndex === -1) {
+      // Entire file is silent
+      leadingSilence = length / sampleRate;
+      trailingSilence = length / sampleRate;
+    } else {
+      leadingSilence = firstSoundIndex * (chunkSizeMs / 1000);
+      trailingSilence = (numChunks - 1 - lastSoundIndex) * (chunkSizeMs / 1000);
+    }
+
+    return {
+      leadingSilence: leadingSilence,
+      trailingSilence: trailingSilence,
+      longestSilence: longestSilence
+    };
+  }
+
+  async estimateReverb(channelData, channels, length, sampleRate, noiseFloorDb) {
+    const minDbAboveNoise = 10;
+    const onsetThreshold = 1.5;
+    const onsetWindowSize = 1024;
+    const decayWindowSize = Math.floor(sampleRate * 0.02); // 20ms windows for decay
+    const decayThresholdDb = -25;
+
+    let decayTimes = [];
+    const data = channelData[0];
+
+    let prevRms = 0;
+
+    for (let i = 0; i < length - onsetWindowSize; i += onsetWindowSize) {
+      let sumSquares = 0;
+      for (let j = i; j < i + onsetWindowSize; j++) {
+        sumSquares += data[j] * data[j];
+      }
+      const currentRms = Math.sqrt(sumSquares / onsetWindowSize);
+
+      if (currentRms > prevRms * onsetThreshold && currentRms > 0.01) {
+        let peakAmplitude = 0;
+        let peakIndex = i;
+        for (let j = i; j < i + onsetWindowSize; j++) {
+          if (Math.abs(data[j]) > peakAmplitude) {
+            peakAmplitude = Math.abs(data[j]);
+            peakIndex = j;
+          }
+        }
+
+        const peakDb = 20 * Math.log10(peakAmplitude);
+
+        if (peakDb > noiseFloorDb + minDbAboveNoise) {
+          let decayEndSample = -1;
+
+          // New decay logic: Use RMS windows instead of raw samples
+          for (let j = peakIndex; j < length - decayWindowSize; j += decayWindowSize) {
+            let decaySumSquares = 0;
+            for (let k = j; k < j + decayWindowSize; k++) {
+              decaySumSquares += data[k] * data[k];
+            }
+            const decayRms = Math.sqrt(decaySumSquares / decayWindowSize);
+            const currentDecayDb = decayRms > 0 ? 20 * Math.log10(decayRms) : -120;
+
+            if (currentDecayDb < peakDb + decayThresholdDb) {
+              decayEndSample = j;
+              break;
+            }
+          }
+
+          if (decayEndSample !== -1) {
+            const decayDurationSeconds = (decayEndSample - peakIndex) / sampleRate;
+            if (decayDurationSeconds > 0) {
+              const rt60 = decayDurationSeconds * (60 / Math.abs(decayThresholdDb));
+              decayTimes.push(rt60);
+            }
+          }
+        }
+      }
+      prevRms = currentRms;
+    }
+
+    if (decayTimes.length < 1) {
+      return 0;
+    }
+
+    decayTimes.sort((a, b) => a - b);
+    const mid = Math.floor(decayTimes.length / 2);
+    const medianRt60 = decayTimes.length % 2 !== 0
+      ? decayTimes[mid]
+      : (decayTimes[mid - 1] + decayTimes[mid]) / 2;
+
+    return medianRt60;
   }
 
   async analyzeNoiseFloorHistogram(channelData, channels, length) {
@@ -160,13 +365,25 @@ export class LevelAnalyzer {
     const targetDb = -6.0;
     const tolerance = 0.1;
 
+    let status, message;
+
     if (Math.abs(peakDb - targetDb) <= tolerance) {
-      return { status: 'normalized', message: 'Properly normalized to -6dB' };
+      status = 'normalized';
+      message = 'Properly normalized';
     } else if (peakDb > targetDb) {
-      return { status: 'too_loud', message: `Too loud: ${peakDb.toFixed(1)}dB (target: -6dB)` };
+      status = 'too_loud';
+      message = 'Too loud';
     } else {
-      return { status: 'too_quiet', message: `Too quiet: ${peakDb.toFixed(1)}dB (target: -6dB)` };
+      status = 'too_quiet';
+      message = 'Too quiet';
     }
+
+    return {
+      status: status,
+      message: message,
+      peakDb: peakDb,
+      targetDb: targetDb
+    };
   }
 
   cancelAnalysis() {

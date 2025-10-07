@@ -2119,16 +2119,36 @@ class WebAudioAnalyzer {
         results.noiseFloorDb === -Infinity ? '-∞ dB' : `${results.noiseFloorDb.toFixed(1)} dB`;
       document.getElementById('noiseFloorHistogram').textContent =
         results.noiseFloorDbHistogram === -Infinity ? '-∞ dB' : `${results.noiseFloorDbHistogram.toFixed(1)} dB`;
-      document.getElementById('normalization').textContent = results.normalizationStatus.message;
+      
+      const normEl = document.getElementById('normalization');
+      const normStatus = results.normalizationStatus;
+      normEl.innerHTML = `${normStatus.message}<br><small>Peak: ${normStatus.peakDb.toFixed(1)}dB (Target: ${normStatus.targetDb.toFixed(1)}dB)</small>`;
 
       // Also run stereo separation analysis
       const stereoResults = this.engine.analyzeStereoSeparation(this.audioBuffer);
+      const stereoEl = document.getElementById('stereoSeparation');
       if (stereoResults) {
-        document.getElementById('stereoSeparation').textContent = 
-          `${stereoResults.stereoType} (Confidence: ${Math.round(stereoResults.stereoConfidence * 100)}%)`;
+        stereoEl.innerHTML = `${stereoResults.stereoType}<br><small>(Confidence: ${Math.round(stereoResults.stereoConfidence * 100)}%)</small>`;
       } else {
-        document.getElementById('stereoSeparation').textContent = 'Not applicable (mono file)';
+        stereoEl.textContent = 'Not applicable (mono file)';
       }
+
+      // Display reverb estimation
+      const reverbEl = document.getElementById('reverbEstimation');
+      if (results.reverbInfo && results.reverbInfo.time > 0) {
+        reverbEl.innerHTML = `~${results.reverbInfo.time.toFixed(2)} s<br><small>${results.reverbInfo.label}</small>`;
+        reverbEl.title = results.reverbInfo.description;
+      } else {
+        reverbEl.textContent = '-';
+        reverbEl.title = '';
+      }
+
+      // Display silence analysis
+      document.getElementById('leadingSilence').textContent = `${results.leadingSilence.toFixed(2)} s`;
+      document.getElementById('trailingSilence').textContent = `${results.trailingSilence.toFixed(2)} s`;
+      document.getElementById('longestSilence').textContent = `${results.longestSilence.toFixed(2)} s`;
+
+
 
       this.advancedResultsSection.style.display = 'block';
 
