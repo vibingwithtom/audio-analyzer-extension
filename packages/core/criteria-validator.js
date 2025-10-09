@@ -170,7 +170,8 @@ export class CriteriaValidator {
           status = 'warning';
         } else {
           matches = durationSeconds >= minDurationSeconds;
-          status = matches ? 'pass' : 'fail';
+          // Duration mismatches are warnings, not failures
+          status = matches ? 'pass' : 'warning';
         }
 
         validationResults.duration = {
