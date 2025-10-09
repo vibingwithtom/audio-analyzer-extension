@@ -490,4 +490,75 @@ export class LevelAnalyzer {
       stereoConfidence: Math.min(stereoConfidence, 1.0) // Cap at 1.0
     };
   }
+
+  /**
+   * Analyzes mic bleed in a stereo audio file with conversational audio.
+   * @param {AudioBuffer} audioBuffer The audio buffer to analyze.
+   * @returns {object|null} An object with mic bleed analysis results, or null if not stereo.
+   */
+  analyzeMicBleed(audioBuffer) {
+    if (audioBuffer.numberOfChannels !== 2) {
+      return null; // Not a stereo file
+    }
+
+    const leftChannel = audioBuffer.getChannelData(0);
+    const rightChannel = audioBuffer.getChannelData(1);
+    const sampleRate = audioBuffer.sampleRate;
+    const length = audioBuffer.length;
+
+    const blockSize = Math.floor(sampleRate * 0.25); // 250ms blocks
+    const dominanceRatioThreshold = 1.5; // How much louder one channel must be to be "dominant"
+    const silenceThreshold = 0.001; // RMS threshold for silence
+
+    const leftBleedLevels = [];
+    const rightBleedLevels = [];
+
+    for (let i = 0; i < length; i += blockSize) {
+      let sumSquaresLeft = 0;
+      let sumSquaresRight = 0;
+      const blockEnd = Math.min(i + blockSize, length);
+      const currentBlockSize = blockEnd - i;
+
+      for (let j = i; j < blockEnd; j++) {
+        sumSquaresLeft += leftChannel[j] * leftChannel[j];
+        sumSquaresRight += rightChannel[j] * rightChannel[j];
+      }
+
+      const rmsLeft = Math.sqrt(sumSquaresLeft / currentBlockSize);
+      const rmsRight = Math.sqrt(sumSquaresRight / currentBlockSize);
+
+      if (rmsLeft < silenceThreshold && rmsRight < silenceThreshold) {
+        continue; // Skip silent blocks
+      }
+
+      const ratio = rmsLeft / rmsRight;
+
+      if (ratio > dominanceRatioThreshold) {
+        // Left channel is dominant, measure bleed in the right channel
+        rightBleedLevels.push(rmsRight);
+      } else if (ratio < 1 / dominanceRatioThreshold) {
+        // Right channel is dominant, measure bleed in the left channel
+        leftBleedLevels.push(rmsLeft);
+      }
+    }
+
+    const calculateAverageDb = (levels) => {
+      if (levels.length === 0) {
+        return -Infinity;
+      }
+      const sum = levels.reduce((acc, val) => acc + val, 0);
+      const averageRms = sum / levels.length;
+      return 20 * Math.log10(averageRms);
+    };
+
+    const leftChannelBleedDb = calculateAverageDb(leftBleedLevels);
+    const rightChannelBleedDb = calculateAverageDb(rightBleedLevels);
+
+    return {
+      leftChannelBleedDb,
+      rightChannelBleedDb,
+      leftBleedSamples: leftBleedLevels.length,
+      rightBleedSamples: rightBleedLevels.length,
+    };
+  }
 }

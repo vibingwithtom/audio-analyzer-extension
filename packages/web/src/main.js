@@ -22,6 +22,10 @@ class AudioAnalyzerEngine {
     return this.levelAnalyzer.analyzeStereoSeparation(audioBuffer);
   }
 
+  analyzeMicBleed(audioBuffer) {
+    return this.levelAnalyzer.analyzeMicBleed(audioBuffer);
+  }
+
   validateCriteria(results, criteria) {
     return CriteriaValidator.validateResults(results, criteria);
   }
@@ -2132,13 +2136,18 @@ class WebAudioAnalyzer {
       const normStatus = results.normalizationStatus;
       normEl.innerHTML = `${normStatus.message}<br><small>Peak: ${normStatus.peakDb.toFixed(1)}dB (Target: ${normStatus.targetDb.toFixed(1)}dB)</small>`;
 
-      // Also run stereo separation analysis
-      const stereoResults = this.engine.analyzeStereoSeparation(this.audioBuffer);
-      const stereoEl = document.getElementById('stereoSeparation');
       if (stereoResults) {
-        stereoEl.innerHTML = `${stereoResults.stereoType}<br><small>(Confidence: ${Math.round(stereoResults.stereoConfidence * 100)}%)</small>`;
-      } else {
-        stereoEl.textContent = 'Not applicable (mono file)';
+        this.currentResults.stereoAnalysis = stereoResults;
+        const stereoHtml = this.formatStereoResults(stereoResults);
+        this.advancedResultsSection.innerHTML += stereoHtml;
+      }
+
+      // Perform and display mic bleed analysis
+      const micBleedResults = this.engine.analyzeMicBleed(this.audioBuffer);
+      if (micBleedResults) {
+        this.currentResults.micBleedAnalysis = micBleedResults;
+        const micBleedHtml = this.formatMicBleedResults(micBleedResults);
+        this.advancedResultsSection.innerHTML += micBleedHtml;
       }
 
       // Display reverb estimation
@@ -2786,6 +2795,35 @@ class WebAudioAnalyzer {
       'ogg': 'OGG'
     };
     return typeMap[extension] || extension.toUpperCase();
+  }
+
+  formatStereoResults(results) {
+    let html = '<div class="result-card"><h3>Stereo Analysis</h3>';
+    if (results) {
+      html += `<p>Stereo Type: <strong>${results.stereoType}</strong> (Confidence: ${(results.stereoConfidence * 100).toFixed(1)}%)</p>`;
+      html += '<ul>';
+      html += `<li>Left Dominant: ${results.leftDominantBlocks} blocks</li>`;
+      html += `<li>Right Dominant: ${results.rightDominantBlocks} blocks</li>`;
+      html += `<li>Balanced: ${results.balancedBlocks} blocks</li>`;
+      html += `<li>Silent: ${results.silentBlocks} blocks</li>`;
+      html += '</ul>';
+    } else {
+      html += '<p>Not a stereo file.</p>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  formatMicBleedResults(results) {
+    let html = '<div class="result-card"><h3>Mic Bleed Analysis</h3>';
+    if (results) {
+      html += `<p>Left Channel Bleed: <strong>${results.leftChannelBleedDb.toFixed(2)} dB</strong></p>`;
+      html += `<p>Right Channel Bleed: <strong>${results.rightChannelBleedDb.toFixed(2)} dB</strong></p>`;
+    } else {
+      html += '<p>Not a stereo file.</p>';
+    }
+    html += '</div>';
+    return html;
   }
 
   cleanupForNewFile() {
