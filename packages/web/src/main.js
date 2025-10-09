@@ -305,7 +305,7 @@ class WebAudioAnalyzer {
       this.handlePresetChange();
     } else {
       // Default to Auditions preset on first load
-      this.presetSelector.value = 'auditions';
+      this.presetSelector.value = 'auditions-character-recordings';
       this.handlePresetChange();
     }
 
@@ -438,13 +438,21 @@ class WebAudioAnalyzer {
 
   getPresetConfigurations() {
     return {
-      'auditions': {
-        name: 'Auditions',
+      'auditions-character-recordings': {
+        name: 'Auditions: Character Recordings',
         fileType: ['wav'],
         sampleRate: ['48000'],
         bitDepth: ['24'],
         channels: ['1'],
         minDuration: '120' // 2 minutes
+      },
+      'auditions-emotional-voice': {
+        name: 'Auditions: Emotional Voice',
+        fileType: ['wav'],
+        sampleRate: ['48000'],
+        bitDepth: ['16', '24'],
+        channels: ['1', '2'],
+        minDuration: '30'
       },
       'character-recordings': {
         name: 'Character Recordings',
