@@ -1106,7 +1106,27 @@ class WebAudioAnalyzer {
 
     // Setup audio player and display results
     this.setupAudioPlayer(file);
-    this.validateAndDisplayResults(results);
+
+    // Check if filename validation is needed for Google Drive single files
+    let filenameValidation = null;
+    const presets = this.getPresetConfigurations();
+    const config = presets[this.presetSelector.value];
+    const validationType = config?.filenameValidationType;
+
+    if (validationType && this.enableFilenameValidation.checked) {
+      if (validationType === 'script-match') {
+        // Three Hour validation
+        const speakerId = this.speakerId.value.trim();
+        if (this.scriptBaseNames && this.scriptBaseNames.length > 0) {
+          filenameValidation = this.validateFilename(file.name, this.scriptBaseNames, speakerId);
+        }
+      } else if (validationType === 'bilingual-pattern') {
+        // Bilingual validation
+        filenameValidation = this.validateBilingualFilename(file.name);
+      }
+    }
+
+    this.validateAndDisplayResults(results, filenameValidation);
     this.showResults();
   }
 
