@@ -17,7 +17,7 @@
   <meta property="og:description" content="Professional audio file analysis tool">
   <meta property="og:type" content="website">
 
-  <script type="module" crossorigin src="/beta/assets/index-hVgvIF-f.js"></script>
+  <script type="module" crossorigin src="/beta/assets/index-Cwkv5cJL.js"></script>
   <link rel="stylesheet" crossorigin href="/beta/assets/index-Df5JEl4U.css">
 </head>
 <body>
@@ -464,11 +464,16 @@
                 <label>Stereo Separation:</label>
                 <span id="stereoSeparation">-</span>
               </div>
-              <div class="advanced-item">
-                <label>Mic Bleed:</label>
-                <span id="micBleed">-</span>
+              <div class="advanced-item" id="micBleedOld" style="display: none;">
+                <label style="display: block; margin-bottom: 4px;">Mic Bleed (Old Method):</label>
+                <span id="micBleedOldResult">-</span>
+              </div>
+              <div class="advanced-item" id="micBleedNew" style="display: none;">
+                <label style="display: block; margin-bottom: 4px;">Mic Bleed (New Method):</label>
+                <span id="micBleedNewResult">-</span>
               </div>
             </div>
+
             <div id="advanced-results-section"></div>
           </div>
         </section>
