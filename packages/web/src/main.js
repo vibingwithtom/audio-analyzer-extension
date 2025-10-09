@@ -2141,14 +2141,15 @@ class WebAudioAnalyzer {
         this.currentResults.stereoAnalysis = stereoResults;
         const stereoHtml = this.formatStereoResults(stereoResults);
         this.advancedResultsSection.innerHTML += stereoHtml;
-      }
 
-      // Perform and display mic bleed analysis
-      const micBleedResults = this.engine.analyzeMicBleed(this.audioBuffer);
-      if (micBleedResults) {
-        this.currentResults.micBleedAnalysis = micBleedResults;
-        const micBleedHtml = this.formatMicBleedResults(micBleedResults);
-        this.advancedResultsSection.innerHTML += micBleedHtml;
+        if (stereoResults.stereoType === 'Conversational Stereo') {
+          const micBleedResults = this.engine.analyzeMicBleed(this.audioBuffer);
+          if (micBleedResults) {
+            this.currentResults.micBleedAnalysis = micBleedResults;
+            const micBleedHtml = this.formatMicBleedResults(micBleedResults);
+            this.advancedResultsSection.innerHTML += micBleedHtml;
+          }
+        }
       }
 
       // Display reverb estimation
@@ -2818,10 +2819,20 @@ class WebAudioAnalyzer {
   formatMicBleedResults(results) {
     let html = '<div class="result-card"><h3>Mic Bleed Analysis</h3>';
     if (results) {
-      html += `<p>Left Channel Bleed: <strong>${results.leftChannelBleedDb.toFixed(2)} dB</strong></p>`;
-      html += `<p>Right Channel Bleed: <strong>${results.rightChannelBleedDb.toFixed(2)} dB</strong></p>`;
+      const leftBleed = results.leftChannelBleedDb;
+      const rightBleed = results.rightChannelBleedDb;
+      const bleedThreshold = -40;
+
+      html += `<p>Left Channel Bleed: <strong>${leftBleed.toFixed(2)} dB</strong></p>';
+      html += `<p>Right Channel Bleed: <strong>${rightBleed.toFixed(2)} dB</strong></p>';
+
+      if (leftBleed > bleedThreshold || rightBleed > bleedThreshold) {
+        html += '<p><strong>Conclusion:</strong> Mic bleed is likely present.</p>';
+      } else {
+        html += '<p><strong>Conclusion:</strong> Mic bleed is likely not an issue.</p>';
+      }
     } else {
-      html += '<p>Not a stereo file.</p>';
+      html += '<p>Not a stereo file or not conversational stereo.</p>';
     }
     html += '</div>';
     return html;
