@@ -136,6 +136,7 @@ class WebAudioAnalyzer {
     this.playerSection = document.getElementById('playerSection');
     this.resultsSection = document.getElementById('resultsSection');
     this.advancedResultsSection = document.getElementById('advancedResultsSection');
+    this.advancedResultsDynamicSection = document.getElementById('advanced-results-section');
     this.audioPlayer = document.getElementById('audioPlayer');
     this.playPause = document.getElementById('playPause');
 
@@ -2136,20 +2137,46 @@ class WebAudioAnalyzer {
       const normStatus = results.normalizationStatus;
       normEl.innerHTML = `${normStatus.message}<br><small>Peak: ${normStatus.peakDb.toFixed(1)}dB (Target: ${normStatus.targetDb.toFixed(1)}dB)</small>`;
 
-      const stereoResults = this.engine.analyzeStereoSeparation(this.audioBuffer);
-      if (stereoResults) {
-        this.currentResults.stereoAnalysis = stereoResults;
-        const stereoHtml = this.formatStereoResults(stereoResults);
-        this.advancedResultsSection.innerHTML += stereoHtml;
+      this.advancedResultsDynamicSection.innerHTML = ''; // Clear previous results
 
-        if (stereoResults.stereoType === 'Conversational Stereo') {
-          const micBleedResults = this.engine.analyzeMicBleed(this.audioBuffer);
-          if (micBleedResults) {
-            this.currentResults.micBleedAnalysis = micBleedResults;
-            const micBleedHtml = this.formatMicBleedResults(micBleedResults);
-            this.advancedResultsSection.innerHTML += micBleedHtml;
+      // Display stereo separation for stereo files
+      const stereoEl = document.getElementById('stereoSeparation');
+      const micBleedEl = document.getElementById('micBleed');
+
+      if (this.audioBuffer.numberOfChannels === 2) {
+        const stereoResults = this.engine.analyzeStereoSeparation(this.audioBuffer);
+        if (stereoResults) {
+          this.currentResults.stereoAnalysis = stereoResults;
+          stereoEl.innerHTML = `${stereoResults.stereoType}<br><small>${(stereoResults.stereoConfidence * 100).toFixed(0)}% confidence</small>`;
+
+          // Only run mic bleed analysis for conversational stereo
+          if (stereoResults.stereoType === 'Conversational Stereo') {
+            const micBleedResults = this.engine.analyzeMicBleed(this.audioBuffer);
+            if (micBleedResults) {
+              this.currentResults.micBleedAnalysis = micBleedResults;
+              // Display mic bleed in the advanced grid
+              const leftBleed = micBleedResults.leftChannelBleedDb;
+              const rightBleed = micBleedResults.rightChannelBleedDb;
+              const bleedThreshold = -40;
+
+              let conclusion;
+              if (leftBleed > bleedThreshold || rightBleed > bleedThreshold) {
+                conclusion = 'Likely present';
+              } else {
+                conclusion = 'Not detected';
+              }
+              micBleedEl.innerHTML = `${conclusion}<br><small>L: ${leftBleed.toFixed(1)}dB, R: ${rightBleed.toFixed(1)}dB</small>`;
+            }
+          } else {
+            micBleedEl.innerHTML = 'N/A<br><small>Only measured for Conversational Stereo</small>';
           }
+        } else {
+          stereoEl.textContent = '-';
+          micBleedEl.textContent = '-';
         }
+      } else {
+        stereoEl.textContent = 'Mono file';
+        micBleedEl.innerHTML = 'N/A<br><small>Only measured for Conversational Stereo</small>';
       }
 
       // Display reverb estimation
@@ -2797,45 +2824,6 @@ class WebAudioAnalyzer {
       'ogg': 'OGG'
     };
     return typeMap[extension] || extension.toUpperCase();
-  }
-
-  formatStereoResults(results) {
-    let html = '<div class="result-card"><h3>Stereo Analysis</h3>';
-    if (results) {
-      html += `<p>Stereo Type: <strong>${results.stereoType}</strong> (Confidence: ${(results.stereoConfidence * 100).toFixed(1)}%)</p>`;
-      html += '<ul>';
-      html += `<li>Left Dominant: ${results.leftDominantBlocks} blocks</li>`;
-      html += `<li>Right Dominant: ${results.rightDominantBlocks} blocks</li>`;
-      html += `<li>Balanced: ${results.balancedBlocks} blocks</li>`;
-      html += `<li>Silent: ${results.silentBlocks} blocks</li>`;
-      html += '</ul>';
-    } else {
-      html += '<p>Not a stereo file.</p>';
-    }
-    html += '</div>';
-    return html;
-  }
-
-  formatMicBleedResults(results) {
-    let html = '<div class="result-card"><h3>Mic Bleed Analysis</h3>';
-    if (results) {
-      const leftBleed = results.leftChannelBleedDb;
-      const rightBleed = results.rightChannelBleedDb;
-      const bleedThreshold = -40;
-
-      html += `<p>Left Channel Bleed: <strong>${leftBleed.toFixed(2)} dB</strong></p>';
-      html += `<p>Right Channel Bleed: <strong>${rightBleed.toFixed(2)} dB</strong></p>';
-
-      if (leftBleed > bleedThreshold || rightBleed > bleedThreshold) {
-        html += '<p><strong>Conclusion:</strong> Mic bleed is likely present.</p>';
-      } else {
-        html += '<p><strong>Conclusion:</strong> Mic bleed is likely not an issue.</p>';
-      }
-    } else {
-      html += '<p>Not a stereo file or not conversational stereo.</p>';
-    }
-    html += '</div>';
-    return html;
   }
 
   cleanupForNewFile() {
