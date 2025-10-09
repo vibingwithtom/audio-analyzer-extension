@@ -2063,7 +2063,7 @@ class WebAudioAnalyzer {
     const playBtn = row.querySelector('#singleFilePlayBtn');
     if (playBtn) {
       playBtn.addEventListener('click', () => {
-        this.togglePlayPause();
+        this.playSingleFile();
       });
     }
 
@@ -2125,17 +2125,43 @@ class WebAudioAnalyzer {
         this.progressFill.style.width = `${progress * 100}%`;
       });
 
-      // Display advanced results
-      document.getElementById('peakLevel').textContent =
-        results.peakDb === -Infinity ? '-∞ dB' : `${results.peakDb.toFixed(1)} dB`;
-      document.getElementById('noiseFloor').textContent =
-        results.noiseFloorDb === -Infinity ? '-∞ dB' : `${results.noiseFloorDb.toFixed(1)} dB`;
-      document.getElementById('noiseFloorHistogram').textContent =
-        results.noiseFloorDbHistogram === -Infinity ? '-∞ dB' : `${results.noiseFloorDbHistogram.toFixed(1)} dB`;
-      
+      // Display advanced results with color coding
+      const peakEl = document.getElementById('peakLevel');
+      peakEl.textContent = results.peakDb === -Infinity ? '-∞ dB' : `${results.peakDb.toFixed(1)} dB`;
+      // Peak Level is informational only - no color coding
+      peakEl.className = '';
+
+      const noiseFloorEl = document.getElementById('noiseFloor');
+      noiseFloorEl.textContent = results.noiseFloorDb === -Infinity ? '-∞ dB' : `${results.noiseFloorDb.toFixed(1)} dB`;
+      // Noise Floor (Old): pass <= -60, warning <= -50, fail > -50
+      if (results.noiseFloorDb <= -60.0 || results.noiseFloorDb === -Infinity) {
+        noiseFloorEl.className = 'validation-pass';
+      } else if (results.noiseFloorDb <= -50.0) {
+        noiseFloorEl.className = 'validation-warning';
+      } else {
+        noiseFloorEl.className = 'validation-fail';
+      }
+
+      const noiseFloorHistEl = document.getElementById('noiseFloorHistogram');
+      noiseFloorHistEl.textContent = results.noiseFloorDbHistogram === -Infinity ? '-∞ dB' : `${results.noiseFloorDbHistogram.toFixed(1)} dB`;
+      // Noise Floor (New): pass <= -60, warning <= -50, fail > -50
+      if (results.noiseFloorDbHistogram <= -60.0 || results.noiseFloorDbHistogram === -Infinity) {
+        noiseFloorHistEl.className = 'validation-pass';
+      } else if (results.noiseFloorDbHistogram <= -50.0) {
+        noiseFloorHistEl.className = 'validation-warning';
+      } else {
+        noiseFloorHistEl.className = 'validation-fail';
+      }
+
       const normEl = document.getElementById('normalization');
       const normStatus = results.normalizationStatus;
       normEl.innerHTML = `${normStatus.message}<br><small>Peak: ${normStatus.peakDb.toFixed(1)}dB (Target: ${normStatus.targetDb.toFixed(1)}dB)</small>`;
+      // Normalization: pass if normalized
+      if (normStatus.status === 'normalized') {
+        normEl.className = 'validation-pass';
+      } else {
+        normEl.className = 'validation-fail';
+      }
 
       this.advancedResultsDynamicSection.innerHTML = ''; // Clear previous results
 
@@ -2159,40 +2185,86 @@ class WebAudioAnalyzer {
               const rightBleed = micBleedResults.rightChannelBleedDb;
               const bleedThreshold = -40;
 
-              let conclusion;
+              let conclusion, statusClass;
               if (leftBleed > bleedThreshold || rightBleed > bleedThreshold) {
                 conclusion = 'Likely present';
+                statusClass = 'validation-fail';
               } else {
                 conclusion = 'Not detected';
+                statusClass = 'validation-pass';
               }
               micBleedEl.innerHTML = `${conclusion}<br><small>L: ${leftBleed.toFixed(1)}dB, R: ${rightBleed.toFixed(1)}dB</small>`;
+              micBleedEl.className = statusClass;
             }
           } else {
             micBleedEl.innerHTML = 'N/A<br><small>Only measured for Conversational Stereo</small>';
+            micBleedEl.className = '';
           }
         } else {
           stereoEl.textContent = '-';
+          stereoEl.className = '';
           micBleedEl.textContent = '-';
+          micBleedEl.className = '';
         }
       } else {
         stereoEl.textContent = 'Mono file';
+        stereoEl.className = '';
         micBleedEl.innerHTML = 'N/A<br><small>Only measured for Conversational Stereo</small>';
+        micBleedEl.className = '';
       }
 
-      // Display reverb estimation
+      // Display reverb estimation with color coding
       const reverbEl = document.getElementById('reverbEstimation');
       if (results.reverbInfo && results.reverbInfo.time > 0) {
         reverbEl.innerHTML = `~${results.reverbInfo.time.toFixed(2)} s<br><small>${results.reverbInfo.label}</small>`;
         reverbEl.title = results.reverbInfo.description;
+        // Color code based on quality: Excellent/Good = pass, Fair = warning, Poor/Very Poor = fail
+        const label = results.reverbInfo.label.toLowerCase();
+        if (label.includes('excellent') || label.includes('good')) {
+          reverbEl.className = 'validation-pass';
+        } else if (label.includes('fair')) {
+          reverbEl.className = 'validation-warning';
+        } else if (label.includes('poor')) {
+          reverbEl.className = 'validation-fail';
+        } else {
+          reverbEl.className = '';
+        }
       } else {
         reverbEl.textContent = '-';
         reverbEl.title = '';
+        reverbEl.className = '';
       }
 
-      // Display silence analysis
-      document.getElementById('leadingSilence').textContent = `${results.leadingSilence.toFixed(2)} s`;
-      document.getElementById('trailingSilence').textContent = `${results.trailingSilence.toFixed(2)} s`;
-      document.getElementById('longestSilence').textContent = `${results.longestSilence.toFixed(2)} s`;
+      // Display silence analysis with time format and color coding
+      const leadingSilenceEl = document.getElementById('leadingSilence');
+      leadingSilenceEl.textContent = this.formatDuration(results.leadingSilence);
+      if (results.leadingSilence >= 10) {
+        leadingSilenceEl.className = 'validation-fail';
+      } else if (results.leadingSilence > 5) {
+        leadingSilenceEl.className = 'validation-warning';
+      } else {
+        leadingSilenceEl.className = '';
+      }
+
+      const trailingSilenceEl = document.getElementById('trailingSilence');
+      trailingSilenceEl.textContent = this.formatDuration(results.trailingSilence);
+      if (results.trailingSilence >= 10) {
+        trailingSilenceEl.className = 'validation-fail';
+      } else if (results.trailingSilence > 5) {
+        trailingSilenceEl.className = 'validation-warning';
+      } else {
+        trailingSilenceEl.className = '';
+      }
+
+      const longestSilenceEl = document.getElementById('longestSilence');
+      longestSilenceEl.textContent = this.formatDuration(results.longestSilence);
+      if (results.longestSilence >= 10) {
+        longestSilenceEl.className = 'validation-fail';
+      } else if (results.longestSilence > 5) {
+        longestSilenceEl.className = 'validation-warning';
+      } else {
+        longestSilenceEl.className = '';
+      }
 
 
 
@@ -2684,7 +2756,7 @@ class WebAudioAnalyzer {
   }
 
   formatDuration(seconds) {
-    if (!seconds || seconds === 'Unknown') return '-';
+    if (seconds === null || seconds === undefined || seconds === 'Unknown') return '-';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -2736,6 +2808,16 @@ class WebAudioAnalyzer {
       const driveUrl = `https://drive.google.com/file/d/${result.driveFileId}/view`;
       window.open(driveUrl, '_blank');
     }
+  }
+
+  playSingleFile() {
+    if (!this.currentFile) return;
+
+    // Create blob URL and open in new tab
+    const url = URL.createObjectURL(this.currentFile);
+    window.open(url, '_blank');
+    // Revoke URL after a delay to allow it to load
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   revalidateBatchResults() {
