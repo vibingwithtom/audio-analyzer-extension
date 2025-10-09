@@ -493,6 +493,7 @@ export class LevelAnalyzer {
 
   /**
    * Analyzes mic bleed in a stereo audio file with conversational audio.
+   * Uses hybrid approach: separation ratio + cross-correlation for suspected bleed.
    * @param {AudioBuffer} audioBuffer The audio buffer to analyze.
    * @returns {object|null} An object with mic bleed analysis results, or null if not stereo.
    */
@@ -509,9 +510,15 @@ export class LevelAnalyzer {
     const blockSize = Math.floor(sampleRate * 0.25); // 250ms blocks
     const dominanceRatioThreshold = 1.5; // How much louder one channel must be to be "dominant"
     const silenceThreshold = 0.001; // RMS threshold for silence
+    const separationThreshold = 15; // dB separation threshold for concern
 
+    // OLD METHOD: Track bleed levels for averaging
     const leftBleedLevels = [];
     const rightBleedLevels = [];
+
+    // NEW METHOD: Track separation ratios and concerning blocks
+    const separationRatios = [];
+    const concerningBlocks = [];
 
     for (let i = 0; i < length; i += blockSize) {
       let sumSquaresLeft = 0;
@@ -535,13 +542,52 @@ export class LevelAnalyzer {
 
       if (ratio > dominanceRatioThreshold) {
         // Left channel is dominant, measure bleed in the right channel
+        const dominantDb = 20 * Math.log10(rmsLeft);
+        const bleedDb = rmsRight > 0 ? 20 * Math.log10(rmsRight) : -Infinity;
+        const separation = dominantDb - bleedDb;
+
+        // OLD METHOD
         rightBleedLevels.push(rmsRight);
+
+        // NEW METHOD
+        separationRatios.push(separation);
+
+        if (separation < separationThreshold) {
+          concerningBlocks.push({
+            startSample: i,
+            endSample: blockEnd,
+            dominantChannel: 'left',
+            separation: separation,
+            dominantRms: rmsLeft,
+            bleedRms: rmsRight
+          });
+        }
       } else if (ratio < 1 / dominanceRatioThreshold) {
         // Right channel is dominant, measure bleed in the left channel
+        const dominantDb = 20 * Math.log10(rmsRight);
+        const bleedDb = rmsLeft > 0 ? 20 * Math.log10(rmsLeft) : -Infinity;
+        const separation = dominantDb - bleedDb;
+
+        // OLD METHOD
         leftBleedLevels.push(rmsLeft);
+
+        // NEW METHOD
+        separationRatios.push(separation);
+
+        if (separation < separationThreshold) {
+          concerningBlocks.push({
+            startSample: i,
+            endSample: blockEnd,
+            dominantChannel: 'right',
+            separation: separation,
+            dominantRms: rmsRight,
+            bleedRms: rmsLeft
+          });
+        }
       }
     }
 
+    // OLD METHOD: Calculate average bleed levels
     const calculateAverageDb = (levels) => {
       if (levels.length === 0) {
         return -Infinity;
@@ -554,11 +600,124 @@ export class LevelAnalyzer {
     const leftChannelBleedDb = calculateAverageDb(leftBleedLevels);
     const rightChannelBleedDb = calculateAverageDb(rightBleedLevels);
 
+    // NEW METHOD: Calculate separation statistics
+    let medianSeparation = -Infinity;
+    let p10Separation = -Infinity; // Worst 10%
+    let percentagePoorSeparation = 0;
+
+    if (separationRatios.length > 0) {
+      const sorted = [...separationRatios].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      medianSeparation = sorted.length % 2 !== 0
+        ? sorted[mid]
+        : (sorted[mid - 1] + sorted[mid]) / 2;
+
+      const p10Index = Math.floor(sorted.length * 0.1);
+      p10Separation = sorted[p10Index];
+
+      const poorCount = separationRatios.filter(s => s < 15).length;
+      percentagePoorSeparation = (poorCount / separationRatios.length) * 100;
+    }
+
+    // NEW METHOD: Cross-correlation for concerning blocks
+    const confirmedBleedBlocks = [];
+    const correlationThreshold = 0.3; // Lower threshold for speech correlation
+
+    for (const block of concerningBlocks) {
+      const correlation = this.calculateCrossCorrelation(
+        leftChannel,
+        rightChannel,
+        block.startSample,
+        block.endSample,
+        block.dominantChannel
+      );
+
+      if (correlation > correlationThreshold) {
+        confirmedBleedBlocks.push({
+          ...block,
+          correlation: correlation,
+          timestamp: block.startSample / sampleRate
+        });
+      }
+    }
+
+    const percentageConfirmedBleed = separationRatios.length > 0
+      ? (confirmedBleedBlocks.length / separationRatios.length) * 100
+      : 0;
+
     return {
-      leftChannelBleedDb,
-      rightChannelBleedDb,
-      leftBleedSamples: leftBleedLevels.length,
-      rightBleedSamples: rightBleedLevels.length,
+      // OLD METHOD results
+      old: {
+        leftChannelBleedDb,
+        rightChannelBleedDb,
+        leftBleedSamples: leftBleedLevels.length,
+        rightBleedSamples: rightBleedLevels.length,
+      },
+      // NEW METHOD results
+      new: {
+        medianSeparation,
+        p10Separation,
+        percentagePoorSeparation,
+        percentageConfirmedBleed,
+        totalBlocks: separationRatios.length,
+        concerningBlocks: concerningBlocks.length,
+        confirmedBleedBlocks: confirmedBleedBlocks.length,
+        worstBlocks: confirmedBleedBlocks.slice(0, 5) // Top 5 worst instances
+      }
     };
+  }
+
+  /**
+   * Calculates cross-correlation between channels to detect actual bleed vs room noise.
+   * @param {Float32Array} leftChannel Left channel audio data
+   * @param {Float32Array} rightChannel Right channel audio data
+   * @param {number} startSample Start sample index
+   * @param {number} endSample End sample index
+   * @param {string} dominantChannel Which channel is dominant ('left' or 'right')
+   * @returns {number} Correlation coefficient (0-1)
+   */
+  calculateCrossCorrelation(leftChannel, rightChannel, startSample, endSample, dominantChannel) {
+    const blockLength = endSample - startSample;
+
+    // Calculate means
+    let sumDominant = 0;
+    let sumBleed = 0;
+    for (let i = startSample; i < endSample; i++) {
+      if (dominantChannel === 'left') {
+        sumDominant += leftChannel[i];
+        sumBleed += rightChannel[i];
+      } else {
+        sumDominant += rightChannel[i];
+        sumBleed += leftChannel[i];
+      }
+    }
+    const meanDominant = sumDominant / blockLength;
+    const meanBleed = sumBleed / blockLength;
+
+    // Calculate correlation
+    let numerator = 0;
+    let sumSqDominant = 0;
+    let sumSqBleed = 0;
+
+    for (let i = startSample; i < endSample; i++) {
+      const dominant = dominantChannel === 'left' ? leftChannel[i] : rightChannel[i];
+      const bleed = dominantChannel === 'left' ? rightChannel[i] : leftChannel[i];
+
+      const diffDominant = dominant - meanDominant;
+      const diffBleed = bleed - meanBleed;
+
+      numerator += diffDominant * diffBleed;
+      sumSqDominant += diffDominant * diffDominant;
+      sumSqBleed += diffBleed * diffBleed;
+    }
+
+    const denominator = Math.sqrt(sumSqDominant * sumSqBleed);
+
+    if (denominator === 0) {
+      return 0;
+    }
+
+    // Return absolute correlation (we care about correlation regardless of phase)
+    return Math.abs(numerator / denominator);
   }
 }

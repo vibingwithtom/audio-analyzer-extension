@@ -2167,7 +2167,10 @@ class WebAudioAnalyzer {
 
       // Display stereo separation for stereo files
       const stereoEl = document.getElementById('stereoSeparation');
-      const micBleedEl = document.getElementById('micBleed');
+      const micBleedOldEl = document.getElementById('micBleedOld');
+      const micBleedNewEl = document.getElementById('micBleedNew');
+      const micBleedOldResult = document.getElementById('micBleedOldResult');
+      const micBleedNewResult = document.getElementById('micBleedNewResult');
 
       if (this.audioBuffer.numberOfChannels === 2) {
         const stereoResults = this.engine.analyzeStereoSeparation(this.audioBuffer);
@@ -2180,37 +2183,67 @@ class WebAudioAnalyzer {
             const micBleedResults = this.engine.analyzeMicBleed(this.audioBuffer);
             if (micBleedResults) {
               this.currentResults.micBleedAnalysis = micBleedResults;
-              // Display mic bleed in the advanced grid
-              const leftBleed = micBleedResults.leftChannelBleedDb;
-              const rightBleed = micBleedResults.rightChannelBleedDb;
+              micBleedOldEl.style.display = 'block';
+              micBleedNewEl.style.display = 'block';
+
+              // OLD METHOD display - compact format
+              const oldResults = micBleedResults.old;
+              const leftBleed = oldResults.leftChannelBleedDb;
+              const rightBleed = oldResults.rightChannelBleedDb;
               const bleedThreshold = -40;
 
-              let conclusion, statusClass;
+              let oldConclusion, oldStatusClass;
               if (leftBleed > bleedThreshold || rightBleed > bleedThreshold) {
-                conclusion = 'Likely present';
-                statusClass = 'validation-fail';
+                oldConclusion = 'Likely present';
+                oldStatusClass = 'validation-fail';
               } else {
-                conclusion = 'Not detected';
-                statusClass = 'validation-pass';
+                oldConclusion = 'Not detected';
+                oldStatusClass = 'validation-pass';
               }
-              micBleedEl.innerHTML = `${conclusion}<br><small>L: ${leftBleed.toFixed(1)}dB, R: ${rightBleed.toFixed(1)}dB</small>`;
-              micBleedEl.className = statusClass;
+
+              const leftBleedStr = leftBleed === -Infinity ? '-∞' : leftBleed.toFixed(1);
+              const rightBleedStr = rightBleed === -Infinity ? '-∞' : rightBleed.toFixed(1);
+              micBleedOldResult.innerHTML = `${oldConclusion}<br><small>L: ${leftBleedStr}dB, R: ${rightBleedStr}dB</small>`;
+              micBleedOldResult.className = oldStatusClass;
+
+              // NEW METHOD display - compact format
+              const newResults = micBleedResults.new;
+              const medianSep = newResults.medianSeparation;
+              const p10Sep = newResults.p10Separation;
+              const percentageBleed = newResults.percentageConfirmedBleed;
+
+              let newConclusion, newStatusClass;
+              if (percentageBleed > 10 || p10Sep < 10) {
+                newConclusion = 'Likely present';
+                newStatusClass = 'validation-fail';
+              } else if (percentageBleed > 5 || p10Sep < 15) {
+                newConclusion = 'Some detected';
+                newStatusClass = 'validation-warning';
+              } else {
+                newConclusion = 'Not detected';
+                newStatusClass = 'validation-pass';
+              }
+
+              const medianSepStr = medianSep === -Infinity ? '-∞' : medianSep.toFixed(1);
+              const p10SepStr = p10Sep === -Infinity ? '-∞' : p10Sep.toFixed(1);
+              micBleedNewResult.innerHTML = `${newConclusion}<br><small>Med: ${medianSepStr}dB, P10: ${p10SepStr}dB, Bleed: ${percentageBleed.toFixed(1)}%</small>`;
+              micBleedNewResult.className = newStatusClass;
             }
           } else {
-            micBleedEl.innerHTML = 'N/A<br><small>Only measured for Conversational Stereo</small>';
-            micBleedEl.className = '';
+            micBleedOldEl.style.display = 'none';
+            micBleedNewEl.style.display = 'none';
           }
         } else {
           stereoEl.textContent = '-';
           stereoEl.className = '';
-          micBleedEl.textContent = '-';
-          micBleedEl.className = '';
+          micBleedOldEl.style.display = 'none';
+          micBleedNewEl.style.display = 'none';
         }
       } else {
         stereoEl.textContent = 'Mono file';
         stereoEl.className = '';
-        micBleedEl.innerHTML = 'N/A<br><small>Only measured for Conversational Stereo</small>';
-        micBleedEl.className = '';
+        micBleedOldEl.style.display = 'none';
+        micBleedNewEl.style.display = 'none';
       }
 
       // Display reverb estimation with color coding
