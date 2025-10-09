@@ -22,6 +22,10 @@ class AudioAnalyzerEngine {
     return this.levelAnalyzer.analyzeStereoSeparation(audioBuffer);
   }
 
+  analyzeMicBleed(audioBuffer) {
+    return this.levelAnalyzer.analyzeMicBleed(audioBuffer);
+  }
+
   validateCriteria(results, criteria) {
     return CriteriaValidator.validateResults(results, criteria);
   }
@@ -132,6 +136,7 @@ class WebAudioAnalyzer {
     this.playerSection = document.getElementById('playerSection');
     this.resultsSection = document.getElementById('resultsSection');
     this.advancedResultsSection = document.getElementById('advancedResultsSection');
+    this.advancedResultsDynamicSection = document.getElementById('advanced-results-section');
     this.audioPlayer = document.getElementById('audioPlayer');
     this.playPause = document.getElementById('playPause');
 
@@ -2132,13 +2137,46 @@ class WebAudioAnalyzer {
       const normStatus = results.normalizationStatus;
       normEl.innerHTML = `${normStatus.message}<br><small>Peak: ${normStatus.peakDb.toFixed(1)}dB (Target: ${normStatus.targetDb.toFixed(1)}dB)</small>`;
 
-      // Also run stereo separation analysis
-      const stereoResults = this.engine.analyzeStereoSeparation(this.audioBuffer);
+      this.advancedResultsDynamicSection.innerHTML = ''; // Clear previous results
+
+      // Display stereo separation for stereo files
       const stereoEl = document.getElementById('stereoSeparation');
-      if (stereoResults) {
-        stereoEl.innerHTML = `${stereoResults.stereoType}<br><small>(Confidence: ${Math.round(stereoResults.stereoConfidence * 100)}%)</small>`;
+      const micBleedEl = document.getElementById('micBleed');
+
+      if (this.audioBuffer.numberOfChannels === 2) {
+        const stereoResults = this.engine.analyzeStereoSeparation(this.audioBuffer);
+        if (stereoResults) {
+          this.currentResults.stereoAnalysis = stereoResults;
+          stereoEl.innerHTML = `${stereoResults.stereoType}<br><small>${(stereoResults.stereoConfidence * 100).toFixed(0)}% confidence</small>`;
+
+          // Only run mic bleed analysis for conversational stereo
+          if (stereoResults.stereoType === 'Conversational Stereo') {
+            const micBleedResults = this.engine.analyzeMicBleed(this.audioBuffer);
+            if (micBleedResults) {
+              this.currentResults.micBleedAnalysis = micBleedResults;
+              // Display mic bleed in the advanced grid
+              const leftBleed = micBleedResults.leftChannelBleedDb;
+              const rightBleed = micBleedResults.rightChannelBleedDb;
+              const bleedThreshold = -40;
+
+              let conclusion;
+              if (leftBleed > bleedThreshold || rightBleed > bleedThreshold) {
+                conclusion = 'Likely present';
+              } else {
+                conclusion = 'Not detected';
+              }
+              micBleedEl.innerHTML = `${conclusion}<br><small>L: ${leftBleed.toFixed(1)}dB, R: ${rightBleed.toFixed(1)}dB</small>`;
+            }
+          } else {
+            micBleedEl.innerHTML = 'N/A<br><small>Only measured for Conversational Stereo</small>';
+          }
+        } else {
+          stereoEl.textContent = '-';
+          micBleedEl.textContent = '-';
+        }
       } else {
-        stereoEl.textContent = 'Not applicable (mono file)';
+        stereoEl.textContent = 'Mono file';
+        micBleedEl.innerHTML = 'N/A<br><small>Only measured for Conversational Stereo</small>';
       }
 
       // Display reverb estimation
