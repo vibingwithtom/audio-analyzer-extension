@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Audio Analyzer - Professional Audio File Analysis</title>
   <meta name="description" content="Analyze audio file properties, validate against criteria, and perform advanced audio analysis">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com https://www.gstatic.com https://*.googleapis.com https://*.gstatic.com https://account.box.com; frame-src 'self' https://accounts.google.com https://content.googleapis.com https://*.googleapis.com https://account.box.com; connect-src 'self' https://accounts.google.com https://*.googleapis.com https://www.googleapis.com https://content.googleapis.com https://oauth2.googleapis.com https://api.box.com https://account.box.com https://*.box.com https://*.boxcloud.com https://*.run.app https://us-central1-chromeextensionauth-472920.cloudfunctions.net; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com https://www.gstatic.com https://*.googleapis.com https://*.gstatic.com https://account.box.com; frame-src 'self' https://accounts.google.com https://content.googleapis.com https://*.googleapis.com https://account.box.com; connect-src 'self' https://accounts.google.com https://*.googleapis.com https://www.googleapis.com https://content.googleapis.com https://oauth2.googleapis.com https://api.box.com https://account.box.com https://*.box.com https://*.boxcloud.com https://*.run.app; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'">
   <link rel="icon" type="image/x-icon" href="./favicon.ico">
 
   <!-- PWA Meta Tags -->
@@ -17,7 +17,7 @@
   <meta property="og:description" content="Professional audio file analysis tool">
   <meta property="og:type" content="website">
 
-  <script type="module" crossorigin src="/beta/assets/index-CY2eiMSO.js"></script>
+  <script type="module" crossorigin src="/beta/assets/index-YE5yasxh.js"></script>
   <link rel="stylesheet" crossorigin href="/beta/assets/index-Df5JEl4U.css">
 </head>
 <body>
@@ -445,10 +445,6 @@
                 <span id="noiseFloorHistogram">-</span>
               </div>
               <div class="advanced-item">
-                <label>Stereo Separation:</label>
-                <span id="stereoSeparation">-</span>
-              </div>
-              <div class="advanced-item">
                 <label>Reverb Time (RT60):</label>
                 <span id="reverbEstimation">-</span>
               </div>
@@ -464,7 +460,16 @@
                 <label>Longest Silence:</label>
                 <span id="longestSilence">-</span>
               </div>
+              <div class="advanced-item">
+                <label>Stereo Separation:</label>
+                <span id="stereoSeparation">-</span>
+              </div>
+              <div class="advanced-item">
+                <label>Mic Bleed:</label>
+                <span id="micBleed">-</span>
+              </div>
             </div>
+            <div id="advanced-results-section"></div>
           </div>
         </section>
 
