@@ -2136,6 +2136,7 @@ class WebAudioAnalyzer {
       const normStatus = results.normalizationStatus;
       normEl.innerHTML = `${normStatus.message}<br><small>Peak: ${normStatus.peakDb.toFixed(1)}dB (Target: ${normStatus.targetDb.toFixed(1)}dB)</small>`;
 
+      const stereoResults = this.engine.analyzeStereoSeparation(this.audioBuffer);
       if (stereoResults) {
         this.currentResults.stereoAnalysis = stereoResults;
         const stereoHtml = this.formatStereoResults(stereoResults);
