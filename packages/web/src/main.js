@@ -930,8 +930,25 @@ class WebAudioAnalyzer {
       this.setupAudioPlayer(file);
 
       console.log('Validating and displaying results...');
+
+      // Check if filename validation is needed for local files
+      let filenameValidation = null;
+      const presets = this.getPresetConfigurations();
+      const config = presets[this.presetSelector.value];
+      const validationType = config?.filenameValidationType;
+
+      if (validationType && this.localEnableFilenameValidation.checked) {
+        if (validationType === 'script-match') {
+          // Three Hour validation - would need speaker ID, but not typically used for local files
+          console.log('Three Hour filename validation not supported for local files');
+        } else if (validationType === 'bilingual-pattern') {
+          // Bilingual validation
+          filenameValidation = this.validateBilingualFilename(file.name);
+        }
+      }
+
       // Display results
-      this.validateAndDisplayResults(results);
+      this.validateAndDisplayResults(results, filenameValidation);
       this.showResults();
       console.log('Results displayed successfully');
 
