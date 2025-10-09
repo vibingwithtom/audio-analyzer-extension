@@ -208,10 +208,72 @@ Batch results show aggregate statistics (pass/warning/fail/error counts) and tot
 - Requires Box developer app with client ID/secret
 - Uses cloud function proxy for actual file downloads
 
+## Git/GitHub Workflow
+
+### Branch Strategy
+- **main** - Production-ready code, should always be stable
+- **feature/** - Feature branches (e.g., `feature/mic-bleed-detection`)
+- Create feature branches from main for new features
+- Keep branches focused on a single feature or fix
+
+### Commit Guidelines
+- Use descriptive commit messages following conventional commits format:
+  - `feat:` - New features
+  - `fix:` - Bug fixes
+  - `refactor:` - Code restructuring without functional changes
+  - `docs:` - Documentation updates
+  - `chore:` - Maintenance tasks
+- Example: `feat: add mic bleed detection for conversational stereo`
+- Include meaningful descriptions in commit body when needed
+
+### Deployment Workflow (Critical)
+1. **Develop on feature branch**
+   ```bash
+   git checkout -b feature/your-feature-name
+   # Make changes, test locally with npm run dev
+   ```
+
+2. **Commit changes**
+   ```bash
+   git add .
+   git commit -m "feat: description of changes"
+   ```
+
+3. **Deploy to beta for testing**
+   ```bash
+   cd packages/web
+   npm run deploy:beta
+   # Test at https://audio-analyzer.tinytech.site/beta/
+   ```
+
+4. **Merge to main only after beta verification**
+   ```bash
+   git checkout main
+   git merge feature/your-feature-name
+   ```
+
+5. **Deploy to production**
+   ```bash
+   cd packages/web
+   npm run deploy
+   # Live at https://audio-analyzer.tinytech.site
+   ```
+
+### Working with Core Library
+- Changes to `packages/core` affect all platforms (web, extension, desktop)
+- Test changes across platforms before deploying
+- Core changes may require updates to consuming packages
+
+### Pull Request Best Practices
+- Create PR from feature branch to main
+- Include description of changes and testing performed
+- Link to related issues if applicable
+- Ensure beta deployment is tested before merging
+- Delete feature branch after successful merge
+
 ## Important Notes
 
-- The web app MUST be deployed to beta first before production
-- Git status shows feature/mic-bleed-detection branch is currently active
-- Recent work includes mic bleed detection feature and improvements to advanced analysis
+- **ALWAYS** deploy web app to beta before production
 - Core library is shared across all packages - changes affect all platforms
 - Cloud functions are deployed separately to Google Cloud Platform
+- Web deployments use GitHub Pages with separate beta/production paths
