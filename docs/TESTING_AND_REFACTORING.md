@@ -2325,7 +2325,8 @@ This section tracks GitHub issues created for this project.
 - [x] **Phase 3 Complete** ✅ (Test specifications written for complete workflows)
 
 #### Phase 4: Refactoring with TypeScript (3-5 days LLM / 2 weeks calendar)
-- [ ] Set up TypeScript infrastructure (tsconfig.json, dependencies)
+- [x] Set up TypeScript infrastructure (tsconfig.json, dependencies)
+- [ ] **Implement display-related tests from Phase 2.4 & 3.4 specs** (prerequisite discovered)
 - [ ] Unify display logic
 - [ ] Extract file handlers as TypeScript modules
 - [ ] Create settings manager as TypeScript module
@@ -2418,7 +2419,11 @@ This section tracks GitHub issues created for this project.
 
 ### Lessons Learned
 
-_(To be filled in as work progresses)_
+**Lesson 1:** Test Specifications vs Implementation (October 10, 2025)
+- **Issue:** Phases 2-3 were marked "complete" with only test specifications written, not actual implementations
+- **Discovery:** Phase 4 prerequisites require "70%+ coverage" and "all tests passing" - impossible with just specs
+- **Resolution:** Added Phase 4.0 step to implement display-related tests before refactoring
+- **Takeaway:** "Complete" should mean implemented and passing, not just planned
 
 ### Blockers & Risks
 
