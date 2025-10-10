@@ -14,7 +14,7 @@ vi.mock('../../src/google-auth.js', () => {
   return {
     default: vi.fn().mockImplementation(() => ({
       init: vi.fn().mockResolvedValue(undefined),
-      isAuthenticated: vi.fn().mockReturnValue(false),
+      isSignedIn: vi.fn().mockReturnValue(false),
       signIn: vi.fn().mockResolvedValue(undefined),
       signOut: vi.fn().mockResolvedValue(undefined),
       getUserInfo: vi.fn().mockResolvedValue({
@@ -30,7 +30,7 @@ vi.mock('../../src/box-auth.js', () => {
   return {
     default: vi.fn().mockImplementation(() => ({
       init: vi.fn().mockResolvedValue(undefined),
-      isAuthenticated: vi.fn().mockReturnValue(false),
+      isSignedIn: vi.fn().mockReturnValue(false),
       signIn: vi.fn().mockResolvedValue(undefined),
       signOut: vi.fn().mockResolvedValue(undefined)
     }))

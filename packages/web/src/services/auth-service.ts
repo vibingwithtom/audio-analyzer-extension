@@ -140,7 +140,7 @@ export class AuthService {
       this.updateGoogleState({ isInitialized: true });
 
       // Check if already authenticated
-      if (this.googleAuth.isAuthenticated()) {
+      if (this.googleAuth.isSignedIn()) {
         const userInfo = await this.googleAuth.getUserInfo();
         this.updateGoogleState({
           isAuthenticated: true,
@@ -159,7 +159,7 @@ export class AuthService {
       await this.boxAuth.init();
       this.updateBoxState({ isInitialized: true });
 
-      if (this.boxAuth.isAuthenticated()) {
+      if (this.boxAuth.isSignedIn()) {
         this.updateBoxState({ isAuthenticated: true });
       }
     } catch (error) {
@@ -277,14 +277,14 @@ export class AuthService {
    * Check if Google is authenticated (synchronous)
    */
   isGoogleAuthenticatedSync(): boolean {
-    return this.googleAuth.isAuthenticated();
+    return this.googleAuth.isSignedIn();
   }
 
   /**
    * Check if Box is authenticated (synchronous)
    */
   isBoxAuthenticatedSync(): boolean {
-    return this.boxAuth.isAuthenticated();
+    return this.boxAuth.isSignedIn();
   }
 
   // Private helper methods
