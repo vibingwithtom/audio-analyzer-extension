@@ -35,21 +35,27 @@ npm run build            # Builds all workspaces
 npm run lint             # Runs linting on all workspaces
 ```
 
-### Web Deployment (CRITICAL)
+### Web Deployment
+
+**Production (Automatic):**
+- Deploys automatically when code is pushed to `main` branch
+- GitHub Actions runs tests first, blocks deployment if tests fail
+- URL: https://audio-analyzer.tinytech.site
+- No manual deployment needed
+
+**Beta (Manual):**
 ```bash
-# Web app has beta and production environments
 cd packages/web
-
-# ALWAYS deploy to beta first
 npm run deploy:beta      # Deploys to https://audio-analyzer.tinytech.site/beta/
-
-# Only deploy to production after beta verification
-npm run deploy           # Deploys to https://audio-analyzer.tinytech.site
-
-# Clean deployments (removes --add flag, for fixing corrupted gh-pages branch)
-npm run deploy:beta:clean
-npm run deploy:clean
 ```
+
+**Manual Production (Emergency only):**
+```bash
+cd packages/web
+npm run deploy           # Deploys to https://audio-analyzer.tinytech.site
+```
+
+**Note:** See `packages/web/DEPLOYMENT.md` for detailed deployment guide.
 
 ### Desktop Application Build
 ```bash
@@ -246,18 +252,20 @@ Batch results show aggregate statistics (pass/warning/fail/error counts) and tot
    # Test at https://audio-analyzer.tinytech.site/beta/
    ```
 
-4. **Merge to main only after beta verification**
+4. **Merge to main (triggers automatic production deployment)**
    ```bash
    git checkout main
    git merge feature/your-feature-name
+   git push origin main
+   # GitHub Actions automatically:
+   # - Runs all 635 tests
+   # - Deploys to production if tests pass
+   # - Blocks deployment if tests fail
    ```
 
-5. **Deploy to production**
-   ```bash
-   cd packages/web
-   npm run deploy
-   # Live at https://audio-analyzer.tinytech.site
-   ```
+5. **Verify production**
+   - Check GitHub Actions: https://github.com/vibingwithtom/audio-analyzer/actions
+   - Verify at https://audio-analyzer.tinytech.site
 
 ### Working with Core Library
 - Changes to `packages/core` affect all platforms (web, extension, desktop)
@@ -273,7 +281,9 @@ Batch results show aggregate statistics (pass/warning/fail/error counts) and tot
 
 ## Important Notes
 
-- **ALWAYS** deploy web app to beta before production
+- **ALWAYS** deploy web app to beta before merging to main
+- Production deployment is automatic via GitHub Actions when you push to main
+- Tests must pass before production deployment (enforced by CI/CD)
 - Core library is shared across all packages - changes affect all platforms
 - Cloud functions are deployed separately to Google Cloud Platform
 - Web deployments use GitHub Pages with separate beta/production paths
