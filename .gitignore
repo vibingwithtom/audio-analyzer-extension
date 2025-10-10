@@ -40,3 +40,10 @@ build/
 # Validation data (sensitive)
 cloud-functions/*/data/
 *.csv
+
+# Test coverage reports
+coverage/
+*.lcov
+
+# Local settings
+.claude/settings.local.json
