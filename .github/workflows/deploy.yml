@@ -66,3 +66,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./packages/web/dist
           force_orphan: false  # Preserve history
+          keep_files: true     # Preserve /beta directory and other files
