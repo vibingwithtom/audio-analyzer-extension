@@ -48,32 +48,46 @@ This directory contains comprehensive tests for the Audio Analyzer web applicati
 
 **Phase 3 Tests - End-to-End Workflows:**
 
-1. **file-processing.test.js** - TODO
-   - Local file upload and analysis
-   - Google Drive file processing
-   - Box file processing
-   - Metadata-only vs full analysis
-   - Error handling
+1. **file-processing.test.js** - File processing workflows
+   - Local file upload and analysis (metadata-only vs full)
+   - Google Drive file processing (auth, download, validation)
+   - Box file processing (proxy, auth)
+   - Cross-source consistency
+   - Progress indication and error handling
+   - Edge cases (empty files, unusual formats, very long audio)
+   - Covers complete file processing pipeline
 
-2. **batch-processing.test.js** - TODO
-   - Multiple file processing
-   - Folder processing
-   - Progress tracking
-   - Cancellation
-   - Summary statistics
+2. **batch-processing.test.js** - Batch processing workflows
+   - Multiple local file selection and processing
+   - Google Drive folder processing
+   - Box folder processing
+   - Progress tracking and cancellation
+   - Summary statistics and result display
+   - Large batches (50-100+ files)
+   - Error handling (continue on failure)
+   - Memory management and performance
+   - Covers complete batch processing pipeline
 
-3. **auth-management.test.js** - TODO
-   - Google Drive auth status
-   - Box auth status
-   - Sign in/out flows
-   - Token handling
+3. **auth-management.test.js** - Authentication workflows
+   - Google Drive OAuth (sign in/out, token management)
+   - Box OAuth (authentication, token refresh)
+   - Independent multi-service auth states
+   - Auth-protected features (file/folder access)
+   - Error states and recovery (network, API, session expiry)
+   - Security considerations (token security, CSRF)
+   - Covers complete authentication lifecycle
 
-4. **display-rendering.test.js** - TODO
-   - Single file result display
-   - Batch results table
-   - Validation status badges
-   - Column visibility
-   - Audio player
+4. **display-rendering.test.js** - UI rendering and display
+   - Single file result display (properties, validation, advanced analysis)
+   - Batch results table (columns, sorting, filtering)
+   - Validation status badges and indicators
+   - Filename validation display
+   - Column visibility (metadata-only mode adaptation)
+   - Audio player display and controls
+   - Responsive design (mobile, tablet, desktop)
+   - Accessibility (semantic HTML, keyboard navigation, screen readers)
+   - Loading states and error states
+   - Covers complete UI rendering pipeline
 
 ### Test Helpers (`tests/helpers/`)
 
@@ -112,7 +126,7 @@ npm run test:coverage
 
 **Phase 1:** ✅ Complete - Test infrastructure set up
 **Phase 2:** ✅ Complete - All unit test specifications written (7 test files covering ~620 lines of logic)
-**Phase 3:** ⬜ Pending - Integration test specifications needed
+**Phase 3:** ✅ Complete - All integration test specifications written (4 test files covering complete workflows)
 
 ## Coverage Goals
 
@@ -122,21 +136,47 @@ npm run test:coverage
 
 ## Implementation Notes
 
-Many test files currently contain specifications (test stubs) that document what needs to be tested. These need to be implemented with actual test logic. The specifications serve as:
+### Test Specifications vs Implementations
 
-1. **Documentation** of expected behavior
-2. **Test-driven development guide** for implementation
+All Phase 2 (unit) and Phase 3 (integration) test files are currently **specifications** documenting expected behavior:
+
+**Fully Implemented:**
+- `criteria-validation.test.js` - Working tests using `CriteriaValidator` from `@audio-analyzer/core`
+
+**Specifications (pending implementation):**
+- All other unit tests (filename validation, file type detection, formatting, presets, status calculation)
+- All integration tests (file processing, batch processing, auth, display)
+
+These specifications serve as:
+1. **Documentation** of expected behavior and edge cases
+2. **Test-driven development guide** for implementation and refactoring
 3. **Regression prevention** checklist
+4. **Design validation** - writing tests first reveals design issues
 
-To implement tests:
-1. Access the function being tested (may require refactoring in Phase 4)
-2. Write actual assertions based on the documented expectations
-3. Run tests to verify behavior
-4. Achieve green passing tests
+### Why Specifications First?
+
+Many functions (filename validation, presets, status calculation, display logic) are embedded in `main.js` and not properly exported for testing. Phase 4 refactoring will:
+1. Extract these functions into properly organized, typed modules
+2. Export them with clear interfaces
+3. Make them testable
+
+Writing test specifications now:
+- Documents current behavior before refactoring
+- Provides immediate test coverage once modules are extracted
+- Ensures refactored code maintains same behavior
+- Guides the refactoring process (what needs to be extracted)
+
+### Implementation Path
+
+After Phase 4 refactoring completes:
+1. Functions will be properly exported from modules
+2. Test specifications can be converted to working tests
+3. Run tests to verify refactored code matches original behavior
+4. Achieve 70%+ code coverage goal
 
 ## Next Steps
 
-1. **Implement test stubs** - Convert specifications to working tests
-2. **Add integration tests** - Complete Phase 3 test specifications
-3. **Achieve 70%+ coverage** - Run coverage and fill gaps
-4. **Refactor for testability** - Phase 4 will make testing easier
+1. **Phase 4: Refactor with TypeScript** - Extract functions from main.js into testable TypeScript modules
+2. **Implement test specifications** - Convert specifications to working tests as modules are extracted
+3. **Achieve 75%+ coverage** - Run coverage reports and fill any gaps
+4. **Phase 5: Svelte Migration** - Migrate to component-based architecture with component tests
