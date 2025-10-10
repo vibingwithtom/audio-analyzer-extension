@@ -24,6 +24,6 @@ export interface BilingualValidationData {
   languageCodes: string[];
   /** Conversation IDs grouped by language code */
   conversationsByLanguage: Record<string, string[]>;
-  /** Valid contributor ID pairs */
-  contributorPairs: [string, string][];
+  /** Valid contributor ID pairs (arrays of 2 strings) */
+  contributorPairs: string[][];
 }

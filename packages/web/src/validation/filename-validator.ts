@@ -6,7 +6,7 @@
  * - Bilingual Conversational preset: Pattern validation
  */
 
-import type { ValidationResult, BilingualValidationData } from './types.ts';
+import type { ValidationResult, BilingualValidationData } from './types';
 import bilingualValidationData from '../bilingual-validation-data.json';
 
 const typedBilingualData = bilingualValidationData as BilingualValidationData;

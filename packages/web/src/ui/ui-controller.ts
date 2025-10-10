@@ -5,8 +5,8 @@
  * Separates presentation logic from business logic.
  */
 
-import type { UIElements, TabName, SectionName } from './types.ts';
-import { SettingsManager } from '../settings/settings-manager.ts';
+import type { UIElements, TabName, SectionName } from './types';
+import { SettingsManager } from '../settings/settings-manager';
 
 export class UIController {
   private elements: UIElements;
