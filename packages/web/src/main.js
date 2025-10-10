@@ -13,6 +13,8 @@ import { getFileTypeFromExtension } from './file-utils.ts';
 import { SettingsManager } from './settings/settings-manager.ts';
 import { FilenameValidator } from './validation/filename-validator.ts';
 import { UIController } from './ui/ui-controller.ts';
+// Phase 5.2a - Infrastructure
+import { ServiceCoordinator } from './bridge/service-coordinator.ts';
 
 // Simplified engine class to avoid circular import issues
 class AudioAnalyzerEngine {
@@ -2529,9 +2531,15 @@ class WebAudioAnalyzer {
 document.addEventListener('DOMContentLoaded', () => {
   const app = new WebAudioAnalyzer();
 
+  // Phase 5.2a - Initialize ServiceCoordinator infrastructure
+  // This sets up the event bridge for future Svelte migration
+  // Does not affect current functionality
+  const coordinator = new ServiceCoordinator();
+
   // Clean up when page is being unloaded
   window.addEventListener('beforeunload', () => {
     app.cleanup();
+    coordinator.destroy();
   });
 
   // Also clean up on visibility change (when tab becomes hidden)
