@@ -15,6 +15,7 @@ import { FilenameValidator } from './validation/filename-validator.ts';
 import { UIController } from './ui/ui-controller.ts';
 // Phase 5.2a - Infrastructure
 import { ServiceCoordinator } from './bridge/service-coordinator.ts';
+import { AuthService } from './services/auth-service.ts';
 
 // Simplified engine class to avoid circular import issues
 class AudioAnalyzerEngine {
@@ -62,8 +63,12 @@ import BoxAuth from './box-auth.js';
 class WebAudioAnalyzer {
   constructor() {
     this.engine = new AudioAnalyzerEngine();
-    this.googleAuth = new GoogleAuth();
-    this.boxAuth = new BoxAuth();
+
+    // Phase 5.2a - Use AuthService singleton to prevent duplicate auth instances
+    const authService = AuthService.getInstance();
+    this.googleAuth = authService.getGoogleAuthInstance();
+    this.boxAuth = authService.getBoxAuthInstance();
+
     this.batchProcessor = new BatchProcessor(CriteriaValidator);
     this.ui = new UIController();
     this.currentFile = null;
