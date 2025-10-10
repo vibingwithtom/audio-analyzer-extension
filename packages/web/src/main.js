@@ -2,6 +2,17 @@ import { AudioAnalyzer } from '../../core/audio-analyzer.js';
 import { CriteriaValidator } from '../../core/criteria-validator.js';
 import { LevelAnalyzer } from '../../core/level-analyzer.js';
 import { BatchProcessor } from '../../core/batch-processor.js';
+import {
+  escapeHtml,
+  getValidationStatus,
+  renderResultRow,
+  updateColumnVisibility,
+  setupFilenameCheckTooltip
+} from './display-utils.ts';
+import { getFileTypeFromExtension } from './file-utils.ts';
+import { SettingsManager } from './settings/settings-manager.ts';
+import { FilenameValidator } from './validation/filename-validator.ts';
+import { UIController } from './ui/ui-controller.ts';
 
 // Simplified engine class to avoid circular import issues
 class AudioAnalyzerEngine {
@@ -43,16 +54,8 @@ class AudioAnalyzerEngine {
   }
 }
 
-// HTML escape utility to prevent XSS and HTML structure issues
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
 import GoogleAuth from './google-auth.js';
 import BoxAuth from './box-auth.js';
-import bilingualValidationData from './bilingual-validation-data.json';
 
 class WebAudioAnalyzer {
   constructor() {
@@ -60,6 +63,7 @@ class WebAudioAnalyzer {
     this.googleAuth = new GoogleAuth();
     this.boxAuth = new BoxAuth();
     this.batchProcessor = new BatchProcessor(CriteriaValidator);
+    this.ui = new UIController();
     this.currentFile = null;
     this.audioBuffer = null;
     this.isAnalyzing = false;
@@ -73,8 +77,8 @@ class WebAudioAnalyzer {
     this.initializeElements();
     this.attachEventListeners();
     this.loadSettings();
-    this.initializeDarkMode();
-    this.updateBuildInfo();
+    this.ui.initializeDarkMode();
+    this.ui.updateBuildInfo();
   }
 
   initializeElements() {
@@ -169,12 +173,13 @@ class WebAudioAnalyzer {
   }
 
   attachEventListeners() {
-    // Dark mode toggle
-    this.darkModeToggle.addEventListener('click', () => this.toggleDarkMode());
+    // Dark mode toggle (handled by UIController)
+    this.ui.setupDarkModeToggle();
 
-    // Tab switching
-    this.tabButtons.forEach(button => {
-      button.addEventListener('click', () => this.switchTab(button.dataset.tab));
+    // Tab switching (with cleanup callback)
+    this.ui.setupTabSwitching(() => {
+      this.cleanupForNewFile();
+      this.updateValidationSectionsVisibility();
     });
 
     // Local file handling
@@ -273,37 +278,30 @@ class WebAudioAnalyzer {
   }
 
   loadSettings() {
-    // Load settings from localStorage
-    const stored = localStorage.getItem('audio-analyzer-settings');
-    if (stored) {
-      try {
-        const settings = JSON.parse(stored);
-        if (settings.criteria) {
-          // Helper to set multi-select values
-          const setMultiSelect = (selectElement, values) => {
-            Array.from(selectElement.options).forEach(option => {
-              option.selected = false;
-            });
-            const valuesArray = Array.isArray(values) ? values : (values ? [values] : []);
-            valuesArray.forEach(value => {
-              const option = Array.from(selectElement.options).find(opt => opt.value === value);
-              if (option) option.selected = true;
-            });
-          };
+    // Load criteria settings via SettingsManager
+    const criteria = SettingsManager.getCriteria();
+    if (criteria) {
+      // Helper to set multi-select values
+      const setMultiSelect = (selectElement, values) => {
+        Array.from(selectElement.options).forEach(option => {
+          option.selected = false;
+        });
+        const valuesArray = Array.isArray(values) ? values : (values ? [values] : []);
+        valuesArray.forEach(value => {
+          const option = Array.from(selectElement.options).find(opt => opt.value === value);
+          if (option) option.selected = true;
+        });
+      };
 
-          setMultiSelect(this.targetFileType, settings.criteria.fileType || []);
-          setMultiSelect(this.targetSampleRate, settings.criteria.sampleRate || []);
-          setMultiSelect(this.targetBitDepth, settings.criteria.bitDepth || []);
-          setMultiSelect(this.targetChannels, settings.criteria.channels || []);
-          this.targetMinDuration.value = settings.criteria.minDuration || '';
-        }
-      } catch (error) {
-        console.warn('Failed to load settings from localStorage:', error);
-      }
+      setMultiSelect(this.targetFileType, criteria.fileType || []);
+      setMultiSelect(this.targetSampleRate, criteria.sampleRate || []);
+      setMultiSelect(this.targetBitDepth, criteria.bitDepth || []);
+      setMultiSelect(this.targetChannels, criteria.channels || []);
+      this.targetMinDuration.value = criteria.minDuration || '';
     }
 
     // Load and restore selected preset
-    const selectedPreset = localStorage.getItem('audio-analyzer-selected-preset');
+    const selectedPreset = SettingsManager.getSelectedPreset();
     if (selectedPreset) {
       this.presetSelector.value = selectedPreset;
       // Apply the preset settings
@@ -328,9 +326,12 @@ class WebAudioAnalyzer {
       this.updateBoxAuthStatus();
 
       // Check if we just authenticated with Box and switch to Box tab
-      if (localStorage.getItem('box_just_authenticated') === 'true') {
-        localStorage.removeItem('box_just_authenticated');
-        this.switchTab('box');
+      if (SettingsManager.wasBoxJustAuthenticated()) {
+        SettingsManager.clearBoxAuthenticationFlag();
+        this.ui.switchTab('box', () => {
+          this.cleanupForNewFile();
+          this.updateValidationSectionsVisibility();
+        });
       }
     }).catch(err => console.error('Box Auth init error:', err));
   }
@@ -363,7 +364,7 @@ class WebAudioAnalyzer {
       this.updateAuthStatus();
     } catch (error) {
       console.error('Sign-in failed:', error);
-      this.showError(`Google sign-in failed: ${error.message}`);
+      this.ui.showError(`Google sign-in failed: ${error.message}`);
     }
   }
 
@@ -397,7 +398,7 @@ class WebAudioAnalyzer {
       this.updateBoxAuthStatus();
     } catch (error) {
       console.error('Box sign-in failed:', error);
-      this.showError(`Box sign-in failed: ${error.message}`);
+      this.ui.showError(`Box sign-in failed: ${error.message}`);
     }
   }
 
@@ -426,9 +427,8 @@ class WebAudioAnalyzer {
   saveCriteria() {
     const criteria = this.getCriteria();
 
-    // Save to localStorage
-    const settings = { criteria };
-    localStorage.setItem('audio-analyzer-settings', JSON.stringify(settings));
+    // Save to localStorage via SettingsManager
+    SettingsManager.saveCriteria(criteria);
 
     // Re-validate current results if we have them
     if (this.currentResults) {
@@ -442,81 +442,7 @@ class WebAudioAnalyzer {
   }
 
   getPresetConfigurations() {
-    return {
-      'auditions-character-recordings': {
-        name: 'Auditions: Character Recordings',
-        fileType: ['wav'],
-        sampleRate: ['48000'],
-        bitDepth: ['24'],
-        channels: ['1'],
-        minDuration: '120' // 2 minutes
-      },
-      'auditions-emotional-voice': {
-        name: 'Auditions: Emotional Voice',
-        fileType: ['wav'],
-        sampleRate: ['48000'],
-        bitDepth: ['16', '24'],
-        channels: ['1', '2'],
-        minDuration: '30'
-      },
-      'character-recordings': {
-        name: 'Character Recordings',
-        fileType: ['wav'],
-        sampleRate: ['48000'],
-        bitDepth: ['24'],
-        channels: ['1'],
-        minDuration: '' // No requirement
-      },
-      'p2b2-pairs-mono': {
-        name: 'P2B2 Pairs (Mono)',
-        fileType: ['wav'],
-        sampleRate: ['44100', '48000'],
-        bitDepth: ['16', '24'],
-        channels: ['1'],
-        minDuration: ''
-      },
-      'p2b2-pairs-stereo': {
-        name: 'P2B2 Pairs (Stereo)',
-        fileType: ['wav'],
-        sampleRate: ['44100', '48000'],
-        bitDepth: ['16', '24'],
-        channels: ['2'],
-        minDuration: ''
-      },
-      'p2b2-pairs-mixed': {
-        name: 'P2B2 Pairs (Mixed)',
-        fileType: ['wav'],
-        sampleRate: ['44100', '48000'],
-        bitDepth: ['16', '24'],
-        channels: ['1', '2'],
-        minDuration: ''
-      },
-      'three-hour': {
-        name: 'Three Hour',
-        fileType: ['wav'],
-        sampleRate: ['48000'],
-        bitDepth: ['24'],
-        channels: ['1'],
-        minDuration: '',
-        supportsFilenameValidation: true,
-        filenameValidationType: 'script-match', // Requires matching .txt script file
-        gdriveOnly: true // Only available on Google Drive tab
-      },
-      'bilingual-conversational': {
-        name: 'Bilingual Conversational',
-        fileType: ['wav'],
-        sampleRate: ['48000'],
-        bitDepth: ['16', '24'],
-        channels: ['2'],
-        minDuration: '',
-        supportsFilenameValidation: true,
-        filenameValidationType: 'bilingual-pattern' // Validates [ConversationID]-[LangCode]-user-[UserID]-agent-[AgentID]
-      },
-      'custom': {
-        name: 'Custom',
-        // Custom allows manual selection of individual criteria
-      }
-    };
+    return SettingsManager.getPresetConfigurations();
   }
 
   handlePresetChange() {
@@ -576,7 +502,7 @@ class WebAudioAnalyzer {
     }
 
     // Save selected preset to localStorage for persistence
-    localStorage.setItem('audio-analyzer-selected-preset', selectedPreset);
+    SettingsManager.saveSelectedPreset(selectedPreset);
   }
 
   toggleFilenameValidationFields() {
@@ -605,32 +531,25 @@ class WebAudioAnalyzer {
       speakerId: this.speakerId.value,
       scriptsFolderUrl: this.scriptsFolderUrl.value
     };
-    localStorage.setItem('audio-analyzer-filename-validation', JSON.stringify(settings));
+    SettingsManager.saveFilenameValidationSettings(settings);
   }
 
   loadFilenameValidationSettings() {
-    const saved = localStorage.getItem('audio-analyzer-filename-validation');
-    if (saved) {
-      try {
-        const settings = JSON.parse(saved);
-        this.enableAudioAnalysis.checked = settings.enableAudioAnalysis !== false; // Default true
-        this.enableFilenameValidation.checked = settings.enableFilenameValidation || false;
-        this.speakerId.value = settings.speakerId || '';
-        this.scriptsFolderUrl.value = settings.scriptsFolderUrl || '';
+    const settings = SettingsManager.loadFilenameValidationSettings();
+    this.enableAudioAnalysis.checked = settings.enableAudioAnalysis;
+    this.enableFilenameValidation.checked = settings.enableFilenameValidation;
+    this.speakerId.value = settings.speakerId;
+    this.scriptsFolderUrl.value = settings.scriptsFolderUrl;
 
-        // Show fields only if checkbox is checked AND current preset supports filename validation
-        const selectedPreset = this.presetSelector.value;
-        const presets = this.getPresetConfigurations();
-        const config = presets[selectedPreset];
+    // Show fields only if checkbox is checked AND current preset supports filename validation
+    const selectedPreset = this.presetSelector.value;
+    const presets = this.getPresetConfigurations();
+    const config = presets[selectedPreset];
 
-        if (this.enableFilenameValidation.checked && config && config.supportsFilenameValidation) {
-          this.filenameValidationFields.style.display = 'block';
-        } else {
-          this.filenameValidationFields.style.display = 'none';
-        }
-      } catch (e) {
-        console.error('Error loading filename validation settings:', e);
-      }
+    if (this.enableFilenameValidation.checked && config && config.supportsFilenameValidation) {
+      this.filenameValidationFields.style.display = 'block';
+    } else {
+      this.filenameValidationFields.style.display = 'none';
     }
   }
 
@@ -659,22 +578,15 @@ class WebAudioAnalyzer {
       enableAudioAnalysis: this.boxEnableAudioAnalysis.checked,
       enableFilenameValidation: this.boxEnableFilenameValidation.checked
     };
-    localStorage.setItem('audio-analyzer-box-filename-validation', JSON.stringify(settings));
+    SettingsManager.saveBoxFilenameValidationSettings(settings);
   }
 
   loadBoxFilenameValidationSettings() {
-    const saved = localStorage.getItem('audio-analyzer-box-filename-validation');
-    if (saved) {
-      try {
-        const settings = JSON.parse(saved);
-        this.boxEnableAudioAnalysis.checked = settings.enableAudioAnalysis !== false; // Default true
-        this.boxEnableFilenameValidation.checked = settings.enableFilenameValidation || false;
+    const settings = SettingsManager.loadBoxFilenameValidationSettings();
+    this.boxEnableAudioAnalysis.checked = settings.enableAudioAnalysis;
+    this.boxEnableFilenameValidation.checked = settings.enableFilenameValidation;
 
-        // Visibility controlled by preset configuration in handlePresetChange()
-      } catch (e) {
-        console.error('Error loading Box filename validation settings:', e);
-      }
-    }
+    // Visibility controlled by preset configuration in handlePresetChange()
   }
 
   // Local filename validation methods
@@ -712,87 +624,15 @@ class WebAudioAnalyzer {
       enableAudioAnalysis: this.localEnableAudioAnalysis.checked,
       enableFilenameValidation: this.localEnableFilenameValidation.checked
     };
-    localStorage.setItem('audio-analyzer-local-filename-validation', JSON.stringify(settings));
+    SettingsManager.saveLocalFilenameValidationSettings(settings);
   }
 
   loadLocalFilenameValidationSettings() {
-    const saved = localStorage.getItem('audio-analyzer-local-filename-validation');
-    if (saved) {
-      try {
-        const settings = JSON.parse(saved);
-        this.localEnableAudioAnalysis.checked = settings.enableAudioAnalysis !== false; // Default true
-        this.localEnableFilenameValidation.checked = settings.enableFilenameValidation || false;
+    const settings = SettingsManager.loadLocalFilenameValidationSettings();
+    this.localEnableAudioAnalysis.checked = settings.enableAudioAnalysis;
+    this.localEnableFilenameValidation.checked = settings.enableFilenameValidation;
 
-        // Visibility controlled by preset configuration in handlePresetChange()
-      } catch (e) {
-        console.error('Error loading local filename validation settings:', e);
-      }
-    }
-  }
-
-  switchTab(tabName) {
-    this.tabButtons.forEach(btn => btn.classList.remove('active'));
-    this.tabContents.forEach(content => content.classList.remove('active'));
-
-    // Activate the tab button
-    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-
-    // Activate ALL tab content sections for this tab (there may be multiple)
-    document.querySelectorAll(`.tab-content[data-tab="${tabName}"]`).forEach(content => {
-      content.classList.add('active');
-    });
-
-    // Clear any existing results to avoid confusion between tabs
-    this.cleanupForNewFile();
-    this.hideAllSections();
-
-    // Re-run preset logic to update validation section visibility based on current tab
-    this.updateValidationSectionsVisibility();
-  }
-
-  // Dark mode methods
-  toggleDarkMode() {
-    const root = document.documentElement;
-    const isDark = root.classList.contains('dark-mode');
-
-    if (isDark) {
-      root.classList.remove('dark-mode');
-      localStorage.setItem('darkMode', 'false');
-    } else {
-      root.classList.add('dark-mode');
-      localStorage.setItem('darkMode', 'true');
-    }
-  }
-
-  initializeDarkMode() {
-    const savedPreference = localStorage.getItem('darkMode');
-
-    // If user has saved a preference, use that
-    if (savedPreference !== null) {
-      if (savedPreference === 'true') {
-        document.documentElement.classList.add('dark-mode');
-      }
-    } else {
-      // Otherwise, check system preference
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (prefersDark) {
-        document.documentElement.classList.add('dark-mode');
-      }
-    }
-  }
-
-  updateBuildInfo() {
-    const buildInfoElement = document.getElementById('buildInfo');
-    if (buildInfoElement) {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const buildNumber = `${year}.${month}.${day}-${hours}${minutes}`;
-      buildInfoElement.textContent = `Audio Analyzer build-${buildNumber}`;
-    }
+    // Visibility controlled by preset configuration in handlePresetChange()
   }
 
   updateValidationSectionsVisibility() {
@@ -916,7 +756,7 @@ class WebAudioAnalyzer {
 
     this.currentFile = file;
     console.log('Showing loading screen...');
-    this.showLoading();
+    this.ui.showLoading();
 
     try {
       // Check if filename validation is needed for local files
@@ -936,7 +776,7 @@ class WebAudioAnalyzer {
           console.log('Three Hour filename validation not supported for local files');
         } else if (validationType === 'bilingual-pattern') {
           // Bilingual validation
-          filenameValidation = this.validateBilingualFilename(file.name);
+          filenameValidation = FilenameValidator.validateBilingual(file.name);
         }
       }
 
@@ -947,7 +787,7 @@ class WebAudioAnalyzer {
         results = {
           filename: file.name,
           fileSize: file.size,
-          fileType: this.getFileTypeFromName(file.name),
+          fileType: getFileTypeFromExtension(file.name),
           sampleRate: 'Unknown',
           bitDepth: 'Unknown',
           channels: 'Unknown',
@@ -964,7 +804,7 @@ class WebAudioAnalyzer {
         this.currentResults.filenameValidation = filenameValidation;
 
         this.validateAndDisplayResults(results, filenameValidation);
-        this.showResults();
+        this.ui.showResults();
         console.log('Metadata-only results displayed successfully');
       } else {
         // Full audio analysis mode
@@ -982,13 +822,13 @@ class WebAudioAnalyzer {
 
         // Display results
         this.validateAndDisplayResults(results, filenameValidation);
-        this.showResults();
+        this.ui.showResults();
         console.log('Results displayed successfully');
       }
 
     } catch (error) {
       console.error('Analysis error:', error);
-      this.showError(`Failed to analyze file: ${error.message}`);
+      this.ui.showError(`Failed to analyze file: ${error.message}`);
       this.cleanupForNewFile(); // Clean up on error too
     } finally {
       this.processingFile = false;
@@ -1007,7 +847,7 @@ class WebAudioAnalyzer {
     this.batchMode = true;
     this.currentBatchSource = 'local';
     this.batchResults = [];
-    this.showBatchProgress(0, files.length, 'Initializing...');
+    this.ui.showBatchProgress(0, files.length, 'Initializing...');
     this.initializeBatchResultsTable();
 
     try {
@@ -1015,7 +855,7 @@ class WebAudioAnalyzer {
         files,
         () => this.getCriteria(), // Pass function to get fresh criteria
         (progress) => {
-          this.showBatchProgress(
+          this.ui.showBatchProgress(
             progress.current,
             progress.total,
             progress.currentFile
@@ -1032,7 +872,7 @@ class WebAudioAnalyzer {
             const validationType = config?.filenameValidationType;
 
             if (validationType === 'bilingual-pattern') {
-              result.filenameValidation = this.validateBilingualFilename(result.filename);
+              result.filenameValidation = FilenameValidator.validateBilingual(result.filename);
               // Recalculate overall status including filename validation
               result.status = this.getOverallStatus(result.validation, false, result.filenameValidation);
             }
@@ -1075,7 +915,7 @@ class WebAudioAnalyzer {
 
     } catch (error) {
       console.error('Batch processing error:', error);
-      this.showError(`Failed to process batch: ${error.message}`);
+      this.ui.showError(`Failed to process batch: ${error.message}`);
       this.cleanupForNewFile();
     } finally {
       this.processingFile = false;
@@ -1096,7 +936,7 @@ class WebAudioAnalyzer {
     // Clean up previous file data before processing new one
     this.cleanupForNewFile();
 
-    this.showLoading();
+    this.ui.showLoading();
 
     try {
       // Extract file/folder ID from Google Drive URL
@@ -1120,9 +960,9 @@ class WebAudioAnalyzer {
       console.error('Google Drive error:', error);
       this.cleanupForNewFile(); // Clean up on error too
       if (error.message.includes('sign-in') || error.message.includes('auth')) {
-        this.showError('Please sign in to Google to access Drive files. Click "Analyze" to authenticate.');
+        this.ui.showError('Please sign in to Google to access Drive files. Click "Analyze" to authenticate.');
       } else {
-        this.showError(`Failed to process Google Drive: ${error.message}`);
+        this.ui.showError(`Failed to process Google Drive: ${error.message}`);
       }
     } finally {
       this.processingFile = false;
@@ -1156,13 +996,13 @@ class WebAudioAnalyzer {
           if (scriptsFolderId) {
             const scriptBaseNames = await this.fetchScriptFiles(scriptsFolderId);
             if (scriptBaseNames && scriptBaseNames.length > 0) {
-              filenameValidation = this.validateFilename(filename, scriptBaseNames, speakerId);
+              filenameValidation = FilenameValidator.validateThreeHour(filename, scriptBaseNames, speakerId);
             }
           }
         }
       } else if (validationType === 'bilingual-pattern') {
         // Bilingual validation
-        filenameValidation = this.validateBilingualFilename(filename);
+        filenameValidation = FilenameValidator.validateBilingual(filename);
       }
     }
 
@@ -1173,7 +1013,7 @@ class WebAudioAnalyzer {
       results = {
         filename: filename,
         fileSize: parseInt(metadata.size) || 0,
-        fileType: this.getFileTypeFromName(filename),
+        fileType: getFileTypeFromExtension(filename),
         sampleRate: 'Unknown',
         bitDepth: 'Unknown',
         channels: 'Unknown',
@@ -1192,7 +1032,7 @@ class WebAudioAnalyzer {
       this.currentResults.filenameValidation = filenameValidation;
 
       this.validateAndDisplayResults(results, filenameValidation);
-      this.showResults();
+      this.ui.showResults();
     } else {
       // Full audio analysis mode
       // Download file using Google Drive API
@@ -1207,7 +1047,7 @@ class WebAudioAnalyzer {
       this.setupAudioPlayer(file);
 
       this.validateAndDisplayResults(results, filenameValidation);
-      this.showResults();
+      this.ui.showResults();
     }
   }
 
@@ -1224,251 +1064,6 @@ class WebAudioAnalyzer {
     } catch (error) {
       console.error('Error fetching script files:', error);
       throw new Error('Failed to fetch script files. Check the scripts folder URL.');
-    }
-  }
-
-  validateFilename(filename, scriptBaseNames, speakerId) {
-    // Based on Google Apps Script logic
-    const wavName = filename.trim();
-    const nameWithoutExt = wavName.replace(/\.wav$/i, '');
-
-    // Get what's before the speaker ID
-    const possibleBase = nameWithoutExt.split(`_${speakerId}`)[0];
-    const expectedName = `${possibleBase}_${speakerId}.wav`;
-
-    if (!scriptBaseNames.includes(possibleBase)) {
-      return {
-        status: 'fail',
-        expectedFormat: '-',
-        issue: 'No matching script file found'
-      };
-    } else if (wavName === expectedName) {
-      return {
-        status: 'pass',
-        expectedFormat: expectedName,
-        issue: ''
-      };
-    } else {
-      return {
-        status: 'fail',
-        expectedFormat: `${possibleBase}_${speakerId}.wav`,
-        issue: 'Incorrect filename for existing script'
-      };
-    }
-  }
-
-  validateBilingualFilename(filename) {
-    // Validate bilingual filename pattern:
-    // Regular: [ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav
-    // Spontaneous: SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav
-    // Example regular: vdlg1_001_budgeting_app-en_us-user-10101-agent-10102.wav
-    // Example spontaneous: SPONTANEOUS_1-en_us-user-10101-agent-10102.wav
-
-    // Collect all validation issues
-    const issues = [];
-
-    // Check for leading/trailing whitespace (DO NOT trim - we want to catch this as an error)
-    if (filename !== filename.trim()) {
-      issues.push('Filename has leading or trailing whitespace');
-    }
-
-    // Check for embedded whitespace
-    if (/\s/.test(filename)) {
-      issues.push('Filename contains whitespace characters');
-    }
-
-    // Check file extension - must end with exactly .wav (case insensitive)
-    const hasWavExtension = /\.wav$/i.test(filename);
-    if (!hasWavExtension) {
-      issues.push('Filename must end with .wav extension');
-    }
-
-    // Check for double extensions like .mp3.wav or .wav.wav (only if .wav extension exists)
-    if (hasWavExtension) {
-      const nameWithoutWav = filename.replace(/\.wav$/i, '');
-      if (/\.\w+$/.test(nameWithoutWav)) {
-        issues.push('Filename has multiple extensions (e.g., .mp3.wav or .wav.wav)');
-      }
-    }
-
-    // Remove any extension for parsing
-    const nameWithoutExt = filename.replace(/\.\w+$/i, '');
-
-    // Check if this is a spontaneous recording
-    const isSpontaneous = nameWithoutExt.startsWith('SPONTANEOUS_');
-
-    if (isSpontaneous) {
-      // Validate spontaneous format: SPONTANEOUS_[number]-[rest]
-
-      // Check that SPONTANEOUS is all caps
-      if (!nameWithoutExt.startsWith('SPONTANEOUS_')) {
-        issues.push('Unscripted recordings must start with "SPONTANEOUS_" (all caps)');
-      }
-
-      // Extract the spontaneous ID and rest of filename
-      const spontaneousMatch = nameWithoutExt.match(/^SPONTANEOUS_(\d+)-(.+)$/);
-      if (!spontaneousMatch) {
-        issues.push('Invalid unscripted format: expected SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID]');
-        return {
-          status: 'fail',
-          expectedFormat: 'SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav',
-          issue: issues.join('\n'),
-          isSpontaneous: true
-        };
-      }
-
-      const spontaneousId = spontaneousMatch[1];
-      const restOfFilename = spontaneousMatch[2];
-
-      // Validate that rest of filename (after SPONTANEOUS_[number]-) is lowercase
-      if (restOfFilename !== restOfFilename.toLowerCase()) {
-        issues.push('All text after "SPONTANEOUS_[number]-" must be lowercase');
-      }
-
-      // Parse the rest of the filename
-      const parts = restOfFilename.toLowerCase().split('-');
-
-      // Expected: [LanguageCode]-user-[UserID]-agent-[AgentID]
-      if (parts.length !== 5) {
-        issues.push(`Invalid format: expected 5 parts after SPONTANEOUS_[number]-, got ${parts.length}`);
-        return {
-          status: 'fail',
-          expectedFormat: 'SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav',
-          issue: issues.join('\n'),
-          isSpontaneous: true
-        };
-      }
-
-      const languageCode = parts[0];
-      const userLabel = parts[1];
-      const userId = parts[2];
-      const agentLabel = parts[3];
-      const agentId = parts[4];
-
-      // Validate labels
-      if (userLabel !== 'user') {
-        issues.push(`Expected 'user' label, got '${userLabel}'`);
-      }
-
-      if (agentLabel !== 'agent') {
-        issues.push(`Expected 'agent' label, got '${agentLabel}'`);
-      }
-
-      // Validate language code
-      if (!bilingualValidationData.languageCodes.includes(languageCode)) {
-        issues.push(`Invalid language code: '${languageCode}'`);
-      }
-
-      // Validate contributor pair (order doesn't matter)
-      const isValidPair = bilingualValidationData.contributorPairs.some(pair =>
-        (pair[0] === userId && pair[1] === agentId) ||
-        (pair[0] === agentId && pair[1] === userId)
-      );
-
-      if (!isValidPair) {
-        issues.push(`Invalid contributor pair: user-${userId}, agent-${agentId}`);
-      }
-
-      // If there are any issues, return failure with all issues
-      if (issues.length > 0) {
-        return {
-          status: 'fail',
-          expectedFormat: 'SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav',
-          issue: issues.join('\n'),
-          isSpontaneous: true
-        };
-      }
-
-      // All validations passed
-      const expectedFormat = `SPONTANEOUS_${spontaneousId}-${languageCode}-user-${userId}-agent-${agentId}.wav`;
-      return {
-        status: 'pass',
-        expectedFormat: expectedFormat,
-        issue: '',
-        isSpontaneous: true
-      };
-
-    } else {
-      // Regular (non-spontaneous) recording validation
-
-      // Check that filename is lowercase (except .wav extension)
-      if (nameWithoutExt !== nameWithoutExt.toLowerCase()) {
-        issues.push('Filename must be all lowercase');
-      }
-
-      // Use lowercase version for parsing to extract parts even if original wasn't lowercase
-      const parts = nameWithoutExt.toLowerCase().split('-');
-
-      // Expected format: [ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]
-      // This should result in exactly 6 parts when split by '-'
-      if (parts.length !== 6) {
-        issues.push(`Invalid format: expected 6 parts separated by '-', got ${parts.length}`);
-        // Can't continue validation without proper parts
-        return {
-          status: 'fail',
-          expectedFormat: '[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav',
-          issue: issues.join('\n'),
-          isSpontaneous: false
-        };
-      }
-
-      const conversationId = parts[0];
-      const languageCode = parts[1];
-      const userLabel = parts[2];
-      const userId = parts[3];
-      const agentLabel = parts[4];
-      const agentId = parts[5];
-
-      // Validate "user" and "agent" labels
-      if (userLabel !== 'user') {
-        issues.push(`Expected 'user' label, got '${userLabel}'`);
-      }
-
-      if (agentLabel !== 'agent') {
-        issues.push(`Expected 'agent' label, got '${agentLabel}'`);
-      }
-
-      // Validate language code
-      if (!bilingualValidationData.languageCodes.includes(languageCode)) {
-        issues.push(`Invalid language code: '${languageCode}'`);
-      }
-
-      // Validate conversation ID for this language (only if language code is valid)
-      if (bilingualValidationData.languageCodes.includes(languageCode)) {
-        const validConversations = bilingualValidationData.conversationsByLanguage[languageCode] || [];
-        if (!validConversations.includes(conversationId)) {
-          issues.push(`Invalid conversation ID: '${conversationId}' for language '${languageCode}'`);
-        }
-      }
-
-      // Validate contributor pair (order doesn't matter)
-      const isValidPair = bilingualValidationData.contributorPairs.some(pair =>
-        (pair[0] === userId && pair[1] === agentId) ||
-        (pair[0] === agentId && pair[1] === userId)
-      );
-
-      if (!isValidPair) {
-        issues.push(`Invalid contributor pair: user-${userId}, agent-${agentId}`);
-      }
-
-      // If there are any issues, return failure with all issues
-      if (issues.length > 0) {
-        return {
-          status: 'fail',
-          expectedFormat: '[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav',
-          issue: issues.join('\n'),
-          isSpontaneous: false
-        };
-      }
-
-      // All validations passed
-      const expectedFormat = `${conversationId}-${languageCode}-user-${userId}-agent-${agentId}.wav`;
-      return {
-        status: 'pass',
-        expectedFormat: expectedFormat,
-        issue: '',
-        isSpontaneous: false
-      };
     }
   }
 
@@ -1522,7 +1117,7 @@ class WebAudioAnalyzer {
     this.currentValidationType = validationType; // Store validation type
 
     // Initialize table and show progress
-    this.showBatchProgress(0, audioFiles.length, 'Initializing...');
+    this.ui.showBatchProgress(0, audioFiles.length, 'Initializing...');
     this.initializeBatchResultsTable();
 
     // Process files in parallel (3 at a time)
@@ -1556,7 +1151,7 @@ class WebAudioAnalyzer {
             analysis = {
               filename: metadata.name,
               fileSize: parseInt(metadata.size) || 0,
-              fileType: this.getFileTypeFromName(metadata.name),
+              fileType: getFileTypeFromExtension(metadata.name),
               sampleRate: 'Unknown',
               bitDepth: 'Unknown',
               channels: 'Unknown',
@@ -1629,10 +1224,10 @@ class WebAudioAnalyzer {
             if (validationType === 'script-match' && this.scriptBaseNames.length > 0) {
               // Three Hour validation
               const speakerId = this.speakerId.value.trim();
-              filenameValidation = this.validateFilename(driveFile.name, this.scriptBaseNames, speakerId);
+              filenameValidation = FilenameValidator.validateThreeHour(driveFile.name, this.scriptBaseNames, speakerId);
             } else if (validationType === 'bilingual-pattern') {
               // Bilingual validation
-              filenameValidation = this.validateBilingualFilename(driveFile.name);
+              filenameValidation = FilenameValidator.validateBilingual(driveFile.name);
             }
 
             // Check duration for SPONTANEOUS files (must be ≤10 minutes) - works even if filename validation is off
@@ -1688,7 +1283,7 @@ class WebAudioAnalyzer {
 
           // Update progress (only if not cancelled)
           if (!this.batchCancelled) {
-            this.showBatchProgress(completed, audioFiles.length, result.filename);
+            this.ui.showBatchProgress(completed, audioFiles.length, result.filename);
           }
         }
       });
@@ -1745,7 +1340,7 @@ class WebAudioAnalyzer {
 
     this.processingFile = true;
     this.cleanupForNewFile();
-    this.showLoading();
+    this.ui.showLoading();
 
     try {
       const parsed = this.extractBoxIdFromUrl(url);
@@ -1774,12 +1369,12 @@ class WebAudioAnalyzer {
       // For shared links, don't prompt for sign-in
       if (error.message.includes('sign-in') || error.message.includes('auth') || error.message.includes('Session expired')) {
         if (!this.currentBoxSharedLink) {
-          this.showError('Please sign in to Box to access files. Click "Analyze" to authenticate.');
+          this.ui.showError('Please sign in to Box to access files. Click "Analyze" to authenticate.');
         } else {
-          this.showError(`Failed to access Box file: ${error.message}. The file may not be publicly shared.`);
+          this.ui.showError(`Failed to access Box file: ${error.message}. The file may not be publicly shared.`);
         }
       } else {
-        this.showError(`Failed to process Box: ${error.message}`);
+        this.ui.showError(`Failed to process Box: ${error.message}`);
       }
     } finally {
       this.processingFile = false;
@@ -1800,7 +1395,7 @@ class WebAudioAnalyzer {
     let filenameValidation = null;
     if (useFilenameValidation) {
       // Validate bilingual filename pattern
-      filenameValidation = this.validateBilingualFilename(filename);
+      filenameValidation = FilenameValidator.validateBilingual(filename);
     }
 
     let results;
@@ -1809,7 +1404,7 @@ class WebAudioAnalyzer {
       results = {
         filename: filename,
         fileSize: parseInt(metadata.size) || 0,
-        fileType: this.getFileTypeFromName(filename),
+        fileType: getFileTypeFromExtension(filename),
         sampleRate: 'Unknown',
         bitDepth: 'Unknown',
         channels: 'Unknown',
@@ -1846,7 +1441,7 @@ class WebAudioAnalyzer {
       this.currentResults.filenameValidation = filenameValidation;
 
       this.validateAndDisplayResults(results, filenameValidation);
-      this.showResults();
+      this.ui.showResults();
     } else {
       // Full audio analysis mode
       const file = await this.boxAuth.downloadFile(fileId, sharedLink);
@@ -1864,7 +1459,7 @@ class WebAudioAnalyzer {
 
       this.setupAudioPlayer(file);
       this.validateAndDisplayResults(results, filenameValidation);
-      this.showResults();
+      this.ui.showResults();
     }
   }
 
@@ -1879,7 +1474,7 @@ class WebAudioAnalyzer {
     this.batchMode = true;
     this.currentBatchSource = 'box';
     this.batchCancelled = false;
-    this.showBatchProgress();
+    this.ui.showBatchProgress();
 
     // Only use filename validation if the UI section is visible (meaning preset supports it)
     const isFilenameValidationAvailable = this.boxAnalysisTypeSection.style.display !== 'none';
@@ -1902,7 +1497,7 @@ class WebAudioAnalyzer {
         }
 
         const boxFile = audioFiles[i];
-        this.showBatchProgress(i + 1, audioFiles.length, boxFile.name);
+        this.ui.showBatchProgress(i + 1, audioFiles.length, boxFile.name);
 
         try {
           let analysisResults = null;
@@ -1910,7 +1505,7 @@ class WebAudioAnalyzer {
 
           if (isFilenameValidationAvailable && this.boxEnableFilenameValidation.checked) {
             // Validate bilingual filename pattern
-            filenameValidation = this.validateBilingualFilename(boxFile.name);
+            filenameValidation = FilenameValidator.validateBilingual(boxFile.name);
           }
 
           let metadata = null;
@@ -1920,7 +1515,7 @@ class WebAudioAnalyzer {
             analysisResults = {
               filename: boxFile.name,
               fileSize: parseInt(metadata.size) || 0,
-              fileType: this.getFileTypeFromName(boxFile.name),
+              fileType: getFileTypeFromExtension(boxFile.name),
               sampleRate: 'Unknown',
               bitDepth: 'Unknown',
               channels: 'Unknown',
@@ -2016,7 +1611,7 @@ class WebAudioAnalyzer {
 
     } catch (error) {
       console.error('Batch processing error:', error);
-      this.showError(`Failed to process batch: ${error.message}`);
+      this.ui.showError(`Failed to process batch: ${error.message}`);
       this.cleanupForNewFile();
     } finally {
       this.processingFile = false;
@@ -2129,66 +1724,33 @@ class WebAudioAnalyzer {
       if (validationResults.duration) validationResults.duration.status = 'unknown';
     }
 
-    const formatted = this.engine.formatResults(results);
     const filename = this.currentFile ? this.currentFile.name : (results.filename || '-');
 
     // Get overall status
     const overallStatus = this.getOverallStatus(validationResults, isMetadataOnly, filenameValidation);
 
-    // Get validation statuses for each field
-    const fileTypeStatus = this.getValidationStatus(validationResults, 'fileType', results.fileType);
-    const sampleRateStatus = this.getValidationStatus(validationResults, 'sampleRate', results.sampleRate);
-    const bitDepthStatus = this.getValidationStatus(validationResults, 'bitDepth', results.bitDepth);
-    const channelsStatus = this.getValidationStatus(validationResults, 'channels', results.channels);
-    const durationStatus = this.getValidationStatus(validationResults, 'duration', results.duration);
-
     // Update column headers visibility based on criteria
     this.updateSingleFileColumnVisibility(criteria, filenameValidation, isMetadataOnly);
 
-    // Create table row
+    // Create table row using unified display utilities
     const row = document.createElement('tr');
     row.className = `batch-row ${overallStatus}`;
 
-    // Filename validation cell
-    let filenameCheckCell = '';
-    if (filenameValidation) {
-      const icon = filenameValidation.status === 'pass' ? '✅' : '❌';
-      let tooltipText = '';
-      if (filenameValidation.status === 'pass') {
-        tooltipText = 'Filename is valid';
-      } else {
-        tooltipText = filenameValidation.issue;
-        if (filenameValidation.expectedFormat) {
-          tooltipText += `\n\nExpected: ${filenameValidation.expectedFormat}`;
-        }
-      }
-      filenameCheckCell = `<td class="filename-check-${filenameValidation.status}" title="${tooltipText}">${icon}</td>`;
-    } else {
-      filenameCheckCell = `<td style="display: none;"></td>`;
-    }
-
-    // Audio-specific cells (hide in metadata-only mode)
-    const sampleRateCell = isMetadataOnly ? '' : `<td class="validation-${sampleRateStatus}">${formatted.sampleRate || '-'}</td>`;
-    const bitDepthCell = isMetadataOnly ? '' : `<td class="validation-${bitDepthStatus}">${formatted.bitDepth || '-'}</td>`;
-    const channelsCell = isMetadataOnly ? '' : `<td class="validation-${channelsStatus}">${formatted.channels || '-'}</td>`;
-    const durationCell = isMetadataOnly ? '' : `<td class="validation-${durationStatus}">${formatted.duration || '-'}</td>`;
-
-    // Play button - always show
-    const playButton = `<button class="play-btn-small" id="singleFilePlayBtn">▶</button>`;
-
-    const escapedFilename = escapeHtml(filename);
-    row.innerHTML = `
-      <td class="filename" title="${escapedFilename}">${escapedFilename}</td>
-      <td><span class="status-badge ${overallStatus}">${overallStatus}</span></td>
-      ${filenameCheckCell}
-      <td class="validation-${fileTypeStatus}">${formatted.fileType || 'Unknown'}</td>
-      ${sampleRateCell}
-      ${bitDepthCell}
-      ${channelsCell}
-      ${durationCell}
-      <td>${formatted.fileSize || '-'}</td>
-      <td>${playButton}</td>
-    `;
+    // Render row HTML using unified display module
+    const playButtonHtml = `<button class="play-btn-small" id="singleFilePlayBtn">▶</button>`;
+    row.innerHTML = renderResultRow(
+      {
+        filename,
+        overallStatus,
+        filenameValidation,
+        validation: validationResults,
+        analysis: results,
+        isMetadataOnly,
+        playButtonHtml
+      },
+      (analysis) => this.engine.formatResults(analysis),
+      getValidationStatus
+    );
 
     // Clear and append row
     const singleTableBody = document.getElementById('singleTableBody');
@@ -2206,31 +1768,31 @@ class WebAudioAnalyzer {
     // Add tooltip listener for filename check cell
     const checkCell = row.querySelector('.filename-check-pass, .filename-check-fail');
     if (checkCell) {
-      this.setupFilenameCheckTooltip(checkCell);
+      setupFilenameCheckTooltip(checkCell);
     }
 
     // Add tooltip listener for filename cell
     const filenameCell = row.querySelector('.filename');
     if (filenameCell) {
-      this.setupFilenameCheckTooltip(filenameCell);
+      setupFilenameCheckTooltip(filenameCell);
     }
   }
 
   updateSingleFileColumnVisibility(criteria, filenameValidation, isMetadataOnly = false) {
-    // Show/hide filename check column based on whether filename validation is provided
-    const filenameCheckHeader = document.getElementById('singleFilenameCheckHeader');
-    if (filenameCheckHeader) {
-      filenameCheckHeader.style.display = filenameValidation ? '' : 'none';
-    }
-
-    // Hide audio-specific columns in metadata-only mode
-    const audioHeaders = ['singleSampleRateHeader', 'singleBitDepthHeader', 'singleChannelsHeader', 'singleDurationHeader'];
-    audioHeaders.forEach(headerId => {
-      const header = document.getElementById(headerId);
-      if (header) {
-        header.style.display = isMetadataOnly ? 'none' : '';
+    // Use unified column visibility function
+    updateColumnVisibility(
+      {
+        filenameCheck: 'singleFilenameCheckHeader',
+        sampleRate: 'singleSampleRateHeader',
+        bitDepth: 'singleBitDepthHeader',
+        channels: 'singleChannelsHeader',
+        duration: 'singleDurationHeader'
+      },
+      {
+        hasFilenameValidation: !!filenameValidation,
+        isMetadataOnly
       }
-    });
+    );
 
     // Always show format header and actions header
     const formatHeader = document.getElementById('singleFormatHeader');
@@ -2252,13 +1814,13 @@ class WebAudioAnalyzer {
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         this.audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
       } catch (error) {
-        this.showError(`Failed to decode audio: ${error.message}`);
+        this.ui.showError(`Failed to decode audio: ${error.message}`);
         return;
       }
     }
 
     if (!this.audioBuffer) {
-      this.showError('No audio data available for analysis');
+      this.ui.showError('No audio data available for analysis');
       return;
     }
 
@@ -2453,7 +2015,7 @@ class WebAudioAnalyzer {
     } catch (error) {
       if (error.message !== 'Analysis cancelled') {
         console.error('Advanced analysis error:', error);
-        this.showError(`Advanced analysis failed: ${error.message}`);
+        this.ui.showError(`Advanced analysis failed: ${error.message}`);
       }
     } finally {
       this.isAnalyzing = false;
@@ -2474,46 +2036,13 @@ class WebAudioAnalyzer {
     this.batchProcessor.cancel();
 
     // Hide progress and show cancelled message
-    this.batchProgress.style.display = 'none';
-    this.batchProgressText.textContent = 'Processing cancelled';
-  }
-
-  showLoading() {
-    this.hideAllSections();
-    this.loading.style.display = 'block';
-  }
-
-  showResults() {
-    this.hideAllSections();
-    this.resultsSection.style.display = 'block';
-
-    // Show validation legend (needs to be after resultsSection is visible)
-    const legend = document.getElementById('validationLegend');
-    if (legend) {
-      legend.style.display = 'block';
-    }
-  }
-
-  showError(message) {
-    this.hideAllSections();
-    this.errorMessage.textContent = message;
-    this.error.style.display = 'block';
-  }
-
-  showBatchProgress(current, total, currentFile) {
-    // Don't hide sections - just show progress
-    // (batch results table should remain visible during processing)
-    this.batchProgress.style.display = 'block';
-
-    const percentage = Math.round((current / total) * 100);
-    this.batchProgressBar.style.width = `${percentage}%`;
-    this.batchProgressText.textContent = `${current}/${total} (${percentage}%)`;
-    this.batchCurrentFile.textContent = currentFile || 'Processing...';
+    this.ui.hideBatchProgress();
+    this.ui.updateBatchProgressText('Processing cancelled');
   }
 
   initializeBatchResultsTable() {
     // Show batch results section and clear table
-    this.hideAllSections();
+    this.ui.hideAllSections();
     this.batchProgress.style.display = 'block';
     this.batchResultsSection.style.display = 'block';
     this.batchTableBody.innerHTML = '';
@@ -2644,70 +2173,33 @@ class WebAudioAnalyzer {
     const row = document.createElement('tr');
     row.className = `batch-row ${result.status}`;
 
-    // Format the analysis data using the same formatter as single file view
-    const formatted = result.analysis ? CriteriaValidator.formatDisplayText(result.analysis) : {};
-
-    const fileTypeStatus = this.getValidationStatus(result.validation, 'fileType', result.analysis?.fileType);
-    const sampleRateStatus = this.getValidationStatus(result.validation, 'sampleRate', result.analysis?.sampleRate);
-    const bitDepthStatus = this.getValidationStatus(result.validation, 'bitDepth', result.analysis?.bitDepth);
-    const channelsStatus = this.getValidationStatus(result.validation, 'channels', result.analysis?.channels);
-    const durationStatus = this.getValidationStatus(result.validation, 'duration', result.analysis?.duration);
-
     // Detect metadata-only mode
     const isMetadataOnly = enableFilenameValidation && !enableAudioAnalysis;
 
-    // Filename validation cell (only show if filename validation is enabled)
-    let filenameCheckCell = '';
-    if (enableFilenameValidation) {
-      if (result.filenameValidation) {
-        const icon = result.filenameValidation.status === 'pass' ? '✅' : '❌';
-        let tooltipText = '';
-        if (result.filenameValidation.status === 'pass') {
-          tooltipText = 'Filename is valid';
-        } else {
-          // Show issue and expected format for failures
-          tooltipText = result.filenameValidation.issue;
-          if (result.filenameValidation.expectedFormat) {
-            tooltipText += `\n\nExpected: ${result.filenameValidation.expectedFormat}`;
-          }
-        }
-        filenameCheckCell = `<td class="filename-check-${result.filenameValidation.status}" title="${tooltipText}">${icon}</td>`;
-      } else {
-        filenameCheckCell = `<td style="display: none;"></td>`;
-      }
-    } else {
-      filenameCheckCell = `<td style="display: none;"></td>`;
-    }
-
-    // Audio-specific cells (hide in metadata-only mode)
-    const sampleRateCell = isMetadataOnly ? '' : `<td class="validation-${sampleRateStatus}">${formatted.sampleRate || '-'}</td>`;
-    const bitDepthCell = isMetadataOnly ? '' : `<td class="validation-${bitDepthStatus}">${formatted.bitDepth || '-'}</td>`;
-    const channelsCell = isMetadataOnly ? '' : `<td class="validation-${channelsStatus}">${formatted.channels || '-'}</td>`;
-    const durationCell = isMetadataOnly ? '' : `<td class="validation-${durationStatus}">${formatted.duration || '-'}</td>`;
-
     // Show play button/link based on source
-    let playButton = '-';
+    let playButtonHtml = '-';
     if (result.file || result.driveFileId) {
       // Local file or Google Drive - show play button
-      playButton = `<button class="play-btn-small" data-index="${index}">▶</button>`;
+      playButtonHtml = `<button class="play-btn-small" data-index="${index}">▶</button>`;
     } else if (result.boxFileId) {
       // Box file - show link to open in Box (styled as button)
-      playButton = `<a href="https://app.box.com/file/${result.boxFileId}" target="_blank" title="Open in Box" class="play-btn-small box-link">▶</a>`;
+      playButtonHtml = `<a href="https://app.box.com/file/${result.boxFileId}" target="_blank" title="Open in Box" class="play-btn-small box-link">▶</a>`;
     }
 
-    const escapedFilename = escapeHtml(result.filename);
-    row.innerHTML = `
-      <td class="filename" title="${escapedFilename}">${escapedFilename}</td>
-      <td><span class="status-badge ${result.status}">${result.status}</span></td>
-      ${filenameCheckCell}
-      <td class="validation-${fileTypeStatus}">${formatted.fileType || 'Unknown'}</td>
-      ${sampleRateCell}
-      ${bitDepthCell}
-      ${channelsCell}
-      ${durationCell}
-      <td>${formatted.fileSize || '-'}</td>
-      <td>${playButton}</td>
-    `;
+    // Render row HTML using unified display module
+    row.innerHTML = renderResultRow(
+      {
+        filename: result.filename,
+        overallStatus: result.status,
+        filenameValidation: enableFilenameValidation ? result.filenameValidation : null,
+        validation: result.validation,
+        analysis: result.analysis,
+        isMetadataOnly,
+        playButtonHtml
+      },
+      CriteriaValidator.formatDisplayText,
+      getValidationStatus
+    );
 
     this.batchTableBody.appendChild(row);
 
@@ -2725,49 +2217,14 @@ class WebAudioAnalyzer {
     // Add tooltip listeners for filename check cells
     const checkCell = row.querySelector('.filename-check-pass, .filename-check-fail');
     if (checkCell) {
-      this.setupFilenameCheckTooltip(checkCell);
+      setupFilenameCheckTooltip(checkCell);
     }
 
     // Add tooltip listener for filename cell
     const filenameCell = row.querySelector('.filename');
     if (filenameCell) {
-      this.setupFilenameCheckTooltip(filenameCell);
+      setupFilenameCheckTooltip(filenameCell);
     }
-  }
-
-  setupFilenameCheckTooltip(cell) {
-    let tooltip = null;
-
-    cell.addEventListener('mouseenter', (e) => {
-      const text = cell.getAttribute('title');
-      if (!text) return;
-
-      // Remove title to prevent default browser tooltip
-      cell.removeAttribute('title');
-      cell.dataset.originalTitle = text;
-
-      // Create tooltip element
-      tooltip = document.createElement('div');
-      tooltip.className = 'filename-tooltip';
-      tooltip.textContent = text;
-      document.body.appendChild(tooltip);
-
-      // Position tooltip below the cell
-      const rect = cell.getBoundingClientRect();
-      tooltip.style.left = rect.left + rect.width / 2 + 'px';
-      tooltip.style.top = rect.bottom + 5 + 'px';
-    });
-
-    cell.addEventListener('mouseleave', () => {
-      if (tooltip) {
-        tooltip.remove();
-        tooltip = null;
-      }
-      // Restore title
-      if (cell.dataset.originalTitle) {
-        cell.setAttribute('title', cell.dataset.originalTitle);
-      }
-    });
   }
 
   updateBatchSummary() {
@@ -2797,7 +2254,7 @@ class WebAudioAnalyzer {
 
   showBatchResults(results) {
     // This is now only used for revalidation - rebuild entire table
-    this.hideAllSections();
+    this.ui.hideAllSections();
     this.batchResultsSection.style.display = 'block';
 
     // Update summary stats
@@ -2847,63 +2304,27 @@ class WebAudioAnalyzer {
 
     const isMetadataOnly = enableFilenameValidation && !enableAudioAnalysis;
 
-    // Rebuild table
+    // Rebuild table using unified display utilities
     this.batchTableBody.innerHTML = '';
     results.forEach((result, index) => {
       const row = document.createElement('tr');
       row.className = `batch-row ${result.status}`;
 
-      // Format the analysis data using the same formatter as single file view
-      const formatted = result.analysis ? CriteriaValidator.formatDisplayText(result.analysis) : {};
-
-      const fileTypeStatus = this.getValidationStatus(result.validation, 'fileType', result.analysis?.fileType);
-      const sampleRateStatus = this.getValidationStatus(result.validation, 'sampleRate', result.analysis?.sampleRate);
-      const bitDepthStatus = this.getValidationStatus(result.validation, 'bitDepth', result.analysis?.bitDepth);
-      const channelsStatus = this.getValidationStatus(result.validation, 'channels', result.analysis?.channels);
-      const durationStatus = this.getValidationStatus(result.validation, 'duration', result.analysis?.duration);
-
-      // Filename validation cell (only show if filename validation is enabled)
-      let filenameCheckCell = '';
-      if (enableFilenameValidation) {
-        if (result.filenameValidation) {
-          const icon = result.filenameValidation.status === 'pass' ? '✅' : '❌';
-          let tooltipText = '';
-          if (result.filenameValidation.status === 'pass') {
-            tooltipText = 'Filename is valid';
-          } else {
-            // Show issue and expected format for failures
-            tooltipText = result.filenameValidation.issue;
-            if (result.filenameValidation.expectedFormat) {
-              tooltipText += `\n\nExpected: ${result.filenameValidation.expectedFormat}`;
-            }
-          }
-          filenameCheckCell = `<td class="filename-check-${result.filenameValidation.status}" title="${tooltipText}">${icon}</td>`;
-        } else {
-          filenameCheckCell = `<td style="display: none;"></td>`;
-        }
-      } else {
-        filenameCheckCell = `<td style="display: none;"></td>`;
-      }
-
-      // Audio-specific cells (hide in metadata-only mode)
-      const sampleRateCell = isMetadataOnly ? '' : `<td class="validation-${sampleRateStatus}">${formatted.sampleRate || '-'}</td>`;
-      const bitDepthCell = isMetadataOnly ? '' : `<td class="validation-${bitDepthStatus}">${formatted.bitDepth || '-'}</td>`;
-      const channelsCell = isMetadataOnly ? '' : `<td class="validation-${channelsStatus}">${formatted.channels || '-'}</td>`;
-      const durationCell = isMetadataOnly ? '' : `<td class="validation-${durationStatus}">${formatted.duration || '-'}</td>`;
-
-      const escapedFilename = escapeHtml(result.filename);
-      row.innerHTML = `
-        <td class="filename" title="${escapedFilename}">${escapedFilename}</td>
-        <td><span class="status-badge ${result.status}">${result.status}</span></td>
-        ${filenameCheckCell}
-        <td class="validation-${fileTypeStatus}">${formatted.fileType || 'Unknown'}</td>
-        ${sampleRateCell}
-        ${bitDepthCell}
-        ${channelsCell}
-        ${durationCell}
-        <td>${formatted.fileSize || '-'}</td>
-        <td><button class="play-btn-small" data-index="${index}">▶</button></td>
-      `;
+      // Render row HTML using unified display module
+      const playButtonHtml = `<button class="play-btn-small" data-index="${index}">▶</button>`;
+      row.innerHTML = renderResultRow(
+        {
+          filename: result.filename,
+          overallStatus: result.status,
+          filenameValidation: enableFilenameValidation ? result.filenameValidation : null,
+          validation: result.validation,
+          analysis: result.analysis,
+          isMetadataOnly,
+          playButtonHtml
+        },
+        CriteriaValidator.formatDisplayText,
+        getValidationStatus
+      );
 
       this.batchTableBody.appendChild(row);
     });
@@ -2921,7 +2342,7 @@ class WebAudioAnalyzer {
 
     // Add tooltip listeners for filename cells
     this.batchTableBody.querySelectorAll('.filename').forEach(cell => {
-      this.setupFilenameCheckTooltip(cell);
+      setupFilenameCheckTooltip(cell);
     });
 
     // Show validation legend (batch)
@@ -2956,20 +2377,6 @@ class WebAudioAnalyzer {
     } else {
       return `${seconds}s`;
     }
-  }
-
-  getValidationStatus(validation, field, actualValue) {
-    // If there's a validation result, use it
-    if (validation && validation[field]) {
-      return validation[field].status; // 'pass', 'warning', or 'fail'
-    }
-
-    // No validation for this field - check if actual value is Unknown
-    if (actualValue === 'Unknown') {
-      return 'warning';
-    }
-
-    return 'pass';
   }
 
   playBatchFile(index) {
@@ -3075,19 +2482,6 @@ class WebAudioAnalyzer {
     return 'pass';
   }
 
-  getFileTypeFromName(filename) {
-    const extension = filename.split('.').pop().toLowerCase();
-    const typeMap = {
-      'wav': 'WAV',
-      'mp3': 'MP3',
-      'flac': 'FLAC',
-      'aac': 'AAC',
-      'm4a': 'M4A',
-      'ogg': 'OGG'
-    };
-    return typeMap[extension] || extension.toUpperCase();
-  }
-
   cleanupForNewFile() {
     // Clean up previous file data without touching current file input
     if (this.currentFile) {
@@ -3128,17 +2522,6 @@ class WebAudioAnalyzer {
     if (window.gc && typeof window.gc === 'function') {
       window.gc();
     }
-  }
-
-  hideAllSections() {
-    this.loading.style.display = 'none';
-    this.error.style.display = 'none';
-    this.resultsSection.style.display = 'none';
-    this.advancedResultsSection.style.display = 'none';
-    this.batchProgress.style.display = 'none';
-    this.batchResultsSection.style.display = 'none';
-    document.getElementById('validationLegend').style.display = 'none';
-    document.getElementById('batchValidationLegend').style.display = 'none';
   }
 }
 

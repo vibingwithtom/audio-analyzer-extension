@@ -247,4 +247,45 @@ describe('Result Formatting', () => {
       expect(() => CriteriaValidator.formatDisplayText(results)).not.toThrow();
     });
   });
+
+  describe('Function Reference Context (Batch Processing Bug Regression)', () => {
+    it('should work when called as detached function reference', () => {
+      // This tests the bug that occurred in batch processing where we pass
+      // CriteriaValidator.formatDisplayText as a function parameter.
+      // The static method must use CriteriaValidator.formatDuration()
+      // instead of this.formatDuration() to work correctly.
+
+      const formatFn = CriteriaValidator.formatDisplayText;
+      const results = {
+        fileType: 'WAV',
+        sampleRate: 48000,
+        bitDepth: 16,
+        channels: 2,
+        duration: 120,
+        fileSize: 2048000
+      };
+
+      // This should not throw "Cannot read properties of undefined (reading 'formatDuration')"
+      expect(() => formatFn(results)).not.toThrow();
+
+      const formatted = formatFn(results);
+      expect(formatted.duration).toBe('2m:00s');
+      expect(formatted.sampleRate).toBe('48.0 kHz');
+    });
+
+    it('should format duration correctly when method is passed to another function', () => {
+      // Simulates how renderResultRow() receives formatDisplayText as a parameter
+      function renderWithFormatter(results, formatterFn) {
+        return formatterFn(results);
+      }
+
+      const results = {
+        duration: 3661, // 1h:01m:01s
+        fileSize: 1024000
+      };
+
+      const formatted = renderWithFormatter(results, CriteriaValidator.formatDisplayText);
+      expect(formatted.duration).toBe('1h:01m:01s');
+    });
+  });
 });

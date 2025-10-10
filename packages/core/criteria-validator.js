@@ -212,7 +212,7 @@ export class CriteriaValidator {
       ? `${results.channels}${results.channels === 1 ? ' (Mono)' : results.channels === 2 ? ' (Stereo)' : ''}`
       : results.channels;
     formatted.duration = typeof results.duration === 'number'
-      ? this.formatDuration(results.duration)
+      ? CriteriaValidator.formatDuration(results.duration)
       : results.duration;
     formatted.fileSize = `${(results.fileSize / 1024 / 1024).toFixed(2)} MB`;
 
