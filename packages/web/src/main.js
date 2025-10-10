@@ -919,25 +919,18 @@ class WebAudioAnalyzer {
     this.showLoading();
 
     try {
-      console.log('Starting analysis with core engine...');
-      // Analyze file using the shared core engine
-      const results = await this.engine.analyzeFile(file);
-      console.log('Analysis results:', results);
-      this.currentResults = results;
-
-      console.log('Setting up audio player...');
-      // Setup audio player
-      this.setupAudioPlayer(file);
-
-      console.log('Validating and displaying results...');
-
       // Check if filename validation is needed for local files
       let filenameValidation = null;
       const presets = this.getPresetConfigurations();
       const config = presets[this.presetSelector.value];
       const validationType = config?.filenameValidationType;
 
-      if (validationType && this.localEnableFilenameValidation.checked) {
+      // Check if we should use metadata-only mode
+      const isFilenameValidationAvailable = this.localAnalysisTypeSection && this.localAnalysisTypeSection.style.display !== 'none';
+      const useFilenameValidation = isFilenameValidationAvailable && this.localEnableFilenameValidation.checked;
+      const useMetadataOnly = useFilenameValidation && !this.localEnableAudioAnalysis.checked;
+
+      if (validationType && useFilenameValidation) {
         if (validationType === 'script-match') {
           // Three Hour validation - would need speaker ID, but not typically used for local files
           console.log('Three Hour filename validation not supported for local files');
@@ -947,10 +940,51 @@ class WebAudioAnalyzer {
         }
       }
 
-      // Display results
-      this.validateAndDisplayResults(results, filenameValidation);
-      this.showResults();
-      console.log('Results displayed successfully');
+      let results;
+      if (useMetadataOnly) {
+        // Metadata-only mode: skip audio analysis
+        console.log('Using metadata-only mode for local file...');
+        results = {
+          filename: file.name,
+          fileSize: file.size,
+          fileType: this.getFileTypeFromName(file.name),
+          sampleRate: 'Unknown',
+          bitDepth: 'Unknown',
+          channels: 'Unknown',
+          duration: 'Unknown',
+          isMetadataOnly: true
+        };
+
+        this.currentResults = results;
+
+        // Validate and display
+        const criteria = this.getCriteria();
+        const validationResults = this.engine.validateCriteria(results, criteria);
+        this.currentResults.validation = validationResults;
+        this.currentResults.filenameValidation = filenameValidation;
+
+        this.validateAndDisplayResults(results, filenameValidation);
+        this.showResults();
+        console.log('Metadata-only results displayed successfully');
+      } else {
+        // Full audio analysis mode
+        console.log('Starting analysis with core engine...');
+        // Analyze file using the shared core engine
+        results = await this.engine.analyzeFile(file);
+        console.log('Analysis results:', results);
+        this.currentResults = results;
+
+        console.log('Setting up audio player...');
+        // Setup audio player
+        this.setupAudioPlayer(file);
+
+        console.log('Validating and displaying results...');
+
+        // Display results
+        this.validateAndDisplayResults(results, filenameValidation);
+        this.showResults();
+        console.log('Results displayed successfully');
+      }
 
     } catch (error) {
       console.error('Analysis error:', error);
@@ -1096,38 +1130,85 @@ class WebAudioAnalyzer {
   }
 
   async handleGoogleDriveFile(fileId) {
-    // Download file using Google Drive API
-    const file = await this.googleAuth.downloadFile(fileId);
-    this.currentFile = file;
-
-    // Analyze the downloaded file
-    const results = await this.engine.analyzeFile(file);
-    this.currentResults = results;
-
-    // Setup audio player and display results
-    this.setupAudioPlayer(file);
-
     // Check if filename validation is needed for Google Drive single files
     let filenameValidation = null;
     const presets = this.getPresetConfigurations();
     const config = presets[this.presetSelector.value];
     const validationType = config?.filenameValidationType;
 
-    if (validationType && this.enableFilenameValidation.checked) {
+    // Check if we should use metadata-only mode
+    const isFilenameValidationAvailable = this.analysisTypeSection && this.analysisTypeSection.style.display !== 'none';
+    const useFilenameValidation = isFilenameValidationAvailable && this.enableFilenameValidation.checked;
+    const useMetadataOnly = useFilenameValidation && !this.enableAudioAnalysis.checked;
+
+    // Get file metadata first
+    const metadata = await this.googleAuth.getFileMetadata({ id: fileId });
+    const filename = metadata.name;
+
+    if (validationType && useFilenameValidation) {
       if (validationType === 'script-match') {
-        // Three Hour validation
+        // Three Hour validation - need to fetch script files
         const speakerId = this.speakerId.value.trim();
-        if (this.scriptBaseNames && this.scriptBaseNames.length > 0) {
-          filenameValidation = this.validateFilename(file.name, this.scriptBaseNames, speakerId);
+        const scriptsFolderUrl = this.scriptsFolderUrl.value.trim();
+
+        if (scriptsFolderUrl) {
+          const scriptsFolderId = this.extractFolderId(scriptsFolderUrl);
+          if (scriptsFolderId) {
+            const scriptBaseNames = await this.fetchScriptFiles(scriptsFolderId);
+            if (scriptBaseNames && scriptBaseNames.length > 0) {
+              filenameValidation = this.validateFilename(filename, scriptBaseNames, speakerId);
+            }
+          }
         }
       } else if (validationType === 'bilingual-pattern') {
         // Bilingual validation
-        filenameValidation = this.validateBilingualFilename(file.name);
+        filenameValidation = this.validateBilingualFilename(filename);
       }
     }
 
-    this.validateAndDisplayResults(results, filenameValidation);
-    this.showResults();
+    let results;
+    if (useMetadataOnly) {
+      // Metadata-only mode: skip audio analysis
+      console.log('Using metadata-only mode for Google Drive file...');
+      results = {
+        filename: filename,
+        fileSize: parseInt(metadata.size) || 0,
+        fileType: this.getFileTypeFromName(filename),
+        sampleRate: 'Unknown',
+        bitDepth: 'Unknown',
+        channels: 'Unknown',
+        duration: 'Unknown',
+        isMetadataOnly: true
+      };
+
+      // Don't need to download file or setup audio player in metadata-only mode
+      this.currentFile = null;
+      this.currentResults = results;
+
+      // Validate and display
+      const criteria = this.getCriteria();
+      const validationResults = this.engine.validateCriteria(results, criteria);
+      this.currentResults.validation = validationResults;
+      this.currentResults.filenameValidation = filenameValidation;
+
+      this.validateAndDisplayResults(results, filenameValidation);
+      this.showResults();
+    } else {
+      // Full audio analysis mode
+      // Download file using Google Drive API
+      const file = await this.googleAuth.downloadFile(fileId);
+      this.currentFile = file;
+
+      // Analyze the downloaded file
+      results = await this.engine.analyzeFile(file);
+      this.currentResults = results;
+
+      // Setup audio player and display results
+      this.setupAudioPlayer(file);
+
+      this.validateAndDisplayResults(results, filenameValidation);
+      this.showResults();
+    }
   }
 
   async fetchScriptFiles(scriptsFolderId) {
@@ -1732,7 +1813,8 @@ class WebAudioAnalyzer {
         sampleRate: 'Unknown',
         bitDepth: 'Unknown',
         channels: 'Unknown',
-        duration: 'Unknown'
+        duration: 'Unknown',
+        isMetadataOnly: true
       };
 
       // Don't need to download file or setup audio player in metadata-only mode
@@ -2013,6 +2095,9 @@ class WebAudioAnalyzer {
     const criteria = this.getCriteria();
     let validationResults = this.engine.validateCriteria(results, criteria);
 
+    // Detect metadata-only mode
+    const isMetadataOnly = results.isMetadataOnly === true;
+
     // Check duration for SPONTANEOUS files (must be ≤10 minutes) for bilingual preset
     const presets = this.getPresetConfigurations();
     const selectedPreset = this.presetSelector.value;
@@ -2036,11 +2121,19 @@ class WebAudioAnalyzer {
       }
     }
 
+    // In metadata-only mode, override status for audio-specific fields to 'unknown'
+    if (isMetadataOnly && validationResults) {
+      if (validationResults.sampleRate) validationResults.sampleRate.status = 'unknown';
+      if (validationResults.bitDepth) validationResults.bitDepth.status = 'unknown';
+      if (validationResults.channels) validationResults.channels.status = 'unknown';
+      if (validationResults.duration) validationResults.duration.status = 'unknown';
+    }
+
     const formatted = this.engine.formatResults(results);
     const filename = this.currentFile ? this.currentFile.name : (results.filename || '-');
 
     // Get overall status
-    const overallStatus = this.getOverallStatus(validationResults, false, filenameValidation);
+    const overallStatus = this.getOverallStatus(validationResults, isMetadataOnly, filenameValidation);
 
     // Get validation statuses for each field
     const fileTypeStatus = this.getValidationStatus(validationResults, 'fileType', results.fileType);
@@ -2050,7 +2143,7 @@ class WebAudioAnalyzer {
     const durationStatus = this.getValidationStatus(validationResults, 'duration', results.duration);
 
     // Update column headers visibility based on criteria
-    this.updateSingleFileColumnVisibility(criteria, filenameValidation);
+    this.updateSingleFileColumnVisibility(criteria, filenameValidation, isMetadataOnly);
 
     // Create table row
     const row = document.createElement('tr');
@@ -2074,7 +2167,13 @@ class WebAudioAnalyzer {
       filenameCheckCell = `<td style="display: none;"></td>`;
     }
 
-    // Play button - always show for single file
+    // Audio-specific cells (hide in metadata-only mode)
+    const sampleRateCell = isMetadataOnly ? '' : `<td class="validation-${sampleRateStatus}">${formatted.sampleRate || '-'}</td>`;
+    const bitDepthCell = isMetadataOnly ? '' : `<td class="validation-${bitDepthStatus}">${formatted.bitDepth || '-'}</td>`;
+    const channelsCell = isMetadataOnly ? '' : `<td class="validation-${channelsStatus}">${formatted.channels || '-'}</td>`;
+    const durationCell = isMetadataOnly ? '' : `<td class="validation-${durationStatus}">${formatted.duration || '-'}</td>`;
+
+    // Play button - always show
     const playButton = `<button class="play-btn-small" id="singleFilePlayBtn">▶</button>`;
 
     const escapedFilename = escapeHtml(filename);
@@ -2083,10 +2182,10 @@ class WebAudioAnalyzer {
       <td><span class="status-badge ${overallStatus}">${overallStatus}</span></td>
       ${filenameCheckCell}
       <td class="validation-${fileTypeStatus}">${formatted.fileType || 'Unknown'}</td>
-      <td class="validation-${sampleRateStatus}">${formatted.sampleRate || '-'}</td>
-      <td class="validation-${bitDepthStatus}">${formatted.bitDepth || '-'}</td>
-      <td class="validation-${channelsStatus}">${formatted.channels || '-'}</td>
-      <td class="validation-${durationStatus}">${formatted.duration || '-'}</td>
+      ${sampleRateCell}
+      ${bitDepthCell}
+      ${channelsCell}
+      ${durationCell}
       <td>${formatted.fileSize || '-'}</td>
       <td>${playButton}</td>
     `;
@@ -2117,21 +2216,32 @@ class WebAudioAnalyzer {
     }
   }
 
-  updateSingleFileColumnVisibility(criteria, filenameValidation) {
+  updateSingleFileColumnVisibility(criteria, filenameValidation, isMetadataOnly = false) {
     // Show/hide filename check column based on whether filename validation is provided
     const filenameCheckHeader = document.getElementById('singleFilenameCheckHeader');
     if (filenameCheckHeader) {
       filenameCheckHeader.style.display = filenameValidation ? '' : 'none';
     }
 
-    // Always show all other columns for single file view
-    const headers = ['singleFormatHeader', 'singleSampleRateHeader', 'singleBitDepthHeader', 'singleChannelsHeader', 'singleDurationHeader'];
-    headers.forEach(headerId => {
+    // Hide audio-specific columns in metadata-only mode
+    const audioHeaders = ['singleSampleRateHeader', 'singleBitDepthHeader', 'singleChannelsHeader', 'singleDurationHeader'];
+    audioHeaders.forEach(headerId => {
       const header = document.getElementById(headerId);
       if (header) {
-        header.style.display = '';
+        header.style.display = isMetadataOnly ? 'none' : '';
       }
     });
+
+    // Always show format header and actions header
+    const formatHeader = document.getElementById('singleFormatHeader');
+    if (formatHeader) {
+      formatHeader.style.display = '';
+    }
+
+    const actionsHeader = document.getElementById('singleActionsHeader');
+    if (actionsHeader) {
+      actionsHeader.style.display = '';
+    }
   }
 
   async runAdvancedAnalysis() {
@@ -2949,7 +3059,7 @@ class WebAudioAnalyzer {
 
     if (useMetadataOnly) {
       // In metadata-only mode, we don't care about these fields
-      const fieldsToIgnore = ['sampleRate', 'bitDepth', 'channels'];
+      const fieldsToIgnore = ['sampleRate', 'bitDepth', 'channels', 'duration'];
       statuses = Object.entries(validation)
         .filter(([key]) => !fieldsToIgnore.includes(key))
         .map(([, v]) => v.status);
