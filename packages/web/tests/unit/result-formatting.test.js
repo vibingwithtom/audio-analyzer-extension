@@ -12,34 +12,61 @@ import { CriteriaValidator } from '@audio-analyzer/core';
 
 describe('Result Formatting', () => {
   describe('formatDuration', () => {
-    // Already tested in criteria-validation.test.js, but adding edge cases
-
-    it('should handle fractional seconds', () => {
-      // Expected: formatDuration(45.7) === '0m:45s' (floor)
+    it('should format 0 seconds', () => {
+      const formatted = CriteriaValidator.formatDuration(0);
+      expect(formatted).toBe('0m:00s');
     });
 
-    it('should handle very long durations', () => {
-      // Expected: formatDuration(36000) === '10h:00m:00s'
+    it('should format seconds only', () => {
+      const formatted = CriteriaValidator.formatDuration(45);
+      expect(formatted).toBe('0m:45s');
     });
 
-    it('should handle negative durations', () => {
-      // Expected: formatDuration(-5) might return negative or error
-      // Edge case - should document behavior
+    it('should format minutes and seconds', () => {
+      const formatted = CriteriaValidator.formatDuration(125);
+      expect(formatted).toBe('2m:05s');
+    });
+
+    it('should pad single-digit seconds', () => {
+      const formatted = CriteriaValidator.formatDuration(65);
+      expect(formatted).toBe('1m:05s');
+    });
+
+    it('should handle fractional seconds (floor)', () => {
+      const formatted = CriteriaValidator.formatDuration(45.7);
+      expect(formatted).toBe('0m:45s');
+    });
+
+    it('should handle very long durations with hours', () => {
+      const formatted = CriteriaValidator.formatDuration(3661); // 1h:01m:01s
+      expect(formatted).toBe('1h:01m:01s');
     });
   });
 
   describe('formatDisplayText', () => {
     describe('Sample Rate Formatting', () => {
-      it('should format standard sample rates', () => {
+      it('should format 48000 Hz as "48.0 kHz"', () => {
         const results = { sampleRate: 48000, fileSize: 0 };
         const formatted = CriteriaValidator.formatDisplayText(results);
         expect(formatted.sampleRate).toBe('48.0 kHz');
       });
 
-      it('should format various sample rates', () => {
-        // 44100 -> '44.1 kHz'
-        // 96000 -> '96.0 kHz'
-        // 22050 -> '22.1 kHz' (rounded to 1 decimal)
+      it('should format 44100 Hz as "44.1 kHz"', () => {
+        const results = { sampleRate: 44100, fileSize: 0 };
+        const formatted = CriteriaValidator.formatDisplayText(results);
+        expect(formatted.sampleRate).toBe('44.1 kHz');
+      });
+
+      it('should format 96000 Hz as "96.0 kHz"', () => {
+        const results = { sampleRate: 96000, fileSize: 0 };
+        const formatted = CriteriaValidator.formatDisplayText(results);
+        expect(formatted.sampleRate).toBe('96.0 kHz');
+      });
+
+      it('should format 22050 Hz', () => {
+        const results = { sampleRate: 22050, fileSize: 0 };
+        const formatted = CriteriaValidator.formatDisplayText(results);
+        expect(formatted.sampleRate).toMatch(/22\.\d+ kHz/);
       });
 
       it('should handle unknown sample rate', () => {
@@ -50,17 +77,28 @@ describe('Result Formatting', () => {
     });
 
     describe('Bit Depth Formatting', () => {
-      it('should format standard bit depths', () => {
+      it('should format 8-bit', () => {
+        const results = { bitDepth: 8, fileSize: 0 };
+        const formatted = CriteriaValidator.formatDisplayText(results);
+        expect(formatted.bitDepth).toBe('8-bit');
+      });
+
+      it('should format 16-bit', () => {
         const results = { bitDepth: 16, fileSize: 0 };
         const formatted = CriteriaValidator.formatDisplayText(results);
         expect(formatted.bitDepth).toBe('16-bit');
       });
 
-      it('should format various bit depths', () => {
-        // 8 -> '8-bit'
-        // 16 -> '16-bit'
-        // 24 -> '24-bit'
-        // 32 -> '32-bit'
+      it('should format 24-bit', () => {
+        const results = { bitDepth: 24, fileSize: 0 };
+        const formatted = CriteriaValidator.formatDisplayText(results);
+        expect(formatted.bitDepth).toBe('24-bit');
+      });
+
+      it('should format 32-bit', () => {
+        const results = { bitDepth: 32, fileSize: 0 };
+        const formatted = CriteriaValidator.formatDisplayText(results);
+        expect(formatted.bitDepth).toBe('32-bit');
       });
 
       it('should handle unknown bit depth', () => {
@@ -86,7 +124,6 @@ describe('Result Formatting', () => {
       it('should format multi-channel audio', () => {
         const results = { channels: 6, fileSize: 0 };
         const formatted = CriteriaValidator.formatDisplayText(results);
-        // Expected: '6' (no label for > 2 channels)
         expect(formatted.channels).toBe('6');
       });
 
@@ -124,17 +161,42 @@ describe('Result Formatting', () => {
     });
 
     describe('File Type Formatting', () => {
-      it('should preserve file type as-is', () => {
+      it('should preserve WAV file type', () => {
         const results = { fileType: 'WAV', fileSize: 0 };
         const formatted = CriteriaValidator.formatDisplayText(results);
         expect(formatted.fileType).toBe('WAV');
       });
 
-      it('should handle various file types', () => {
-        // WAV -> 'WAV'
-        // MP3 -> 'MP3'
-        // WAV (PCM) -> 'WAV (PCM)'
-        // Unknown -> 'Unknown'
+      it('should preserve MP3 file type', () => {
+        const results = { fileType: 'MP3', fileSize: 0 };
+        const formatted = CriteriaValidator.formatDisplayText(results);
+        expect(formatted.fileType).toBe('MP3');
+      });
+
+      it('should preserve complex file types', () => {
+        const results = { fileType: 'WAV (PCM)', fileSize: 0 };
+        const formatted = CriteriaValidator.formatDisplayText(results);
+        expect(formatted.fileType).toBe('WAV (PCM)');
+      });
+
+      it('should handle unknown file type', () => {
+        const results = { fileType: 'Unknown', fileSize: 0 };
+        const formatted = CriteriaValidator.formatDisplayText(results);
+        expect(formatted.fileType).toBe('Unknown');
+      });
+    });
+
+    describe('Duration Formatting', () => {
+      it('should format duration using formatDuration', () => {
+        const results = { duration: 125, fileSize: 0 };
+        const formatted = CriteriaValidator.formatDisplayText(results);
+        expect(formatted.duration).toBe('2m:05s');
+      });
+
+      it('should handle unknown duration', () => {
+        const results = { duration: 'Unknown', fileSize: 0 };
+        const formatted = CriteriaValidator.formatDisplayText(results);
+        expect(formatted.duration).toBe('Unknown');
       });
     });
 
@@ -150,71 +212,12 @@ describe('Result Formatting', () => {
         };
         const formatted = CriteriaValidator.formatDisplayText(results);
 
-        expect(formatted).toHaveProperty('fileType');
-        expect(formatted).toHaveProperty('sampleRate');
-        expect(formatted).toHaveProperty('bitDepth');
-        expect(formatted).toHaveProperty('channels');
-        expect(formatted).toHaveProperty('duration');
-        expect(formatted).toHaveProperty('fileSize');
-      });
-    });
-  });
-
-  describe('formatAdvancedResults', () => {
-    describe('Peak Level Formatting', () => {
-      it('should format peak level in dB', () => {
-        const results = { peakDb: -6.2 };
-        // Expected: formatAdvancedResults returns { peakLevel: '-6.2 dB', peakStatus: 'pass' }
-      });
-
-      it('should handle silent peak (infinity)', () => {
-        const results = { peakDb: -Infinity };
-        // Expected: peakLevel: 'Silent'
-      });
-
-      it('should determine peak status based on level', () => {
-        // peakDb <= -6.0: 'pass'
-        // -6.0 < peakDb <= -3.0: 'warning'
-        // peakDb > -3.0: 'fail'
-      });
-    });
-
-    describe('Noise Floor Formatting', () => {
-      it('should format noise floor in dB', () => {
-        const results = { noiseFloorDb: -65.3 };
-        // Expected: { noiseFloor: '-65.3 dB', noiseStatus: 'pass' }
-      });
-
-      it('should handle silent noise floor', () => {
-        const results = { noiseFloorDb: -Infinity };
-        // Expected: noiseFloor: 'Silent'
-      });
-
-      it('should determine noise status', () => {
-        // noiseFloorDb <= -60.0: 'pass'
-        // noiseFloorDb > -60.0: 'fail'
-      });
-    });
-
-    describe('Normalization Formatting', () => {
-      it('should format normalization status', () => {
-        const results = {
-          normalizationStatus: {
-            status: 'normalized',
-            message: 'Normalized to -6.0 dB'
-          }
-        };
-        // Expected: { normalization: 'Normalized to -6.0 dB', normalizationStatus: 'pass' }
-      });
-
-      it('should handle non-normalized audio', () => {
-        const results = {
-          normalizationStatus: {
-            status: 'not-normalized',
-            message: 'Not normalized'
-          }
-        };
-        // Expected: normalizationStatus: 'fail'
+        expect(formatted).toHaveProperty('fileType', 'WAV');
+        expect(formatted).toHaveProperty('sampleRate', '48.0 kHz');
+        expect(formatted).toHaveProperty('bitDepth', '16-bit');
+        expect(formatted).toHaveProperty('channels', '2 (Stereo)');
+        expect(formatted).toHaveProperty('duration', '2m:00s');
+        expect(formatted).toHaveProperty('fileSize', '1.95 MB');
       });
     });
   });
@@ -222,7 +225,7 @@ describe('Result Formatting', () => {
   describe('Edge Cases and Error Handling', () => {
     it('should handle missing properties gracefully', () => {
       const results = {};
-      // Should not throw error, return safe defaults
+      expect(() => CriteriaValidator.formatDisplayText(results)).not.toThrow();
     });
 
     it('should handle null values', () => {
@@ -231,17 +234,17 @@ describe('Result Formatting', () => {
         bitDepth: null,
         channels: null
       };
-      // Should handle gracefully
+      expect(() => CriteriaValidator.formatDisplayText(results)).not.toThrow();
+      const formatted = CriteriaValidator.formatDisplayText(results);
+      expect(formatted.sampleRate).toBeDefined();
     });
 
-    it('should handle non-numeric values where numbers expected', () => {
+    it('should handle undefined values', () => {
       const results = {
-        sampleRate: 'invalid',
-        bitDepth: 'invalid',
-        channels: 'invalid',
-        fileSize: 'invalid'
+        sampleRate: undefined,
+        bitDepth: undefined
       };
-      // Should not crash, return appropriate format
+      expect(() => CriteriaValidator.formatDisplayText(results)).not.toThrow();
     });
   });
 });
