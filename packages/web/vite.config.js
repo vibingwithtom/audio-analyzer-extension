@@ -7,7 +7,8 @@ export default defineConfig(({ mode }) => ({
   base: mode === 'beta' ? '/beta/' : '/',
   build: {
     outDir: 'dist',
-    emptyOutDir: true
+    emptyOutDir: true,
+    target: 'es2020'
   },
   server: {
     port: 3000,
