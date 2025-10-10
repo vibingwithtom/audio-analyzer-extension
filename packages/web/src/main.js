@@ -324,12 +324,11 @@ class WebAudioAnalyzer {
     this.loadBoxFilenameValidationSettings();
     this.loadLocalFilenameValidationSettings();
 
-    // Initialize and update auth status
-    this.googleAuth.init().catch(err => console.error('Google Auth init error:', err));
-    this.updateAuthStatus();
-
-    // Initialize Box auth and handle post-OAuth callback
-    this.boxAuth.init().then(() => {
+    // Phase 5.2a - Auth is now initialized by AuthService singleton
+    // Just update the UI to reflect current state
+    // Note: Auth instances are shared from AuthService, already initialized
+    setTimeout(() => {
+      this.updateAuthStatus();
       this.updateBoxAuthStatus();
 
       // Check if we just authenticated with Box and switch to Box tab
@@ -340,7 +339,7 @@ class WebAudioAnalyzer {
           this.updateValidationSectionsVisibility();
         });
       }
-    }).catch(err => console.error('Box Auth init error:', err));
+    }, 100); // Small delay to allow auth initialization to complete
   }
 
   updateAuthStatus() {
