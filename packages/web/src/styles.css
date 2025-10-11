@@ -42,7 +42,7 @@
 }
 
 /* Dark theme */
-:root.dark-mode {
+[data-theme="dark"] {
   --bg-primary: #0f172a;
   --bg-secondary: #1e293b;
   --bg-tertiary: #334155;
@@ -160,11 +160,11 @@ body {
   display: none;
 }
 
-:root.dark-mode .dark-mode-toggle .light-icon {
+[data-theme="dark"] .dark-mode-toggle .light-icon {
   display: none;
 }
 
-:root.dark-mode .dark-mode-toggle .dark-icon {
+[data-theme="dark"] .dark-mode-toggle .dark-icon {
   display: block;
 }
 

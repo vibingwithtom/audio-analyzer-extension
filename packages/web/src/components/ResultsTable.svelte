@@ -1,6 +1,7 @@
 <script lang="ts">
   import StatusBadge from './StatusBadge.svelte';
   import { renderResultRow, updateColumnVisibility } from '../display-utils';
+  import { formatSampleRate, formatDuration, formatBitDepth, formatChannels, formatBytes } from '../utils/format-utils';
   import type { AudioResults, ValidationResults } from '../types';
 
   export let results: AudioResults[] = [];
@@ -27,15 +28,6 @@
     warnings: results.filter(r => r.status === 'warning').length,
     errors: results.filter(r => r.status === 'error').length
   } : null;
-
-  function formatBytes(bytes, decimals = 2) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-  }
 </script>
 
 <style>
@@ -44,26 +36,65 @@
   }
 
   .batch-summary {
-    margin-bottom: 1rem;
-    padding: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1.25rem;
     background: var(--bg-secondary, #f5f5f5);
     border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .batch-summary h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.125rem;
+    color: var(--text-primary, #333333);
+  }
+
+  .batch-summary p {
+    margin: 0;
+    color: var(--text-secondary, #666666);
   }
 
   .results-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--bg-primary, #ffffff);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
 
   .results-table th,
   .results-table td {
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--bg-tertiary, #e0e0e0);
+    padding: 0.875rem 1rem;
     text-align: left;
+    border-bottom: 1px solid var(--bg-tertiary, #e0e0e0);
   }
 
   .results-table th {
     font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary, #666666);
+    background: var(--bg-secondary, #f5f5f5);
+    border-bottom: 2px solid var(--bg-tertiary, #e0e0e0);
+  }
+
+  .results-table tbody tr {
+    transition: background-color 0.15s ease;
+  }
+
+  .results-table tbody tr:hover {
+    background: var(--bg-secondary, #f5f5f5);
+  }
+
+  .results-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .results-table td {
+    font-size: 0.9375rem;
   }
 
   /* Row-level tinting based on overall status */
@@ -116,6 +147,7 @@
       <tr>
         <th>Filename</th>
         <th>Status</th>
+        <th>File Type</th>
         {#if !metadataOnly}
           <th>Sample Rate</th>
           <th>Bit Depth</th>
@@ -131,8 +163,25 @@
     <tbody>
       {#each results as result}
         <tr class:status-pass={result.status === 'pass'} class:status-warning={result.status === 'warning'} class:status-fail={result.status === 'fail'}>
-          <td>{result.filename}</td>
+          <td
+            class:validation-pass={getValidationStatus(result, 'filename') === 'pass'}
+            class:validation-warning={getValidationStatus(result, 'filename') === 'warning'}
+            class:validation-fail={getValidationStatus(result, 'filename') === 'fail'}
+            class:validation-issue={getValidationIssue(result, 'filename')}
+            title={getValidationIssue(result, 'filename')}
+          >
+            {result.filename}
+          </td>
           <td><StatusBadge status={result.status} /></td>
+          <td
+            class:validation-pass={getValidationStatus(result, 'fileType') === 'pass'}
+            class:validation-warning={getValidationStatus(result, 'fileType') === 'warning'}
+            class:validation-fail={getValidationStatus(result, 'fileType') === 'fail'}
+            class:validation-issue={getValidationIssue(result, 'fileType')}
+            title={getValidationIssue(result, 'fileType')}
+          >
+            {result.fileType?.toUpperCase() || 'Unknown'}
+          </td>
           {#if !metadataOnly}
             <td
               class:validation-pass={getValidationStatus(result, 'sampleRate') === 'pass'}
@@ -141,7 +190,7 @@
               class:validation-issue={getValidationIssue(result, 'sampleRate')}
               title={getValidationIssue(result, 'sampleRate')}
             >
-              {result.sampleRate} Hz
+              {formatSampleRate(result.sampleRate)}
             </td>
             <td
               class:validation-pass={getValidationStatus(result, 'bitDepth') === 'pass'}
@@ -150,7 +199,7 @@
               class:validation-issue={getValidationIssue(result, 'bitDepth')}
               title={getValidationIssue(result, 'bitDepth')}
             >
-              {result.bitDepth} bit
+              {formatBitDepth(result.bitDepth)}
             </td>
             <td
               class:validation-pass={getValidationStatus(result, 'channels') === 'pass'}
@@ -159,7 +208,7 @@
               class:validation-issue={getValidationIssue(result, 'channels')}
               title={getValidationIssue(result, 'channels')}
             >
-              {result.channels}
+              {formatChannels(result.channels)}
             </td>
             <td
               class:validation-pass={getValidationStatus(result, 'duration') === 'pass'}
@@ -168,16 +217,10 @@
               class:validation-issue={getValidationIssue(result, 'duration')}
               title={getValidationIssue(result, 'duration')}
             >
-              {result.duration}s
+              {formatDuration(result.duration)}
             </td>
           {/if}
-          <td
-            class:validation-pass={getValidationStatus(result, 'fileType') === 'pass'}
-            class:validation-warning={getValidationStatus(result, 'fileType') === 'warning'}
-            class:validation-fail={getValidationStatus(result, 'fileType') === 'fail'}
-            class:validation-issue={getValidationIssue(result, 'fileType')}
-            title={getValidationIssue(result, 'fileType')}
-          >
+          <td>
             {formatBytes(result.fileSize)}
           </td>
           {#if isSingleFile}

@@ -92,6 +92,50 @@
     border-radius: 4px;
     color: var(--text-secondary, #666666);
   }
+
+  .filename-validation-info {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(37, 99, 235, 0.1) 100%);
+    border: 1px solid rgba(37, 99, 235, 0.2);
+    border-radius: 6px;
+  }
+
+  .filename-validation-info h5 {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--primary, #2563eb);
+  }
+
+  .filename-validation-info p {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+    color: var(--text-primary, #333333);
+  }
+
+  .filename-validation-info code {
+    display: block;
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    background: var(--bg-primary, #ffffff);
+    border: 1px solid var(--bg-tertiary, #e0e0e0);
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    color: var(--text-primary, #333333);
+    overflow-x: auto;
+  }
+
+  .filename-validation-info ul {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+  }
+
+  .filename-validation-info li {
+    margin: 0.25rem 0;
+    font-size: 0.9rem;
+  }
 </style>
 
 <div class="settings-tab">
@@ -137,9 +181,53 @@
           {/if}
           {#if $selectedPreset.supportsFilenameValidation}
             <dt>Filename Validation:</dt>
-            <dd>Supported ({$selectedPreset.filenameValidationType})</dd>
+            <dd>✓ Enabled</dd>
           {/if}
         </dl>
+
+        {#if $selectedPreset.supportsFilenameValidation}
+          <div class="filename-validation-info">
+            <h5>📋 Filename Format Requirements</h5>
+
+            {#if $selectedPreset.filenameValidationType === 'bilingual-pattern'}
+              <p><strong>Bilingual Conversational Format:</strong></p>
+              <p>Two accepted patterns:</p>
+
+              <p><strong>1. Scripted recordings:</strong></p>
+              <code>[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav</code>
+              <p style="margin-top: 0.5rem; font-size: 0.85rem;">Example: <code style="display: inline; padding: 0.15rem 0.3rem; margin: 0;">conversation123-en-user-001-agent-002.wav</code></p>
+
+              <p style="margin-top: 1rem;"><strong>2. Unscripted/Spontaneous recordings:</strong></p>
+              <code>SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav</code>
+              <p style="margin-top: 0.5rem; font-size: 0.85rem;">Example: <code style="display: inline; padding: 0.15rem 0.3rem; margin: 0;">SPONTANEOUS_5-en-user-001-agent-002.wav</code></p>
+
+              <p style="margin-top: 1rem;"><strong>Rules:</strong></p>
+              <ul>
+                <li>All lowercase except "SPONTANEOUS" keyword</li>
+                <li>No spaces or special characters</li>
+                <li>Language code must be valid (e.g., en, es, fr, de, ja, zh)</li>
+                <li>User/Agent IDs must be a valid contributor pair</li>
+                <li>Conversation ID must be valid for the language</li>
+              </ul>
+
+            {:else if $selectedPreset.filenameValidationType === 'script-match'}
+              <p><strong>Three Hour Script Matching Format:</strong></p>
+              <code>[scriptName]_[speakerID].wav</code>
+              <p style="margin-top: 0.5rem; font-size: 0.85rem;">Example: <code style="display: inline; padding: 0.15rem 0.3rem; margin: 0;">FoxAndCrow_SP001.wav</code></p>
+
+              <p style="margin-top: 1rem; padding: 0.75rem; background: rgba(255, 152, 0, 0.1); border-left: 3px solid var(--warning, #ff9800); border-radius: 4px;">
+                <strong>⚠️ Important:</strong> Filename validation for Three Hour preset <strong>only works on the Google Drive tab</strong> with a configured scripts folder. It will not work on Local Files or Box tabs.
+              </p>
+
+              <p style="margin-top: 1rem;"><strong>Rules:</strong></p>
+              <ul>
+                <li>Script name must match a .txt file in the Google Drive scripts folder</li>
+                <li>Speaker ID must match the configured speaker ID</li>
+                <li>Must be a .wav file</li>
+              </ul>
+            {/if}
+          </div>
+        {/if}
       </div>
     {:else if $currentPresetId === 'custom'}
       <div class="placeholder">

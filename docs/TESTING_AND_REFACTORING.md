@@ -1855,7 +1855,145 @@ describe('ResultsTable', () => {
 
 ---
 
-#### 5.6 Box Tab Migration (2-3 days) ⬜
+
+---
+
+#### 5.6 UI Polish & Analysis Mode (1-2 days) 🔄
+
+**Goal:** Improve formatting, styling, and add three-mode analysis selection for presets with filename validation
+
+**What Was Built:**
+
+1. **Formatting Utilities** (`src/utils/format-utils.ts`)
+   - Sample rate formatting: `48000 Hz` → `48.0 kHz`
+   - Duration formatting: `125s` → `2m:05s`
+   - Bit depth formatting: `16 bit` → `16-bit`
+   - Channels formatting: `2` → `Stereo`, `1` → `Mono`
+
+2. **Table Styling Improvements**
+   - Rounded corners with shadows
+   - Better borders and spacing
+   - Uppercase table headers with letter spacing
+   - Row hover effects with smooth transitions
+   - File Type column added with validation
+
+3. **Component Polish**
+   - FileUpload: Drag & drop support, custom button styling
+   - Preset banners: Gradient backgrounds with better visual hierarchy
+   - Error/processing indicators: Polished with gradients and borders
+   - Settings tab: Comprehensive filename validation documentation
+
+4. **Analysis Mode Selection** (Three radio buttons)
+   - **Full Analysis**: Audio + filename validation
+   - **Audio Only**: Skip filename validation
+   - **Filename Only**: Fast metadata-only mode (no audio decoding)
+   - Shows only for presets with filename validation (Bilingual, Three Hour)
+   - Stored in `analysisMode` store with localStorage persistence
+   - Available on each tab (Local Files, Google Drive, Box) for contextual use
+
+5. **Filename Validation**
+   - Integrated FilenameValidator for Bilingual Conversational preset
+   - Filename cell shows validation highlighting (green/yellow/red)
+   - Hover tooltips show validation issues
+   - Three Hour validation noted as requiring Google Drive (Phase 5.7)
+
+**Settings Tab Documentation:**
+- Added comprehensive filename format requirements for Bilingual Conversational
+- Pattern examples with real filenames
+- Clear rules about lowercase, valid language codes, contributor pairs
+- Warning for Three Hour: "only works on Google Drive tab"
+
+**Known Limitations:**
+- Three Hour filename validation inputs (scripts folder URL, speaker ID) deferred to Phase 5.7
+- Analysis mode currently on Local Files tab only (Drive/Box tabs get it in Phase 5.8+)
+
+**Test Results:** ✅ All 698 tests passing, ~90 KB bundle
+
+**Commit:** `feat: Phase 5.6 - UI Polish & Analysis Mode with three-mode selection`
+
+---
+
+#### 5.7 Three Hour Configuration (1-2 days) ⬜
+
+**Goal:** Add scripts folder and speaker ID configuration for Three Hour preset filename validation
+
+**Why This is a Separate Phase:**
+Three Hour filename validation requires additional inputs that are:
+- **Tab-specific**: Only available on Google Drive tab (not Local Files or Box)
+- **User-configured**: Scripts folder URL + speaker ID must be provided
+- **Persistent**: Need to store configuration across sessions
+
+**What Needs to Be Built:**
+
+1. **Three Hour Settings Store** (`src/stores/threeHourSettings.ts`)
+   ```typescript
+   export const threeHourSettings = writable({
+     scriptsFolderUrl: '',
+     speakerId: ''
+   });
+   // Auto-persist to localStorage
+   ```
+
+2. **Google Drive Tab - Three Hour Configuration UI**
+
+   When Three Hour preset is selected AND user chooses analysis mode with filename validation:
+
+   ```
+   ┌─────────────────────────────────────────────┐
+   │ Three Hour Configuration:                   │
+   │                                             │
+   │ Scripts Folder URL:                         │
+   │ [https://drive.google.com/drive/folders/...]│
+   │                                             │
+   │ Speaker ID:                                 │
+   │ [SP001                                    ] │
+   │                                             │
+   │ ℹ️ These settings are saved automatically   │
+   └─────────────────────────────────────────────┘
+   ```
+
+3. **Validation Integration**
+   - Fetch script list from Google Drive scripts folder
+   - Pass to FilenameValidator.validateThreeHour()
+   - Display validation results in filename cell
+
+4. **Error Handling**
+   - Invalid/inaccessible scripts folder URL
+   - Empty speaker ID
+   - Network errors fetching scripts
+   - Graceful degradation if config missing
+
+**Tab-Specific Behavior:**
+
+| Tab | Three Hour Preset Behavior |
+|-----|----------------------------|
+| **Google Drive** | Show config inputs when filename validation mode selected |
+| **Local Files** | Show note: "Three Hour filename validation requires Google Drive tab" |
+| **Box** | Show note: "Three Hour filename validation requires Google Drive tab" |
+
+**Implementation Tasks:**
+
+1. Create `threeHourSettings` store with localStorage persistence
+2. Add configuration UI to GoogleDriveTab (conditional on preset + analysis mode)
+3. Fetch script list from Drive folder when URL provided
+4. Integrate with FilenameValidator.validateThreeHour()
+5. Add helpful error messages for common config issues
+6. Update Settings tab docs to mention Google Drive configuration
+7. Manual testing: Configure Three Hour on Drive tab, validate files
+
+**Success Criteria:**
+- [ ] Three Hour config inputs appear on Google Drive tab
+- [ ] Settings persist across sessions
+- [ ] Script folder URL validates and fetches script list
+- [ ] Filename validation works with configured settings
+- [ ] Clear error messages for missing/invalid config
+- [ ] Other tabs show appropriate messaging
+
+**Commit:** `feat: Phase 5.7 - Three Hour configuration inputs on Google Drive tab`
+
+---
+
+#### 5.8 Box Tab Migration (2-3 days) ⬜
 
 **Goal:** Convert Box tab to Svelte while maintaining OAuth and folder processing
 
@@ -2255,7 +2393,7 @@ describe('BoxTab', () => {
 
 ---
 
-#### 5.7 Settings Tab Migration (1-2 days) ⬜
+#### 5.9 Settings Tab Migration (1-2 days) ⬜
 
 **Goal:** Convert Settings tab to Svelte with reactive store integration
 
@@ -2752,7 +2890,7 @@ describe('SettingsTab', () => {
 
 ---
 
-#### 5.8 Cleanup & Final Integration (1 day) ⬜
+#### 5.10 Cleanup & Final Integration (1 day) ⬜
 
 **Goal:** Remove old code, finalize integration, and verify everything works
 
