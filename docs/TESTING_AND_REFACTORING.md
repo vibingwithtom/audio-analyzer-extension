@@ -2000,7 +2000,7 @@ The Google Drive tab currently has analysis mode UI but cannot actually access G
 
 ---
 
-#### 5.8 Box Tab Migration (2-3 days) ⬜
+#### 5.8 Box Tab Migration (2-3 days) ✅
 
 **Goal:** Convert Box tab to Svelte with OAuth, file processing, and analysis mode integration
 
@@ -2401,6 +2401,89 @@ describe('BoxTab', () => {
 - [ ] No regressions
 
 **Commit:** `feat: Phase 5.8 - Box tab migration with analysis mode`
+
+---
+
+#### 5.8.1 Box Content Picker (1 day) ⬜
+
+**Goal:** Add visual file browser for Box using standalone JS API with lazy-loading
+
+**Why Separate Phase:**
+- Enhancement to Box tab (URL-only works, picker is optional convenience)
+- Adds 800KB dependency - want to validate approach before applying to Google Drive
+- Lazy-loading pattern can be reused for Google Drive if successful
+
+**Implementation Strategy:**
+
+1. **Lazy-load on button click** (not on tab open)
+   - User clicks "Browse Box" → load Box UI Elements library
+   - One-time 800KB download, then cached
+   - URL-only users never download the library
+
+2. **Use Standalone JS API** (not React)
+   - No React/ReactDOM dependency (~170KB saved)
+   - Direct `ContentPicker` API calls
+   - Simpler integration with Svelte
+
+**Tasks:**
+
+1. Install `box-ui-elements` package
+2. Create `BoxContentPicker` wrapper component/service
+3. Update BoxTab.svelte:
+   - Add "Browse Box" button
+   - Lazy-load picker on first click
+   - Show loading indicator while library loads
+   - Handle file selection and download
+4. Test picker functionality:
+   - Navigate folders
+   - Select files
+   - Multi-select (optional)
+   - Handle errors
+5. Verify lazy-loading works (check Network tab)
+6. Test on beta with real Box account
+
+**Success Criteria:**
+- [ ] Picker loads only when button clicked (verify in DevTools Network tab)
+- [ ] URL-only workflow still works (no picker loaded)
+- [ ] Picker shows Box folder structure
+- [ ] Selected files are downloaded and processed
+- [ ] Loading indicator shown during library load
+- [ ] No errors in console
+- [ ] Works in light and dark mode
+
+**Commit:** `feat: Phase 5.8.1 - Box Content Picker with lazy-loading`
+
+---
+
+#### 5.8.2 Google Drive Picker Lazy-Loading (0.5 days) ⬜
+
+**Goal:** Apply lazy-loading pattern to Google Drive Picker (conditional on 5.8.1 success)
+
+**Prerequisites:** Phase 5.8.1 must be complete and tested
+
+**Why Conditional:**
+- Only do this if Box Picker lazy-loading works well
+- Google Picker is ~200KB (smaller than Box, but still benefits from lazy-loading)
+- Same UX improvement: URL-only users don't pay picker cost
+
+**Tasks:**
+
+1. Refactor GoogleDriveTab.svelte:
+   - Move `initPicker()` call from mount to button click
+   - Add loading state to "Browse Google Drive" button
+   - Reuse lazy-loading pattern from Box implementation
+
+2. Test:
+   - Verify picker loads only on button click
+   - URL-only workflow unaffected
+   - No regressions in existing functionality
+
+**Success Criteria:**
+- [ ] Picker loads on button click (not on tab open)
+- [ ] Consistent UX with Box tab
+- [ ] No performance regressions
+
+**Commit:** `refactor: Phase 5.8.2 - Lazy-load Google Drive Picker`
 
 ---
 
