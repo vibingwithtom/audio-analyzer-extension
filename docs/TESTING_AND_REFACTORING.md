@@ -504,7 +504,7 @@ packages/web/src/
 
 ## Phase 5: Svelte Migration
 
-**Status:** 🔄 In Progress (Phase 5.4 Complete)
+**Status:** 🔄 In Progress (Phase 5.5 Complete)
 **LLM Development Time:** 3-5 days
 **Calendar Time:** 2 weeks (with review cycles)
 **Owner:** Claude Code
@@ -514,6 +514,7 @@ packages/web/src/
 **Phase 5.2b Completed:** October 10, 2025
 **Phase 5.3 Completed:** October 10, 2025
 **Phase 5.4 Completed:** October 10, 2025
+**Phase 5.5 Completed:** October 10, 2025
 
 ### Prerequisites
 
@@ -1790,521 +1791,67 @@ describe('ResultsTable', () => {
 
 ---
 
-#### 5.5 Google Drive Tab Migration (2-3 days) ⬜
-
-**Goal:** Convert Google Drive tab to Svelte while maintaining OAuth and batch processing
-
-**This follows the same pattern as Local File Tab (5.4)**
-
-**Implementation Tasks:**
-
-1. **Write GoogleDriveTab tests first**
-
-```typescript
-// tests/components/GoogleDriveTab.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
-import GoogleDriveTab from '../../src/components/GoogleDriveTab.svelte';
-
-describe('GoogleDriveTab', () => {
-  let mockGoogleAuth: any;
-  let mockDriveHandler: any;
-
-  beforeEach(() => {
-    mockGoogleAuth = {
-      isAuthenticated: false,
-      signIn: vi.fn().mockResolvedValue(true),
-      signOut: vi.fn()
-    };
-
-    mockDriveHandler = {
-      processUrl: vi.fn().mockResolvedValue({
-        filename: 'test.wav',
-        status: 'pass'
-      }),
-      processFolderUrl: vi.fn().mockResolvedValue([
-        { filename: 'file1.wav', status: 'pass' },
-        { filename: 'file2.wav', status: 'fail' }
-      ])
-    };
-  });
-
-  describe('Authentication', () => {
-    it('should show sign-in button when not authenticated', () => {
-      render(GoogleDriveTab, {
-        props: {
-          googleAuth: mockGoogleAuth,
-          driveHandler: mockDriveHandler
-        }
-      });
-
-      expect(screen.getByText(/sign in.*google/i)).toBeInTheDocument();
-    });
-
-    it('should call signIn when button clicked', async () => {
-      const user = userEvent.setup();
-      render(GoogleDriveTab, {
-        props: {
-          googleAuth: mockGoogleAuth,
-          driveHandler: mockDriveHandler
-        }
-      });
-
-      const button = screen.getByText(/sign in.*google/i);
-      await user.click(button);
-
-      expect(mockGoogleAuth.signIn).toHaveBeenCalled();
-    });
-
-    it('should show signed-in UI after authentication', async () => {
-      mockGoogleAuth.isAuthenticated = true;
-
-      render(GoogleDriveTab, {
-        props: {
-          googleAuth: mockGoogleAuth,
-          driveHandler: mockDriveHandler
-        }
-      });
-
-      expect(screen.queryByText(/sign in/i)).not.toBeInTheDocument();
-      expect(screen.getByLabelText(/google drive url/i)).toBeInTheDocument();
-    });
-  });
-
-  describe('Single File Processing', () => {
-    beforeEach(() => {
-      mockGoogleAuth.isAuthenticated = true;
-    });
-
-    it('should process file URL', async () => {
-      const user = userEvent.setup();
-      render(GoogleDriveTab, {
-        props: {
-          googleAuth: mockGoogleAuth,
-          driveHandler: mockDriveHandler
-        }
-      });
-
-      const input = screen.getByLabelText(/google drive url/i);
-      await user.type(input, 'https://drive.google.com/file/d/abc123');
-
-      const button = screen.getByText(/analyze/i);
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(mockDriveHandler.processUrl).toHaveBeenCalledWith(
-          'https://drive.google.com/file/d/abc123',
-          expect.any(Object)
-        );
-      });
-    });
-
-    it('should display results after processing', async () => {
-      const user = userEvent.setup();
-      render(GoogleDriveTab, {
-        props: {
-          googleAuth: mockGoogleAuth,
-          driveHandler: mockDriveHandler
-        }
-      });
-
-      const input = screen.getByLabelText(/google drive url/i);
-      await user.type(input, 'https://drive.google.com/file/d/abc123');
-
-      const button = screen.getByText(/analyze/i);
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.getByText('test.wav')).toBeInTheDocument();
-      });
-    });
-
-    it('should show error for invalid URL', async () => {
-      const user = userEvent.setup();
-      render(GoogleDriveTab, {
-        props: {
-          googleAuth: mockGoogleAuth,
-          driveHandler: mockDriveHandler
-        }
-      });
-
-      const input = screen.getByLabelText(/google drive url/i);
-      await user.type(input, 'not-a-valid-url');
-
-      const button = screen.getByText(/analyze/i);
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.getByText(/invalid.*url/i)).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('Batch Processing', () => {
-    beforeEach(() => {
-      mockGoogleAuth.isAuthenticated = true;
-    });
-
-    it('should process folder URL', async () => {
-      const user = userEvent.setup();
-      render(GoogleDriveTab, {
-        props: {
-          googleAuth: mockGoogleAuth,
-          driveHandler: mockDriveHandler
-        }
-      });
-
-      const input = screen.getByLabelText(/google drive url/i);
-      await user.type(input, 'https://drive.google.com/drive/folders/xyz789');
-
-      const button = screen.getByText(/analyze/i);
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(mockDriveHandler.processFolderUrl).toHaveBeenCalled();
-      });
-    });
-
-    it('should display batch results with summary', async () => {
-      const user = userEvent.setup();
-      render(GoogleDriveTab, {
-        props: {
-          googleAuth: mockGoogleAuth,
-          driveHandler: mockDriveHandler
-        }
-      });
-
-      const input = screen.getByLabelText(/google drive url/i);
-      await user.type(input, 'https://drive.google.com/drive/folders/xyz789');
-
-      const button = screen.getByText(/analyze/i);
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.getByText('file1.wav')).toBeInTheDocument();
-        expect(screen.getByText('file2.wav')).toBeInTheDocument();
-        expect(screen.getByText(/2.*files/i)).toBeInTheDocument();
-      });
-    });
-
-    it('should show progress during batch processing', async () => {
-      mockDriveHandler.processFolderUrl.mockImplementation(
-        () => new Promise(resolve => setTimeout(resolve, 100))
-      );
-
-      const user = userEvent.setup();
-      render(GoogleDriveTab, {
-        props: {
-          googleAuth: mockGoogleAuth,
-          driveHandler: mockDriveHandler
-        }
-      });
-
-      const input = screen.getByLabelText(/google drive url/i);
-      await user.type(input, 'https://drive.google.com/drive/folders/xyz789');
-
-      const button = screen.getByText(/analyze/i);
-      await user.click(button);
-
-      expect(screen.getByText(/processing/i)).toBeInTheDocument();
-    });
-  });
-
-  describe('Error Handling', () => {
-    beforeEach(() => {
-      mockGoogleAuth.isAuthenticated = true;
-    });
-
-    it('should handle auth errors', async () => {
-      mockDriveHandler.processUrl.mockRejectedValue(
-        new Error('Authentication expired')
-      );
-
-      const user = userEvent.setup();
-      render(GoogleDriveTab, {
-        props: {
-          googleAuth: mockGoogleAuth,
-          driveHandler: mockDriveHandler
-        }
-      });
-
-      const input = screen.getByLabelText(/google drive url/i);
-      await user.type(input, 'https://drive.google.com/file/d/abc123');
-
-      const button = screen.getByText(/analyze/i);
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.getByText(/authentication expired/i)).toBeInTheDocument();
-      });
-    });
-
-    it('should handle permission errors', async () => {
-      mockDriveHandler.processUrl.mockRejectedValue(
-        new Error('Permission denied')
-      );
-
-      const user = userEvent.setup();
-      render(GoogleDriveTab, {
-        props: {
-          googleAuth: mockGoogleAuth,
-          driveHandler: mockDriveHandler
-        }
-      });
-
-      const input = screen.getByLabelText(/google drive url/i);
-      await user.type(input, 'https://drive.google.com/file/d/abc123');
-
-      const button = screen.getByText(/analyze/i);
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.getByText(/permission denied/i)).toBeInTheDocument();
-      });
-    });
-  });
-});
-```
-
-2. **Create GoogleDriveTab.svelte component**
-
-```svelte
-<!-- src/components/GoogleDriveTab.svelte -->
-<script lang="ts">
-  import { settingsManager, currentResults } from '../stores';
-  import ResultsTable from './ResultsTable.svelte';
-  import ValidationDisplay from './ValidationDisplay.svelte';
-  import GoogleAuth from '../google-auth';
-  import GoogleDriveHandler from '../handlers/google-drive-handler';
-
-  export let googleAuth: GoogleAuth;
-  export let driveHandler: GoogleDriveHandler;
-
-  let url = '';
-  let processing = false;
-  let error = '';
-  let metadataOnly = false;
-  let authenticated = googleAuth.isAuthenticated;
-
-  async function handleSignIn() {
-    try {
-      await googleAuth.signIn();
-      authenticated = googleAuth.isAuthenticated;
-    } catch (err) {
-      error = err instanceof Error ? err.message : 'Sign-in failed';
-    }
-  }
-
-  async function handleAnalyze() {
-    if (!url) {
-      error = 'Please enter a Google Drive URL';
-      return;
-    }
-
-    // Validate URL format
-    if (!url.includes('drive.google.com')) {
-      error = 'Invalid Google Drive URL';
-      return;
-    }
-
-    processing = true;
-    error = '';
-
-    try {
-      const settings = $settingsManager;
-      const isFolder = url.includes('/folders/');
-
-      let results;
-      if (isFolder) {
-        results = await driveHandler.processFolderUrl(url, {
-          metadataOnly,
-          settings
-        });
-      } else {
-        results = await driveHandler.processUrl(url, {
-          metadataOnly,
-          settings
-        });
-      }
-
-      currentResults.set(Array.isArray(results) ? results : [results]);
-    } catch (err) {
-      error = err instanceof Error ? err.message : 'Processing failed';
-      currentResults.set(null);
-    } finally {
-      processing = false;
-    }
-  }
-</script>
-
-<div class="google-drive-tab">
-  {#if !authenticated}
-    <div class="auth-section">
-      <p>Sign in to Google to analyze files from Google Drive</p>
-      <button on:click={handleSignIn} class="btn-primary">
-        Sign in with Google
-      </button>
-    </div>
-  {:else}
-    <div class="url-input-section">
-      <label for="drive-url">Google Drive URL (file or folder)</label>
-      <input
-        id="drive-url"
-        type="text"
-        bind:value={url}
-        placeholder="https://drive.google.com/file/d/... or .../folders/..."
-        disabled={processing}
-      />
-
-      <label>
-        <input type="checkbox" bind:checked={metadataOnly} />
-        Metadata Only (skip audio analysis)
-      </label>
-
-      <button
-        on:click={handleAnalyze}
-        disabled={processing || !url}
-        class="btn-primary"
-      >
-        {processing ? 'Processing...' : 'Analyze'}
-      </button>
-    </div>
-
-    {#if error}
-      <div class="error-message">{error}</div>
-    {/if}
-
-    {#if processing}
-      <div class="processing-indicator">Processing files from Google Drive...</div>
-    {/if}
-
-    {#if $currentResults && $currentResults.length > 0}
-      <ResultsTable
-        results={$currentResults}
-        mode={$currentResults.length === 1 ? 'single' : 'batch'}
-        {metadataOnly}
-      />
-
-      {#if $currentResults[0].validation}
-        <ValidationDisplay validation={$currentResults[0].validation} />
-      {/if}
-    {/if}
-  {/if}
-</div>
-
-<style>
-  .google-drive-tab {
-    padding: 1rem;
-  }
-
-  .auth-section {
-    text-align: center;
-    padding: 2rem;
-  }
-
-  .url-input-section {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-
-  input[type="text"] {
-    padding: 0.5rem;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    font-size: 1rem;
-  }
-
-  input[type="text"]:disabled {
-    background: var(--disabled-bg);
-  }
-
-  .error-message {
-    color: var(--error-color);
-    margin: 1rem 0;
-    padding: 0.5rem;
-    background: var(--error-bg);
-    border-radius: 4px;
-  }
-
-  .processing-indicator {
-    margin: 1rem 0;
-    padding: 0.5rem;
-    background: var(--info-bg);
-    border-radius: 4px;
-  }
-
-  .btn-primary {
-    padding: 0.5rem 1rem;
-    background: var(--primary-color);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-
-  .btn-primary:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  label {
-    display: block;
-    margin: 0.5rem 0;
-  }
-</style>
-```
-
-3. **Update App.svelte**
-```svelte
-{#if $currentTab === 'googleDrive'}
-  <GoogleDriveTab {googleAuth} {driveHandler} />
-{/if}
-```
-
-4. **Manual testing checklist**
-
-**Authentication:**
-- [ ] Sign-in button visible when not authenticated
-- [ ] Clicking sign-in opens Google OAuth flow
-- [ ] After sign-in, UI switches to authenticated state
-- [ ] Sign-out works (if implemented)
-
-**Single file:**
-- [ ] Enter file URL - processes correctly
-- [ ] Invalid URL - shows error
-- [ ] Permission denied - shows error
-- [ ] Results display correctly
-
-**Batch (folder):**
-- [ ] Enter folder URL - processes all audio files
-- [ ] Progress indicator shows during processing
-- [ ] Summary statistics correct
-- [ ] All files listed in results table
-- [ ] Mixed pass/fail statuses display correctly
-
-**Error scenarios:**
-- [ ] Invalid URL format - shows error
-- [ ] Auth expired - shows error
-- [ ] Network error - shows error
-- [ ] Empty folder - handles gracefully
-
-**Visual verification:**
-- [ ] Layout matches existing design
-- [ ] Auth UI clear and functional
-- [ ] No console errors
-- [ ] Mobile responsive
-
-**Success Criteria:**
-- [ ] All GoogleDriveTab tests passing (90%+ coverage)
-- [ ] Manual test checklist complete
-- [ ] OAuth flow works identically
-- [ ] Single file and batch processing work
-- [ ] No regressions
-
-**Commit:** `feat: migrate Google Drive tab to Svelte`
+#### 5.5 Settings & Criteria Integration (1-2 days) ✅
+
+**Goal:** Implement preset selection and criteria validation integration
+
+**Completed:** October 10, 2025
+
+**What Was Built:**
+
+1. **Settings Store** (`src/stores/settings.ts`)
+   - Reactive preset management with localStorage persistence
+   - Derived stores for current preset and criteria
+   - Automatic preset to criteria conversion
+
+2. **SettingsTab Component**
+   - Full preset selector dropdown with all 9 presets
+   - Detailed requirements display for each preset
+   - Clean separation of configuration from analysis workflow
+
+3. **LocalFileTab Integration**
+   - Current preset display banner with link to Settings
+   - CriteriaValidator integration for file validation
+   - Overall status calculation (pass/warning/fail)
+
+4. **ResultsTable Inline Validation**
+   - ✅ Green cell highlighting for passing validations
+   - ⚠️ Yellow cell highlighting for warnings
+   - ❌ Red cell highlighting for failures
+   - Light row tinting based on overall status
+   - Hover tooltips showing validation issues
+   - **Critical for batch processing** - allows quick visual scanning of large result sets
+
+5. **Audio Playback**
+   - Blob URL creation for uploaded files
+   - Audio controls in Play column
+   - Proper memory cleanup with `onDestroy`
+
+6. **TabNavigation Update**
+   - Added Settings tab button to navigation
+
+**Design Decision: Settings Tab Approach**
+- Separate Settings tab provides dedicated space for preset configuration
+- Keeps analysis interface (LocalFileTab) clean and focused
+- Better for future expansion (more settings, advanced options)
+- Link from LocalFileTab allows quick access when needed
+
+**Validation Features:**
+- All validation displayed inline in table cells (no separate section)
+- Color-coded cells: green (pass), yellow (warning), red (fail)
+- Row-level tinting for quick identification of problem files
+- Tooltips show specific validation issues on hover
+- Works seamlessly for single file and batch processing
+
+**Known Limitations (Deferred):**
+- Basic styling and raw number formats (Phase 5.6 UI Polish)
+- No batch processing / multiple file upload (Phase 5.6+)
+- No Google Drive file browsing (Phase 5.6+)
+- No Box file browsing (Phase 5.6+)
+
+**Test Results:** ✅ All 698 tests passing, 88.76 KB bundle, beta verified
+
+**Commit:** `feat: Phase 5.5 - Settings & Criteria Integration with inline validation`
 
 ---
 
