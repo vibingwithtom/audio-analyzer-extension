@@ -110,6 +110,19 @@
     background-color: rgba(76, 175, 80, 0.05);
   }
 
+  /* Dark mode row tinting - use higher opacity for visibility */
+  :global([data-theme="dark"]) .results-table tbody tr.status-fail {
+    background-color: rgba(244, 67, 54, 0.15);
+  }
+
+  :global([data-theme="dark"]) .results-table tbody tr.status-warning {
+    background-color: rgba(255, 152, 0, 0.15);
+  }
+
+  :global([data-theme="dark"]) .results-table tbody tr.status-pass {
+    background-color: rgba(76, 175, 80, 0.15);
+  }
+
   /* Cell-level validation highlighting */
   .validation-pass {
     background-color: rgba(76, 175, 80, 0.15);

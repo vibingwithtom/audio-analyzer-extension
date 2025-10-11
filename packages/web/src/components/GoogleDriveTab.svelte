@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { authState, authService } from '../stores/auth';
   import { AppBridge } from '../bridge/app-bridge';
   import ResultsTable from './ResultsTable.svelte';
@@ -8,9 +8,11 @@
   import { currentCriteria, currentPresetId, availablePresets } from '../stores/settings';
   import { currentTab } from '../stores/tabs';
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
+  import { GoogleDriveAPI } from '../services/google-drive-api';
   import type { AudioResults, ValidationResults } from '../types';
 
   const bridge = AppBridge.getInstance();
+  let driveAPI: GoogleDriveAPI | null = null;
 
   function goToSettings() {
     currentTab.setTab('settings');
@@ -22,6 +24,15 @@
 
   function handleSignOut() {
     bridge.dispatch({ type: 'auth:google:signout:requested' });
+  }
+
+  // Initialize Drive API when authenticated
+  $: if ($authState.google.isAuthenticated && !driveAPI) {
+    const googleAuth = authService.getGoogleAuthInstance();
+    driveAPI = new GoogleDriveAPI(googleAuth);
+    driveAPI.initPicker().catch(err => {
+      console.warn('Failed to initialize Google Picker:', err);
+    });
   }
 
   let processing = false;
@@ -161,25 +172,67 @@
     }
   }
 
-  async function handleFileSelect(event: Event) {
-    const inputElement = event.target as HTMLInputElement;
-    const file = inputElement?.files?.[0];
+  async function handleUrlSubmit() {
+    if (!fileUrl.trim()) return;
+    if (!driveAPI) {
+      error = 'Google Drive API not initialized. Please sign in again.';
+      return;
+    }
 
-    if (!file) return;
+    processing = true;
+    error = '';
+    results = null;
 
-    await processFile(file);
+    try {
+      // Parse URL and download file
+      const file = await driveAPI.downloadFileFromUrl(fileUrl);
+      await processFile(file);
+      fileUrl = ''; // Clear input on success
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Failed to process Google Drive URL';
+      results = null;
+    } finally {
+      if (!currentFile) {
+        processing = false;
+      }
+    }
+  }
+
+  async function handleBrowseDrive() {
+    if (!driveAPI) {
+      error = 'Google Drive API not initialized. Please sign in again.';
+      return;
+    }
+
+    processing = true;
+    error = '';
+    results = null;
+
+    try {
+      // Show picker and get selected files
+      const files = await driveAPI.pickAndDownloadFiles(false); // single file for now
+
+      if (files.length > 0) {
+        await processFile(files[0]);
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('cancelled')) {
+        // User cancelled - not an error
+        error = '';
+      } else {
+        error = err instanceof Error ? err.message : 'Failed to browse Google Drive';
+      }
+      results = null;
+    } finally {
+      if (!currentFile) {
+        processing = false;
+      }
+    }
   }
 
   async function handleReprocess() {
     if (!currentFile) return;
     await processFile(currentFile);
-  }
-
-  async function handleUrlSubmit() {
-    if (!fileUrl.trim()) return;
-
-    error = 'Google Drive URL processing will be fully implemented in Phase 5.7';
-    // TODO: Phase 5.7 - Implement Google Drive file download and processing
   }
 </script>
 
@@ -190,29 +243,49 @@
 
   .auth-section {
     margin-bottom: 1.5rem;
-    padding: 1.25rem;
+    padding: 0.875rem 1rem;
     background: linear-gradient(135deg, rgba(219, 68, 55, 0.05) 0%, rgba(219, 68, 55, 0.1) 100%);
     border: 1px solid rgba(219, 68, 55, 0.2);
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .auth-section.signed-out {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 1.25rem;
   }
 
   .auth-section h3 {
-    margin: 0 0 0.75rem 0;
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary, #666666);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .auth-section.signed-out h3 {
     font-size: 1rem;
+    text-transform: none;
+    letter-spacing: normal;
+    margin-bottom: 0.5rem;
     color: var(--text-primary, #333333);
   }
 
-  .user-info {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1rem;
+  .auth-section.signed-out p {
+    margin: 0 0 0.75rem 0;
+    color: var(--text-secondary, #666666);
+    font-size: 0.875rem;
   }
 
   .user-email {
     font-weight: 600;
+    font-size: 0.875rem;
     color: var(--text-primary, #333333);
+    flex: 1;
   }
 
   .current-preset {
@@ -543,42 +616,46 @@
     background: #d0d0d0;
   }
 
-  .file-input {
-    padding: 0.625rem 0.875rem;
-    border: 2px solid var(--bg-tertiary, #e0e0e0);
-    border-radius: 6px;
-    font-size: 0.875rem;
+  .browse-drive-button {
     width: 100%;
-    cursor: pointer;
-  }
-
-  .file-input::-webkit-file-upload-button {
-    padding: 0.5rem 1rem;
-    background: var(--primary, #2563eb);
+    padding: 0.875rem 1.5rem;
+    background: linear-gradient(135deg, rgba(219, 68, 55, 0.9) 0%, rgba(219, 68, 55, 1) 100%);
     color: white;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
+    font-size: 0.9375rem;
+    font-weight: 600;
     cursor: pointer;
-    font-size: 0.875rem;
-    font-weight: 500;
-    margin-right: 1rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(219, 68, 55, 0.3);
+  }
+
+  .browse-drive-button:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(200, 50, 40, 0.9) 0%, rgba(200, 50, 40, 1) 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(219, 68, 55, 0.4);
+  }
+
+  .browse-drive-button:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(219, 68, 55, 0.3);
   }
 </style>
 
 <div class="google-drive-tab">
-  <div class="auth-section">
-    <h3>Google Drive Authentication</h3>
-
-    {#if $authState.google.isAuthenticated}
-      <div class="user-info">
-        <span class="user-email">✅ Signed in as {$authState.google.userInfo?.email}</span>
-      </div>
+  {#if $authState.google.isAuthenticated}
+    <div class="auth-section">
+      <h3>Google Drive:</h3>
+      <span class="user-email">✓ {$authState.google.userInfo?.email}</span>
       <button class="secondary" on:click={handleSignOut}>Sign Out</button>
-    {:else}
+    </div>
+  {:else}
+    <div class="auth-section signed-out">
+      <h3>Google Drive Authentication</h3>
       <p>Sign in to access your Google Drive files</p>
       <button on:click={handleSignIn}>Sign in with Google</button>
-    {/if}
-  </div>
+    </div>
+  {/if}
 
   {#if $authState.google.isAuthenticated}
     <!-- Preset Display -->
@@ -603,7 +680,7 @@
           <input
             type="text"
             bind:value={fileUrl}
-            placeholder="Paste Google Drive file URL (Phase 5.7)"
+            placeholder="Paste Google Drive file URL (e.g., https://drive.google.com/file/d/...)"
             disabled={processing}
           />
           <button on:click={handleUrlSubmit} disabled={processing || !fileUrl.trim()}>
@@ -613,13 +690,9 @@
         <div style="text-align: center; color: var(--text-secondary, #666666); font-size: 0.875rem;">
           — or —
         </div>
-        <input
-          type="file"
-          class="file-input"
-          accept="audio/*"
-          on:change={handleFileSelect}
-          disabled={processing}
-        />
+        <button class="browse-drive-button" on:click={handleBrowseDrive} disabled={processing}>
+          📁 Browse Google Drive
+        </button>
       </div>
     </div>
 
