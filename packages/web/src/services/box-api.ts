@@ -151,4 +151,26 @@ export class BoxAPI {
     const boxFile = { id: fileId, name: '', type: 'file' };
     return await this.boxAuth.getFileMetadata(boxFile, sharedLink || null);
   }
+
+  /**
+   * Get file metadata from a URL (without downloading the file)
+   *
+   * @param url - Box file URL or shared link
+   * @returns File metadata
+   * @throws Error if URL is invalid or not a file
+   */
+  async getFileMetadataFromUrl(url: string): Promise<BoxFileMetadata> {
+    const parsed = this.parseUrl(url);
+
+    if (parsed.type === 'folder') {
+      throw new Error('URL is a folder, not a file');
+    }
+
+    if (parsed.sharedLink) {
+      // For shared links, pass the full URL
+      return await this.getFileMetadata('0', url);
+    }
+
+    return await this.getFileMetadata(parsed.id);
+  }
 }

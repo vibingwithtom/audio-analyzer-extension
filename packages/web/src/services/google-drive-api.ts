@@ -146,6 +146,23 @@ export class GoogleDriveAPI {
   }
 
   /**
+   * Get file metadata from a URL (without downloading the file)
+   *
+   * @param url - Google Drive file URL
+   * @returns File metadata
+   * @throws Error if URL is invalid or not a file
+   */
+  async getFileMetadataFromUrl(url: string): Promise<DriveFileMetadata> {
+    const parsed = this.parseUrl(url);
+
+    if (parsed.type !== 'file') {
+      throw new Error('URL is a folder, not a file');
+    }
+
+    return await this.getFileMetadata(parsed.id);
+  }
+
+  /**
    * Initialize Google Picker API
    *
    * Must be called before using showPicker()

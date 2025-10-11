@@ -81,21 +81,41 @@
     currentFile = file;
 
     try {
-      // Basic file analysis
-      const basicResults = await audioAnalyzer.analyzeFile(file);
-
-      // Advanced analysis (skip if filename-only mode)
+      let basicResults = null;
       let advancedResults = null;
-      if ($analysisMode !== 'filename-only') {
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const arrayBuffer = await file.arrayBuffer();
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-        advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer);
+      // Skip audio analysis if file is empty (filename-only mode)
+      if (file.size === 0) {
+        // Extract file type from filename extension
+        const extension = file.name.split('.').pop()?.toLowerCase() || '';
+        const fileType = extension || 'unknown';
+
+        // Minimal results for filename-only validation
+        basicResults = {
+          fileType: fileType,
+          channels: 0,
+          sampleRate: 0,
+          bitDepth: 0,
+          duration: 0
+        };
+      } else {
+        // Basic file analysis
+        basicResults = await audioAnalyzer.analyzeFile(file);
+
+        // Advanced analysis (skip if filename-only mode)
+        if ($analysisMode !== 'filename-only') {
+          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const arrayBuffer = await file.arrayBuffer();
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+          advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer);
+        }
       }
 
-      // Create blob URL for audio playback
-      currentAudioUrl = URL.createObjectURL(file);
+      // Create blob URL for audio playback (skip for empty files)
+      if (file.size > 0) {
+        currentAudioUrl = URL.createObjectURL(file);
+      }
 
       // Combine results
       const analysisResults = {
@@ -184,9 +204,19 @@
     results = null;
 
     try {
-      // Parse URL and download file
-      const file = await driveAPI.downloadFileFromUrl(fileUrl);
-      await processFile(file);
+      if ($analysisMode === 'filename-only') {
+        // Filename-only mode: Just fetch metadata, don't download file
+        const metadata = await driveAPI.getFileMetadataFromUrl(fileUrl);
+
+        // Create a minimal File object for filename validation
+        const file = new File([], metadata.name, { type: 'application/octet-stream' });
+        await processFile(file);
+      } else {
+        // Full or audio-only mode: Download the actual file
+        const file = await driveAPI.downloadFileFromUrl(fileUrl);
+        await processFile(file);
+      }
+
       fileUrl = ''; // Clear input on success
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to process Google Drive URL';
@@ -209,11 +239,25 @@
     results = null;
 
     try {
-      // Show picker and get selected files
-      const files = await driveAPI.pickAndDownloadFiles(false); // single file for now
+      if ($analysisMode === 'filename-only') {
+        // Filename-only mode: Show picker and get metadata only
+        const pickerResult = await driveAPI.showPicker({ multiSelect: false });
 
-      if (files.length > 0) {
-        await processFile(files[0]);
+        if (pickerResult.docs && pickerResult.docs.length > 0) {
+          const doc = pickerResult.docs[0];
+          const metadata = await driveAPI.getFileMetadata(doc.id);
+
+          // Create a minimal File object for filename validation
+          const file = new File([], metadata.name, { type: 'application/octet-stream' });
+          await processFile(file);
+        }
+      } else {
+        // Full or audio-only mode: Show picker and download files
+        const files = await driveAPI.pickAndDownloadFiles(false); // single file for now
+
+        if (files.length > 0) {
+          await processFile(files[0]);
+        }
       }
     } catch (err) {
       if (err instanceof Error && err.message.includes('cancelled')) {
@@ -617,17 +661,17 @@
   }
 
   .browse-drive-button {
-    width: 100%;
-    padding: 0.875rem 1.5rem;
+    padding: 0.5rem 1rem;
     background: linear-gradient(135deg, rgba(219, 68, 55, 0.9) 0%, rgba(219, 68, 55, 1) 100%);
     color: white;
     border: none;
     border-radius: 6px;
-    font-size: 0.9375rem;
-    font-weight: 600;
+    font-size: 0.875rem;
+    font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
     box-shadow: 0 2px 4px rgba(219, 68, 55, 0.3);
+    white-space: nowrap;
   }
 
   .browse-drive-button:hover:not(:disabled) {
@@ -686,13 +730,10 @@
           <button on:click={handleUrlSubmit} disabled={processing || !fileUrl.trim()}>
             Analyze URL
           </button>
+          <button class="browse-drive-button" on:click={handleBrowseDrive} disabled={processing}>
+            📁 Browse
+          </button>
         </div>
-        <div style="text-align: center; color: var(--text-secondary, #666666); font-size: 0.875rem;">
-          — or —
-        </div>
-        <button class="browse-drive-button" on:click={handleBrowseDrive} disabled={processing}>
-          📁 Browse Google Drive
-        </button>
       </div>
     </div>
 

@@ -14,6 +14,13 @@
   const bridge = AppBridge.getInstance();
   let boxAPI: BoxAPI | null = null;
 
+  // Detect if we're in the middle of OAuth callback processing
+  let isProcessingCallback = false;
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    isProcessingCallback = params.has('code') && params.has('state');
+  }
+
   function goToSettings() {
     currentTab.setTab('settings');
   }
@@ -78,21 +85,41 @@
     currentFile = file;
 
     try {
-      // Basic file analysis
-      const basicResults = await audioAnalyzer.analyzeFile(file);
-
-      // Advanced analysis (skip if filename-only mode)
+      let basicResults = null;
       let advancedResults = null;
-      if ($analysisMode !== 'filename-only') {
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const arrayBuffer = await file.arrayBuffer();
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-        advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer);
+      // Skip audio analysis if file is empty (filename-only mode)
+      if (file.size === 0) {
+        // Extract file type from filename extension
+        const extension = file.name.split('.').pop()?.toLowerCase() || '';
+        const fileType = extension || 'unknown';
+
+        // Minimal results for filename-only validation
+        basicResults = {
+          fileType: fileType,
+          channels: 0,
+          sampleRate: 0,
+          bitDepth: 0,
+          duration: 0
+        };
+      } else {
+        // Basic file analysis
+        basicResults = await audioAnalyzer.analyzeFile(file);
+
+        // Advanced analysis (skip if filename-only mode)
+        if ($analysisMode !== 'filename-only') {
+          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const arrayBuffer = await file.arrayBuffer();
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+          advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer);
+        }
       }
 
-      // Create blob URL for audio playback
-      currentAudioUrl = URL.createObjectURL(file);
+      // Create blob URL for audio playback (skip for empty files)
+      if (file.size > 0) {
+        currentAudioUrl = URL.createObjectURL(file);
+      }
 
       // Combine results
       const analysisResults = {
@@ -180,9 +207,19 @@
     results = null;
 
     try {
-      // Parse URL and download file
-      const file = await boxAPI.downloadFileFromUrl(fileUrl);
-      await processFile(file);
+      if ($analysisMode === 'filename-only') {
+        // Filename-only mode: Just fetch metadata, don't download file
+        const metadata = await boxAPI.getFileMetadataFromUrl(fileUrl);
+
+        // Create a minimal File object for filename validation
+        const file = new File([], metadata.name, { type: 'application/octet-stream' });
+        await processFile(file);
+      } else {
+        // Full or audio-only mode: Download the actual file
+        const file = await boxAPI.downloadFileFromUrl(fileUrl);
+        await processFile(file);
+      }
+
       fileUrl = ''; // Clear input on success
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to process Box URL';
@@ -577,6 +614,14 @@
       <h3>Box:</h3>
       <span class="user-email">✓ {$authState.box.userInfo?.login || $authState.box.userInfo?.name || 'Authenticated'}</span>
       <button class="secondary" on:click={handleSignOut}>Sign Out</button>
+    </div>
+  {:else if isProcessingCallback}
+    <div class="auth-section signed-out">
+      <h3>Box Authentication</h3>
+      <p>Completing sign-in...</p>
+      <div class="processing-indicator">
+        <span>🔄 Please wait</span>
+      </div>
     </div>
   {:else}
     <div class="auth-section signed-out">

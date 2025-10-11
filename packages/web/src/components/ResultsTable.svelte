@@ -20,6 +20,23 @@
     return result.validation[field]?.issue;
   }
 
+  function getAllValidationIssues(result: AudioResults): string[] {
+    if (!result.validation) return [];
+    const issues: string[] = [];
+
+    // Collect all validation issues
+    Object.entries(result.validation).forEach(([field, validation]) => {
+      if (validation.issue) {
+        // Split concatenated error messages
+        // Pattern: Capital letter after lowercase letter or closing paren indicates new error
+        const splitErrors = validation.issue.split(/(?<=[a-z\)])(?=[A-Z])/);
+        issues.push(...splitErrors.map(err => err.trim()).filter(err => err.length > 0));
+      }
+    });
+
+    return issues;
+  }
+
   // Calculate summary stats for batch mode
   $: summaryStats = mode === 'batch' ? {
     total: results.length,
@@ -145,6 +162,24 @@
   .validation-issue {
     cursor: help;
   }
+
+  .error-details-cell {
+    white-space: pre-line;
+    line-height: 1.6;
+  }
+
+  .error-line {
+    display: block;
+    margin: 0.25rem 0;
+  }
+
+  .error-line:first-child {
+    margin-top: 0;
+  }
+
+  .error-line:last-child {
+    margin-bottom: 0;
+  }
 </style>
 
 <div class="results-container">
@@ -160,16 +195,18 @@
       <tr>
         <th>Filename</th>
         <th>Status</th>
-        <th>File Type</th>
-        {#if !metadataOnly}
+        {#if metadataOnly}
+          <th>Error Details</th>
+        {:else}
+          <th>File Type</th>
           <th>Sample Rate</th>
           <th>Bit Depth</th>
           <th>Channels</th>
           <th>Duration</th>
-        {/if}
-        <th>File Size</th>
-        {#if isSingleFile}
-          <th>Play</th>
+          <th>File Size</th>
+          {#if isSingleFile}
+            <th>Play</th>
+          {/if}
         {/if}
       </tr>
     </thead>
@@ -186,16 +223,22 @@
             {result.filename}
           </td>
           <td><StatusBadge status={result.status} /></td>
-          <td
-            class:validation-pass={getValidationStatus(result, 'fileType') === 'pass'}
-            class:validation-warning={getValidationStatus(result, 'fileType') === 'warning'}
-            class:validation-fail={getValidationStatus(result, 'fileType') === 'fail'}
-            class:validation-issue={getValidationIssue(result, 'fileType')}
-            title={getValidationIssue(result, 'fileType')}
-          >
-            {result.fileType?.toUpperCase() || 'Unknown'}
-          </td>
-          {#if !metadataOnly}
+          {#if metadataOnly}
+            <!-- Filename-only mode: Show error details inline -->
+            <td class="error-details-cell">
+              {getValidationIssue(result, 'filename') || '—'}
+            </td>
+          {:else}
+            <!-- Full analysis mode: Show all columns -->
+            <td
+              class:validation-pass={getValidationStatus(result, 'fileType') === 'pass'}
+              class:validation-warning={getValidationStatus(result, 'fileType') === 'warning'}
+              class:validation-fail={getValidationStatus(result, 'fileType') === 'fail'}
+              class:validation-issue={getValidationIssue(result, 'fileType')}
+              title={getValidationIssue(result, 'fileType')}
+            >
+              {result.fileType?.toUpperCase() || 'Unknown'}
+            </td>
             <td
               class:validation-pass={getValidationStatus(result, 'sampleRate') === 'pass'}
               class:validation-warning={getValidationStatus(result, 'sampleRate') === 'warning'}
@@ -232,16 +275,16 @@
             >
               {formatDuration(result.duration)}
             </td>
-          {/if}
-          <td>
-            {formatBytes(result.fileSize)}
-          </td>
-          {#if isSingleFile}
             <td>
-              {#if result.audioUrl}
-                <audio controls src={result.audioUrl}></audio>
-              {/if}
+              {formatBytes(result.fileSize)}
             </td>
+            {#if isSingleFile}
+              <td>
+                {#if result.audioUrl}
+                  <audio controls src={result.audioUrl}></audio>
+                {/if}
+              </td>
+            {/if}
           {/if}
         </tr>
       {/each}
