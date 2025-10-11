@@ -86,9 +86,39 @@ export class AuthService {
     }
   });
 
+  // Public readonly stores (created once, not getters)
+  public readonly authState: Readable<AuthState>;
+  public readonly isGoogleAuthenticated: Readable<boolean>;
+  public readonly isBoxAuthenticated: Readable<boolean>;
+  public readonly googleUserInfo: Readable<GoogleAuthState['userInfo']>;
+
   private constructor() {
     this.googleAuth = new GoogleAuth();
     this.boxAuth = new BoxAuth();
+
+    // Initialize stores as properties (not getters)
+    this.authState = {
+      subscribe: (run: (value: AuthState) => void) => {
+        return this.authStateStore.subscribe(run);
+      }
+    };
+
+    this.isGoogleAuthenticated = derived(
+      this.authStateStore,
+      $state => $state.google.isAuthenticated
+    );
+
+    this.isBoxAuthenticated = derived(
+      this.authStateStore,
+      $state => $state.box.isAuthenticated
+    );
+
+    this.googleUserInfo = derived(
+      this.authStateStore,
+      $state => $state.google.userInfo
+    );
+
+    // Initialize auth after stores are set up
     this.initialize();
   }
 
@@ -100,34 +130,6 @@ export class AuthService {
       AuthService.instance = new AuthService();
     }
     return AuthService.instance;
-  }
-
-  /**
-   * Get the auth state store (read-only for external consumers)
-   */
-  get authState(): Readable<AuthState> {
-    return { subscribe: this.authStateStore.subscribe };
-  }
-
-  /**
-   * Derived store for Google authentication status
-   */
-  get isGoogleAuthenticated(): Readable<boolean> {
-    return derived(this.authStateStore, $state => $state.google.isAuthenticated);
-  }
-
-  /**
-   * Derived store for Box authentication status
-   */
-  get isBoxAuthenticated(): Readable<boolean> {
-    return derived(this.authStateStore, $state => $state.box.isAuthenticated);
-  }
-
-  /**
-   * Derived store for Google user info
-   */
-  get googleUserInfo(): Readable<GoogleAuthState['userInfo']> {
-    return derived(this.authStateStore, $state => $state.google.userInfo);
   }
 
   /**
@@ -287,12 +289,13 @@ export class AuthService {
     return this.boxAuth.isSignedIn();
   }
 
-  // Private helper methods
+  // Helper methods
 
   /**
    * Update Google auth state
+   * Public for testing purposes
    */
-  private updateGoogleState(updates: Partial<GoogleAuthState>): void {
+  updateGoogleState(updates: Partial<GoogleAuthState>): void {
     this.authStateStore.update(state => ({
       ...state,
       google: { ...state.google, ...updates }
@@ -301,8 +304,9 @@ export class AuthService {
 
   /**
    * Update Box auth state
+   * Public for testing purposes
    */
-  private updateBoxState(updates: Partial<ProviderAuthState>): void {
+  updateBoxState(updates: Partial<ProviderAuthState>): void {
     this.authStateStore.update(state => ({
       ...state,
       box: { ...state.box, ...updates }
