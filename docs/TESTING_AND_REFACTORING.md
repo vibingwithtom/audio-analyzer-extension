@@ -1858,7 +1858,7 @@ describe('ResultsTable', () => {
 
 ---
 
-#### 5.6 UI Polish & Analysis Mode (1-2 days) 🔄
+#### 5.6 UI Polish & Analysis Mode (1-2 days) ✅
 
 **Goal:** Improve formatting, styling, and add three-mode analysis selection for presets with filename validation
 
@@ -1904,100 +1904,111 @@ describe('ResultsTable', () => {
 - Warning for Three Hour: "only works on Google Drive tab"
 
 **Known Limitations:**
-- Three Hour filename validation inputs (scripts folder URL, speaker ID) deferred to Phase 5.7
-- Analysis mode currently on Local Files tab only (Drive/Box tabs get it in Phase 5.8+)
+- Google Drive file access not yet implemented (Phase 5.7)
+- Three Hour filename validation inputs (scripts folder URL, speaker ID) deferred to Phase 5.9
 
-**Test Results:** ✅ All 698 tests passing, ~90 KB bundle
+**Test Results:** ✅ All 698 tests passing, ~140 KB bundle
 
-**Commit:** `feat: Phase 5.6 - UI Polish & Analysis Mode with three-mode selection`
+**Commits:**
+- `feat: Phase 5.6 - UI Polish & Analysis Mode with three-mode selection`
+- `feat: Add analysis mode to GoogleDriveTab`
 
 ---
 
-#### 5.7 Three Hour Configuration (1-2 days) ⬜
+#### 5.7 Google Drive Integration (2-3 days) ⬜
 
-**Goal:** Add scripts folder and speaker ID configuration for Three Hour preset filename validation
+**Goal:** Implement Google Drive file access and processing (URL + File Picker)
 
-**Why This is a Separate Phase:**
-Three Hour filename validation requires additional inputs that are:
-- **Tab-specific**: Only available on Google Drive tab (not Local Files or Box)
-- **User-configured**: Scripts folder URL + speaker ID must be provided
-- **Persistent**: Need to store configuration across sessions
+**Why This Phase is Needed:**
+The Google Drive tab currently has analysis mode UI but cannot actually access Google Drive files. This phase implements the core Google Drive functionality that was missing from the original plan.
 
 **What Needs to Be Built:**
 
-1. **Three Hour Settings Store** (`src/stores/threeHourSettings.ts`)
-   ```typescript
-   export const threeHourSettings = writable({
-     scriptsFolderUrl: '',
-     speakerId: ''
-   });
-   // Auto-persist to localStorage
-   ```
+1. **Google Drive URL Processing**
+   - Parse various Drive file URL formats:
+     - `https://drive.google.com/file/d/{fileId}/view`
+     - `https://drive.google.com/open?id={fileId}`
+     - `https://drive.google.com/uc?id={fileId}`
+   - Extract file ID from URL
+   - Download file using Google Drive API v3
+   - Handle authentication (user already authenticated via OAuth)
 
-2. **Google Drive Tab - Three Hour Configuration UI**
+2. **Google Picker Integration**
+   - Initialize Google Picker API
+   - Browse Google Drive files and folders
+   - Filter for audio files only
+   - Select single files or multiple files
+   - Get file metadata (name, ID, size)
 
-   When Three Hour preset is selected AND user chooses analysis mode with filename validation:
+3. **Single File Processing**
+   - Download audio file from Drive as Blob
+   - Pass through existing analysis pipeline
+   - Display results with validation (already implemented)
+   - All three analysis modes supported (full/audio-only/filename-only)
 
-   ```
-   ┌─────────────────────────────────────────────┐
-   │ Three Hour Configuration:                   │
-   │                                             │
-   │ Scripts Folder URL:                         │
-   │ [https://drive.google.com/drive/folders/...]│
-   │                                             │
-   │ Speaker ID:                                 │
-   │ [SP001                                    ] │
-   │                                             │
-   │ ℹ️ These settings are saved automatically   │
-   └─────────────────────────────────────────────┘
-   ```
-
-3. **Validation Integration**
-   - Fetch script list from Google Drive scripts folder
-   - Pass to FilenameValidator.validateThreeHour()
-   - Display validation results in filename cell
-
-4. **Error Handling**
-   - Invalid/inaccessible scripts folder URL
-   - Empty speaker ID
-   - Network errors fetching scripts
-   - Graceful degradation if config missing
-
-**Tab-Specific Behavior:**
-
-| Tab | Three Hour Preset Behavior |
-|-----|----------------------------|
-| **Google Drive** | Show config inputs when filename validation mode selected |
-| **Local Files** | Show note: "Three Hour filename validation requires Google Drive tab" |
-| **Box** | Show note: "Three Hour filename validation requires Google Drive tab" |
+4. **Batch Folder Processing** (Optional - can defer)
+   - Select entire Drive folder via Picker
+   - Process all audio files in folder
+   - Progress tracking UI
+   - Aggregate results display
 
 **Implementation Tasks:**
 
-1. Create `threeHourSettings` store with localStorage persistence
-2. Add configuration UI to GoogleDriveTab (conditional on preset + analysis mode)
-3. Fetch script list from Drive folder when URL provided
-4. Integrate with FilenameValidator.validateThreeHour()
-5. Add helpful error messages for common config issues
-6. Update Settings tab docs to mention Google Drive configuration
-7. Manual testing: Configure Three Hour on Drive tab, validate files
+1. Create Google Drive API helper (`src/services/google-drive-api.ts`)
+   ```typescript
+   export class GoogleDriveAPI {
+     async downloadFile(fileId: string): Promise<Blob>
+     async parseFileUrl(url: string): Promise<string> // returns fileId
+     async getFileMetadata(fileId: string): Promise<FileMetadata>
+   }
+   ```
+
+2. Integrate Google Picker in GoogleDriveTab
+   - Add "Browse Drive" button
+   - Initialize Picker with OAuth token
+   - Handle file selection callback
+
+3. Update GoogleDriveTab URL input handler
+   - Parse URL to extract file ID
+   - Download file via API
+   - Process through analysis pipeline
+
+4. Error handling:
+   - Invalid URLs
+   - File not found / access denied
+   - Network errors
+   - Unsupported file types
+
+**Minimum Viable (Must Have):**
+- URL input → download → analyze (single file)
+- Google Picker → select file → analyze
+
+**Nice to Have (Can Defer):**
+- Batch folder processing
+- File browsing/navigation UI
+- Cached file downloads
 
 **Success Criteria:**
-- [ ] Three Hour config inputs appear on Google Drive tab
-- [ ] Settings persist across sessions
-- [ ] Script folder URL validates and fetches script list
-- [ ] Filename validation works with configured settings
-- [ ] Clear error messages for missing/invalid config
-- [ ] Other tabs show appropriate messaging
+- [ ] Can paste Google Drive file URL and analyze
+- [ ] Can browse Drive with Picker and select file
+- [ ] File downloads correctly via Drive API
+- [ ] Analysis works with all three modes
+- [ ] Validation works (Bilingual, Three Hour placeholder)
+- [ ] Error messages for invalid URLs/files
 
-**Commit:** `feat: Phase 5.7 - Three Hour configuration inputs on Google Drive tab`
+**Commit:** `feat: Phase 5.7 - Google Drive file integration (URL + Picker)`
 
 ---
 
 #### 5.8 Box Tab Migration (2-3 days) ⬜
 
-**Goal:** Convert Box tab to Svelte while maintaining OAuth and folder processing
+**Goal:** Convert Box tab to Svelte with OAuth, file processing, and analysis mode integration
 
-**This follows the same pattern as Google Drive Tab (5.5)**
+**This follows the same pattern as Google Drive Tab, including:**
+- Analysis mode radio buttons (full/audio-only/filename-only)
+- Stale results detection
+- Preset display
+- All existing Box functionality
 
 **Implementation Tasks:**
 
@@ -2389,13 +2400,97 @@ describe('BoxTab', () => {
 - [ ] Single file and folder processing work
 - [ ] No regressions
 
-**Commit:** `feat: migrate Box tab to Svelte`
+**Commit:** `feat: Phase 5.8 - Box tab migration with analysis mode`
 
 ---
 
-#### 5.9 Settings Tab Migration (1-2 days) ⬜
+#### 5.9 Three Hour Configuration (1-2 days) ⬜
 
-**Goal:** Convert Settings tab to Svelte with reactive store integration
+**Goal:** Add scripts folder and speaker ID configuration for Three Hour preset filename validation
+
+**Prerequisites:** Phase 5.7 (Google Drive Integration) must be complete
+
+**Why This is a Separate Phase:**
+Three Hour filename validation requires additional inputs that are:
+- **Tab-specific**: Only available on Google Drive tab (not Local Files or Box)
+- **User-configured**: Scripts folder URL + speaker ID must be provided
+- **Persistent**: Need to store configuration across sessions
+- **Requires Drive API**: Must fetch script list from Drive folder
+
+**What Needs to Be Built:**
+
+1. **Three Hour Settings Store** (`src/stores/threeHourSettings.ts`)
+   ```typescript
+   export const threeHourSettings = writable({
+     scriptsFolderUrl: '',
+     speakerId: ''
+   });
+   // Auto-persist to localStorage
+   ```
+
+2. **Google Drive Tab - Three Hour Configuration UI**
+
+   When Three Hour preset is selected AND user chooses analysis mode with filename validation:
+
+   ```
+   ┌─────────────────────────────────────────────┐
+   │ Three Hour Configuration:                   │
+   │                                             │
+   │ Scripts Folder URL:                         │
+   │ [https://drive.google.com/drive/folders/...]│
+   │                                             │
+   │ Speaker ID:                                 │
+   │ [SP001                                    ] │
+   │                                             │
+   │ ℹ️ These settings are saved automatically   │
+   └─────────────────────────────────────────────┘
+   ```
+
+3. **Validation Integration**
+   - Fetch script list from Google Drive scripts folder (using API from Phase 5.7)
+   - Pass to FilenameValidator.validateThreeHour()
+   - Display validation results in filename cell
+   - Works with all three analysis modes
+
+4. **Error Handling**
+   - Invalid/inaccessible scripts folder URL
+   - Empty speaker ID
+   - Network errors fetching scripts
+   - Graceful degradation if config missing
+
+**Tab-Specific Behavior:**
+
+| Tab | Three Hour Preset Behavior |
+|-----|----------------------------|
+| **Google Drive** | Show config inputs when filename validation mode selected |
+| **Local Files** | Show note: "Three Hour filename validation requires Google Drive tab" |
+| **Box** | Show note: "Three Hour filename validation requires Google Drive tab" |
+
+**Implementation Tasks:**
+
+1. Create `threeHourSettings` store with localStorage persistence
+2. Add configuration UI to GoogleDriveTab (conditional on preset + analysis mode)
+3. Fetch script list from Drive folder when URL provided
+4. Integrate with FilenameValidator.validateThreeHour()
+5. Add helpful error messages for common config issues
+6. Update Settings tab docs to mention Google Drive configuration
+7. Manual testing: Configure Three Hour on Drive tab, validate files
+
+**Success Criteria:**
+- [ ] Three Hour config inputs appear on Google Drive tab
+- [ ] Settings persist across sessions
+- [ ] Script folder URL validates and fetches script list
+- [ ] Filename validation works with configured settings
+- [ ] Clear error messages for missing/invalid config
+- [ ] Other tabs show appropriate messaging
+
+**Commit:** `feat: Phase 5.9 - Three Hour configuration inputs on Google Drive tab`
+
+---
+
+#### 5.10 Settings Tab Migration (1-2 days) ⬜
+
+**Goal:** Finalize Settings tab Svelte conversion and polish
 
 **Implementation Tasks:**
 
@@ -2890,7 +2985,7 @@ describe('SettingsTab', () => {
 
 ---
 
-#### 5.10 Cleanup & Final Integration (1 day) ⬜
+#### 5.11 Cleanup & Final Integration (1 day) ⬜
 
 **Goal:** Remove old code, finalize integration, and verify everything works
 
