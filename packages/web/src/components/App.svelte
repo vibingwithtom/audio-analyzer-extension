@@ -163,7 +163,7 @@
   <!-- Footer -->
   <footer class="footer">
     <div class="container">
-      <p id="buildInfo">Audio Analyzer - Phase 5.4 Tab Migration</p>
+      <p id="buildInfo">Audio Analyzer - Phase 5.5 Settings & Criteria</p>
     </div>
   </footer>
 </div>

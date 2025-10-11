@@ -78,4 +78,12 @@
   >
     📦 Box
   </button>
+  <button
+    class="tab-button"
+    class:active={$currentTab === 'settings'}
+    on:click={() => handleTabClick('settings')}
+    aria-current={$currentTab === 'settings' ? 'page' : undefined}
+  >
+    ⚙️ Settings
+  </button>
 </nav>
