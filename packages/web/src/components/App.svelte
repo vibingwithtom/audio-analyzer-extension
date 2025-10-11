@@ -1,10 +1,11 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import TabNavigation from './TabNavigation.svelte';
   import LocalFileTab from './LocalFileTab.svelte';
   import GoogleDriveTab from './GoogleDriveTab.svelte';
   import BoxTab from './BoxTab.svelte';
   import SettingsTab from './SettingsTab.svelte';
-  import { currentTab } from '../stores/tabs';
+  import { currentTab, type TabType } from '../stores/tabs';
 
   /**
    * Toggle dark mode
@@ -23,6 +24,22 @@
       document.documentElement.setAttribute('data-theme', savedTheme);
     }
   }
+
+  // Listen for Box OAuth completion and restore tab
+  onMount(() => {
+    const handleBoxAuthComplete = (event: CustomEvent<{ returnTab: string }>) => {
+      const { returnTab } = event.detail;
+      if (returnTab) {
+        currentTab.setTab(returnTab as TabType);
+      }
+    };
+
+    window.addEventListener('box-auth-complete', handleBoxAuthComplete as EventListener);
+
+    return () => {
+      window.removeEventListener('box-auth-complete', handleBoxAuthComplete as EventListener);
+    };
+  });
 </script>
 
 <style>

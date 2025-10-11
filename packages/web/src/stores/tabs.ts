@@ -8,11 +8,21 @@ interface CurrentTabStore {
 }
 
 function createCurrentTab(): CurrentTabStore {
-  const { subscribe, set } = writable<TabType>('local');
+  // Try to restore tab from localStorage
+  const storedTab = typeof window !== 'undefined' ? localStorage.getItem('current_tab') : null;
+  const initialTab: TabType = (storedTab as TabType) || 'local';
+
+  const { subscribe, set } = writable<TabType>(initialTab);
 
   return {
     subscribe,
-    setTab: (tab: TabType) => set(tab)
+    setTab: (tab: TabType) => {
+      set(tab);
+      // Persist to localStorage for tab restoration after OAuth redirects
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('current_tab', tab);
+      }
+    }
   };
 }
 

@@ -32,11 +32,22 @@ export interface GoogleAuthState extends ProviderAuthState {
 }
 
 /**
+ * Box-specific auth state with user info
+ */
+export interface BoxAuthState extends ProviderAuthState {
+  userInfo: {
+    login?: string;
+    name?: string;
+    id?: string;
+  } | null;
+}
+
+/**
  * Combined auth state for all providers
  */
 export interface AuthState {
   google: GoogleAuthState;
-  box: ProviderAuthState;
+  box: BoxAuthState;
 }
 
 /**
@@ -82,6 +93,7 @@ export class AuthService {
     box: {
       isAuthenticated: false,
       isInitialized: false,
+      userInfo: null,
       error: null
     }
   });
@@ -162,7 +174,31 @@ export class AuthService {
       this.updateBoxState({ isInitialized: true });
 
       if (this.boxAuth.isSignedIn()) {
-        this.updateBoxState({ isAuthenticated: true });
+        const userInfo = await this.boxAuth.getUserInfo();
+        this.updateBoxState({
+          isAuthenticated: true,
+          userInfo
+        });
+
+        // Handle tab restoration after Box OAuth redirect
+        if (typeof window !== 'undefined') {
+          const justAuthenticated = localStorage.getItem('box_just_authenticated');
+          const returnTab = localStorage.getItem('box_oauth_return_tab');
+
+          if (justAuthenticated === 'true' && returnTab) {
+            // Restore the tab that the user was on before OAuth redirect
+            localStorage.setItem('current_tab', returnTab);
+
+            // Clean up OAuth flags
+            localStorage.removeItem('box_just_authenticated');
+            localStorage.removeItem('box_oauth_return_tab');
+
+            // Dispatch event to notify App.svelte to update tab
+            window.dispatchEvent(new CustomEvent('box-auth-complete', {
+              detail: { returnTab }
+            }));
+          }
+        }
       }
     } catch (error) {
       console.error('Failed to initialize Box auth:', error);
@@ -225,8 +261,10 @@ export class AuthService {
   async signInBox(): Promise<void> {
     try {
       await this.boxAuth.signIn();
+      const userInfo = await this.boxAuth.getUserInfo();
       this.updateBoxState({
         isAuthenticated: true,
+        userInfo,
         error: null
       });
     } catch (error) {
@@ -248,6 +286,7 @@ export class AuthService {
       await this.boxAuth.signOut();
       this.updateBoxState({
         isAuthenticated: false,
+        userInfo: null,
         error: null
       });
     } catch (error) {
@@ -306,7 +345,7 @@ export class AuthService {
    * Update Box auth state
    * Public for testing purposes
    */
-  updateBoxState(updates: Partial<ProviderAuthState>): void {
+  updateBoxState(updates: Partial<BoxAuthState>): void {
     this.authStateStore.update(state => ({
       ...state,
       box: { ...state.box, ...updates }
@@ -327,6 +366,7 @@ export class AuthService {
       box: {
         isAuthenticated: false,
         isInitialized: false,
+        userInfo: null,
         error: null
       }
     });
