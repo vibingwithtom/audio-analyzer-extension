@@ -28,6 +28,7 @@ export interface PickerResult {
     mimeType: string;
     sizeBytes?: number;
     url?: string;
+    type?: 'file' | 'folder';
   }>;
 }
 
@@ -136,6 +137,19 @@ export class GoogleDriveAPI {
   }
 
   /**
+   * Recursively get all audio files from a folder
+   *
+   * @param folderId - Google Drive folder ID
+   * @returns Array of audio file metadata
+   * @throws Error if listing fails
+   */
+  async getAllAudioFilesInFolder(folderId: string): Promise<DriveFileMetadata[]> {
+    // For now, just get direct children (non-recursive)
+    // Recursive can be added in future enhancement
+    return await this.listAudioFilesInFolder(folderId);
+  }
+
+  /**
    * Get file metadata
    *
    * @param fileId - Google Drive file ID
@@ -197,6 +211,7 @@ export class GoogleDriveAPI {
   async showPicker(options?: {
     selectFolders?: boolean;
     multiSelect?: boolean;
+    audioOnly?: boolean;
   }): Promise<PickerResult> {
     if (!this.pickerInited) {
       await this.initPicker();
@@ -216,11 +231,13 @@ export class GoogleDriveAPI {
           picker.addView(folderView);
         } else {
           // File selection view - shows hierarchical Drive structure starting from My Drive
-          // MIME type filter makes only audio files selectable (others are grayed out)
           const docsView = new window.google.picker.DocsView()
             .setIncludeFolders(true)
-            .setParent('root')
-            .setMimeTypes([
+            .setParent('root');
+
+          // Add MIME type filter for audio files if specified
+          if (options?.audioOnly !== false) { // Default to audio-only
+            docsView.setMimeTypes([
               'audio/mpeg',
               'audio/wav',
               'audio/x-wav',
@@ -232,6 +249,8 @@ export class GoogleDriveAPI {
               'audio/ogg',
               'audio/x-m4a'
             ].join(','));
+          }
+
           picker.addView(docsView);
         }
 
@@ -251,6 +270,13 @@ export class GoogleDriveAPI {
         pickerBuilder
           .setCallback((data: PickerResult) => {
             if (data.action === window.google.picker.Action.PICKED) {
+              // Add type information to docs
+              if (data.docs) {
+                data.docs = data.docs.map(doc => ({
+                  ...doc,
+                  type: doc.mimeType === 'application/vnd.google-apps.folder' ? 'folder' : 'file'
+                }));
+              }
               resolve(data);
             } else if (data.action === window.google.picker.Action.CANCEL) {
               reject(new Error('Picker cancelled by user'));

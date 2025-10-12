@@ -46,6 +46,12 @@
   let originalFileUrl: string | null = null; // Store URL for re-downloading
   let originalFileId: string | null = null;   // Store file ID for re-downloading
 
+  // Batch processing state
+  let batchProcessing = false;
+  let batchResults: AudioResults[] = [];
+  let batchProgress = { current: 0, total: 0, currentFile: '' };
+  let batchCancelled = false;
+
   const audioAnalyzer = new AudioAnalyzer();
   const levelAnalyzer = new LevelAnalyzer();
 
@@ -89,7 +95,114 @@
     }
   }
 
-  async function processFile(file: File) {
+  /**
+   * Pure function to analyze a file (no side effects)
+   * @param file - The file to analyze
+   * @returns Analysis results with validation
+   */
+  async function analyzeFile(file: File): Promise<AudioResults> {
+    // Skip audio analysis if file is empty (filename-only mode)
+    let basicResults = null;
+    if (file.size === 0) {
+      // Extract file type from filename extension
+      const extension = file.name.split('.').pop()?.toLowerCase() || '';
+      const fileType = extension || 'unknown';
+
+      // Minimal results for filename-only validation
+      basicResults = {
+        fileType: fileType,
+        channels: 0,
+        sampleRate: 0,
+        bitDepth: 0,
+        duration: 0
+      };
+    } else {
+      // Basic file analysis
+      basicResults = await audioAnalyzer.analyzeFile(file);
+    }
+
+    // Advanced analysis (ONLY in experimental mode)
+    let advancedResults = null;
+    if ($analysisMode === 'experimental' && file.size > 0) {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const arrayBuffer = await file.arrayBuffer();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+      // Run level analysis with experimental features
+      advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer, null, true);
+    }
+
+    // Combine results
+    const analysisResults = {
+      filename: file.name,
+      fileSize: file.size,
+      ...basicResults,
+      ...(advancedResults || {})
+    };
+
+    // Validate against criteria if a preset is selected
+    const criteria = $currentCriteria;
+    const mode = $analysisMode;
+    if (criteria && $currentPresetId !== 'custom') {
+      // Run audio criteria validation (skip if filename-only mode)
+      const skipAudioValidation = mode === 'filename-only';
+      const validation = CriteriaValidator.validateResults(analysisResults, criteria, skipAudioValidation);
+
+      // Add filename validation if the preset supports it (only for filename-only and full modes)
+      const currentPreset = availablePresets[$currentPresetId];
+      if (currentPreset?.filenameValidationType && (mode === 'filename-only' || mode === 'full')) {
+        let filenameValidation;
+
+        if (currentPreset.filenameValidationType === 'bilingual-pattern') {
+          filenameValidation = FilenameValidator.validateBilingual(file.name);
+        } else if (currentPreset.filenameValidationType === 'script-match') {
+          // Three Hour validation - available on Google Drive tab
+          // TODO: Implement in Phase 5.7 with scripts folder URL and speaker ID
+          filenameValidation = {
+            status: 'warning',
+            value: file.name,
+            issue: 'Three Hour validation requires configuration (Phase 5.7)'
+          };
+        }
+
+        if (filenameValidation && validation) {
+          validation.filename = {
+            status: filenameValidation.status as 'pass' | 'warning' | 'fail',
+            value: file.name,
+            issue: filenameValidation.issue || undefined
+          };
+        }
+      }
+
+      // Determine overall status based on validation
+      let overallStatus: 'pass' | 'warning' | 'fail' = 'pass';
+      if (validation) {
+        const validationValues = Object.values(validation);
+        if (validationValues.some((v: any) => v.status === 'fail')) {
+          overallStatus = 'fail';
+        } else if (validationValues.some((v: any) => v.status === 'warning')) {
+          overallStatus = 'warning';
+        }
+      }
+
+      return {
+        ...analysisResults,
+        status: overallStatus,
+        validation
+      };
+    } else {
+      return {
+        ...analysisResults,
+        status: 'pass'
+      };
+    }
+  }
+
+  /**
+   * Process a single file (with UI side effects)
+   * @param file - The file to process
+   */
+  async function processSingleFile(file: File) {
     cleanup();
 
     processing = true;
@@ -101,107 +214,17 @@
     currentFile = file;
 
     try {
-      let basicResults = null;
-      let advancedResults = null;
-
-      // Skip audio analysis if file is empty (filename-only mode)
-      if (file.size === 0) {
-        // Extract file type from filename extension
-        const extension = file.name.split('.').pop()?.toLowerCase() || '';
-        const fileType = extension || 'unknown';
-
-        // Minimal results for filename-only validation
-        basicResults = {
-          fileType: fileType,
-          channels: 0,
-          sampleRate: 0,
-          bitDepth: 0,
-          duration: 0
-        };
-      } else {
-        // Basic file analysis
-        basicResults = await audioAnalyzer.analyzeFile(file);
-
-        // Advanced analysis (skip if filename-only mode)
-        if ($analysisMode !== 'filename-only') {
-          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-          const arrayBuffer = await file.arrayBuffer();
-          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-
-          advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer);
-        }
-      }
+      // Analyze file (pure function)
+      const analysisResults = await analyzeFile(file);
 
       // Create blob URL for audio playback (skip for empty files)
       if (file.size > 0) {
         currentAudioUrl = URL.createObjectURL(file);
+        analysisResults.audioUrl = currentAudioUrl;
       }
 
-      // Combine results
-      const analysisResults = {
-        filename: file.name,
-        fileSize: file.size,
-        audioUrl: currentAudioUrl,
-        ...basicResults,
-        ...(advancedResults || {})
-      };
-
-      // Validate against criteria if a preset is selected
-      const criteria = $currentCriteria;
-      const mode = $analysisMode;
-      if (criteria && $currentPresetId !== 'custom') {
-        const skipAudioValidation = mode === 'filename-only';
-        validation = CriteriaValidator.validateResults(analysisResults, criteria, skipAudioValidation);
-
-        // Add filename validation if the preset supports it (skip if audio-only mode)
-        const currentPreset = availablePresets[$currentPresetId];
-        if (currentPreset?.filenameValidationType && mode !== 'audio-only') {
-          let filenameValidation;
-
-          if (currentPreset.filenameValidationType === 'bilingual-pattern') {
-            filenameValidation = FilenameValidator.validateBilingual(file.name);
-          } else if (currentPreset.filenameValidationType === 'script-match') {
-            // Three Hour validation - available on Google Drive tab
-            // TODO: Implement in Phase 5.7 with scripts folder URL and speaker ID
-            filenameValidation = {
-              status: 'warning',
-              value: file.name,
-              issue: 'Three Hour validation requires configuration (Phase 5.7)'
-            };
-          }
-
-          if (filenameValidation && validation) {
-            validation.filename = {
-              status: filenameValidation.status as 'pass' | 'warning' | 'fail',
-              value: file.name,
-              issue: filenameValidation.issue || undefined
-            };
-          }
-        }
-
-        // Determine overall status based on validation
-        let overallStatus: 'pass' | 'warning' | 'fail' = 'pass';
-        if (validation) {
-          const validationValues = Object.values(validation);
-          if (validationValues.some((v: any) => v.status === 'fail')) {
-            overallStatus = 'fail';
-          } else if (validationValues.some((v: any) => v.status === 'warning')) {
-            overallStatus = 'warning';
-          }
-        }
-
-        results = {
-          ...analysisResults,
-          status: overallStatus,
-          validation
-        };
-      } else {
-        results = {
-          ...analysisResults,
-          status: 'pass'
-        };
-      }
-
+      results = analysisResults;
+      validation = analysisResults.validation || null;
       resultsMode = $analysisMode;
 
     } catch (err) {
@@ -210,6 +233,104 @@
     } finally {
       processing = false;
     }
+  }
+
+  /**
+   * Process multiple files in batch with parallel processing
+   * @param driveFiles - Array of Drive file metadata to process
+   */
+  async function processBatchFiles(driveFiles: DriveFileMetadata[]) {
+    batchProcessing = true;
+    batchProgress = { current: 0, total: driveFiles.length, currentFile: '' };
+    batchResults = [];
+    batchCancelled = false;
+    error = '';
+
+    const concurrency = 3; // Process 3 files at once
+    let index = 0;
+    const inProgress: Promise<void>[] = [];
+
+    try {
+      while (index < driveFiles.length || inProgress.length > 0) {
+        // Check if cancelled
+        if (batchCancelled) {
+          // Wait for in-progress downloads to complete
+          await Promise.allSettled(inProgress);
+          break;
+        }
+
+        // Start new downloads up to concurrency limit
+        while (inProgress.length < concurrency && index < driveFiles.length) {
+          const driveFile = driveFiles[index];
+          index++;
+
+          const promise = (async () => {
+            try {
+              batchProgress = { ...batchProgress, currentFile: driveFile.name };
+
+              // Download file from Google Drive
+              const file = await driveAPI!.downloadFile(driveFile.id);
+
+              // Analyze file (pure function)
+              const result = await analyzeFile(file);
+
+              // Add to results
+              batchResults = [...batchResults, result];
+              batchProgress = { ...batchProgress, current: batchResults.length, total: driveFiles.length };
+            } catch (err) {
+              // Add error result
+              const errorResult: AudioResults = {
+                filename: driveFile.name,
+                fileSize: driveFile.size || 0,
+                fileType: 'unknown',
+                channels: 0,
+                sampleRate: 0,
+                bitDepth: 0,
+                duration: 0,
+                status: 'error',
+                error: err instanceof Error ? err.message : 'Unknown error'
+              };
+              batchResults = [...batchResults, errorResult];
+              batchProgress = { ...batchProgress, current: batchResults.length, total: driveFiles.length };
+            }
+          })();
+
+          inProgress.push(promise);
+        }
+
+        // Wait for at least one to complete
+        if (inProgress.length > 0) {
+          await Promise.race(inProgress);
+          // Remove completed promises
+          const stillInProgress = [];
+          for (const p of inProgress) {
+            const result = await Promise.race([p, Promise.resolve('still-running')]);
+            if (result === 'still-running') {
+              stillInProgress.push(p);
+            }
+          }
+          inProgress.length = 0;
+          inProgress.push(...stillInProgress);
+        }
+      }
+
+      // Store results mode
+      resultsMode = $analysisMode;
+
+    } catch (err) {
+      if (!batchCancelled) {
+        error = err instanceof Error ? err.message : 'Batch processing failed';
+      }
+    } finally {
+      batchProcessing = false;
+    }
+  }
+
+  /**
+   * Cancel batch processing
+   */
+  function handleCancelBatch() {
+    batchCancelled = true;
   }
 
   async function handleUrlSubmit() {
@@ -234,11 +355,11 @@
 
         // Create a minimal File object for filename validation
         const file = new File([], metadata.name, { type: 'application/octet-stream' });
-        await processFile(file);
+        await processSingleFile(file);
       } else {
         // Full or audio-only mode: Download the actual file
         const file = await driveAPI.downloadFileFromUrl(fileUrl);
-        await processFile(file);
+        await processSingleFile(file);
       }
 
       fileUrl = ''; // Clear input on success
@@ -277,39 +398,72 @@
     results = null;
 
     try {
-      if ($analysisMode === 'filename-only') {
-        // Filename-only mode: Show picker and get metadata only
-        const pickerResult = await driveAPI.showPicker({ multiSelect: false });
+      // Show picker with multi-select and folder support
+      const pickerResult = await driveAPI.showPicker({
+        multiSelect: true,
+        selectFolders: false, // Allow folders in file view
+        audioOnly: true
+      });
 
-        if (pickerResult.docs && pickerResult.docs.length > 0) {
-          const doc = pickerResult.docs[0];
-          const metadata = await driveAPI.getFileMetadata(doc.id);
+      if (!pickerResult.docs || pickerResult.docs.length === 0) {
+        processing = false;
+        return; // User cancelled
+      }
 
-          // Store file ID for reprocessing
-          originalFileUrl = null;
-          originalFileId = doc.id;
+      // Check if folder was selected
+      const doc = pickerResult.docs[0];
+      let filesToProcess: DriveFileMetadata[] = [];
 
-          // Create a minimal File object for filename validation
-          const file = new File([], metadata.name, { type: 'application/octet-stream' });
-          await processFile(file);
+      if (doc.type === 'folder') {
+        // Get all audio files from folder
+        processing = true;
+        try {
+          filesToProcess = await driveAPI.getAllAudioFilesInFolder(doc.id);
+          if (filesToProcess.length === 0) {
+            error = 'No audio files found in the selected folder';
+            processing = false;
+            return;
+          }
+        } catch (err) {
+          error = err instanceof Error ? err.message : 'Failed to list folder contents';
+          processing = false;
+          return;
         }
       } else {
-        // Full or audio-only mode: Show picker and download files
-        const pickerResult = await driveAPI.showPicker({ multiSelect: false });
-
-        if (pickerResult.docs && pickerResult.docs.length > 0) {
-          const doc = pickerResult.docs[0];
-
-          // Store file ID for reprocessing
-          originalFileUrl = null;
-          originalFileId = doc.id;
-
-          const files = await driveAPI.pickAndDownloadFiles(false); // single file for now
-          if (files.length > 0) {
-            await processFile(files[0]);
-          }
-        }
+        // Files selected directly - convert to DriveFileMetadata format
+        filesToProcess = pickerResult.docs.map(d => ({
+          id: d.id,
+          name: d.name,
+          mimeType: d.mimeType,
+          size: d.sizeBytes
+        }));
       }
+
+      // Single file: use single-file processing
+      if (filesToProcess.length === 1) {
+        const fileMetadata = filesToProcess[0];
+
+        // Store file ID for reprocessing
+        originalFileUrl = null;
+        originalFileId = fileMetadata.id;
+
+        if ($analysisMode === 'filename-only') {
+          // Filename-only mode: Just use metadata
+          const file = new File([], fileMetadata.name, { type: 'application/octet-stream' });
+          await processSingleFile(file);
+        } else {
+          // Download and process file
+          const file = await driveAPI.downloadFile(fileMetadata.id);
+          await processSingleFile(file);
+        }
+        processing = false;
+        return;
+      }
+
+      // Multiple files: use batch processing
+      processing = false; // Turn off single-file processing flag
+      await processBatchFiles(filesToProcess);
+
     } catch (err) {
       if (err instanceof Error && err.message.includes('cancelled')) {
         // User cancelled - not an error
@@ -318,10 +472,7 @@
         error = err instanceof Error ? err.message : 'Failed to browse Google Drive';
       }
       results = null;
-    } finally {
-      if (!currentFile) {
-        processing = false;
-      }
+      processing = false;
     }
   }
 
@@ -352,7 +503,7 @@
           throw new Error('No file source available for reprocessing');
         }
 
-        await processFile(file);
+        await processSingleFile(file);
       } catch (err) {
         error = err instanceof Error ? err.message : 'Failed to reprocess file';
         results = null;
@@ -361,7 +512,7 @@
       }
     } else if (currentFile) {
       // Normal reprocessing (just re-validate with different mode)
-      await processFile(currentFile);
+      await processSingleFile(currentFile);
     }
   }
 </script>
@@ -650,6 +801,147 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   }
 
+  .batch-progress {
+    margin: 1.5rem 0;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.05) 0%, rgba(76, 175, 80, 0.1) 100%);
+    border: 1px solid rgba(76, 175, 80, 0.2);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .batch-progress h3 {
+    margin: 0 0 1rem 0;
+    color: var(--text-primary, #333333);
+    font-size: 1rem;
+  }
+
+  .batch-progress progress {
+    width: 100%;
+    height: 1.5rem;
+    border-radius: 4px;
+    margin-bottom: 0.75rem;
+  }
+
+  .progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    gap: 1rem;
+  }
+
+  .progress-info p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary, #666666);
+  }
+
+  .current-file {
+    font-style: italic;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .btn-danger {
+    padding: 0.5rem 1rem;
+    background: var(--danger, #f44336);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-danger:hover {
+    background: #d32f2f;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(244, 67, 54, 0.3);
+  }
+
+  .batch-summary {
+    margin: 1.5rem 0;
+    padding: 1.5rem;
+    background: var(--bg-secondary, #ffffff);
+    border: 1px solid var(--bg-tertiary, #e0e0e0);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .batch-summary h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary, #333333);
+  }
+
+  .summary-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .stat {
+    text-align: center;
+    padding: 1rem;
+    border-radius: 6px;
+    background: var(--bg-tertiary, #f5f5f5);
+  }
+
+  .stat.pass {
+    background: rgba(76, 175, 80, 0.1);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+  }
+
+  .stat.warning {
+    background: rgba(255, 152, 0, 0.1);
+    border: 1px solid rgba(255, 152, 0, 0.3);
+  }
+
+  .stat.fail {
+    background: rgba(244, 67, 54, 0.1);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+  }
+
+  .stat.error {
+    background: rgba(156, 39, 176, 0.1);
+    border: 1px solid rgba(156, 39, 176, 0.3);
+  }
+
+  .stat-value {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+
+  .stat-label {
+    display: block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary, #666666);
+  }
+
+  .batch-duration {
+    padding: 0.75rem;
+    background: rgba(37, 99, 235, 0.05);
+    border: 1px solid rgba(37, 99, 235, 0.2);
+    border-radius: 6px;
+    text-align: center;
+    font-weight: 500;
+  }
+
+  .duration-value {
+    font-size: 1.1rem;
+    color: var(--primary, #2563eb);
+  }
+
   .stale-results-overlay {
     position: relative;
   }
@@ -896,6 +1188,23 @@
       <div class="processing-indicator">Processing file...</div>
     {/if}
 
+    <!-- Batch Processing Progress -->
+    {#if batchProcessing}
+      <div class="batch-progress">
+        <h3>Processing Files...</h3>
+        <progress value={batchProgress.current} max={batchProgress.total}></progress>
+        <div class="progress-info">
+          <p>{batchProgress.current} / {batchProgress.total} files</p>
+          {#if batchProgress.currentFile}
+            <p class="current-file">{batchProgress.currentFile}</p>
+          {/if}
+        </div>
+        <button on:click={handleCancelBatch} class="btn-danger">
+          Cancel
+        </button>
+      </div>
+    {/if}
+
     <!-- Stale Results Warning -->
     {#if resultsStale}
       <div class="stale-indicator">
@@ -912,15 +1221,66 @@
       </div>
     {/if}
 
-    <!-- Results Table -->
-    {#if results}
+    <!-- Results Table (Single File) -->
+    {#if results && !batchProcessing && batchResults.length === 0}
       <div class:stale-results-overlay={resultsStale}>
         <ResultsTable
           results={[results]}
           mode="single"
           metadataOnly={$analysisMode === 'filename-only'}
+          experimentalMode={$analysisMode === 'experimental'}
         />
       </div>
+    {/if}
+
+    <!-- Batch Results -->
+    {#if batchResults.length > 0 && !batchProcessing}
+      <!-- Batch Summary -->
+      <div class="batch-summary">
+        <h3>Batch Analysis Complete</h3>
+        <div class="summary-stats">
+          <div class="stat pass">
+            <div class="stat-value">{batchResults.filter(r => r.status === 'pass').length}</div>
+            <div class="stat-label">Pass</div>
+          </div>
+          <div class="stat warning">
+            <div class="stat-value">{batchResults.filter(r => r.status === 'warning').length}</div>
+            <div class="stat-label">Warnings</div>
+          </div>
+          <div class="stat fail">
+            <div class="stat-value">{batchResults.filter(r => r.status === 'fail').length}</div>
+            <div class="stat-label">Failed</div>
+          </div>
+          <div class="stat error">
+            <div class="stat-value">{batchResults.filter(r => r.status === 'error').length}</div>
+            <div class="stat-label">Errors</div>
+          </div>
+        </div>
+
+        {#if $analysisMode !== 'filename-only'}
+          <div class="batch-duration">
+            <div class="duration-value">
+              {(() => {
+                // Only count pass and warning files (exclude failed and errors)
+                const total = batchResults
+                  .filter(r => r.status === 'pass' || r.status === 'warning')
+                  .reduce((sum, r) => sum + (r.duration || 0), 0);
+                const minutes = Math.floor(total / 60);
+                const seconds = Math.floor(total % 60);
+                return `Total Duration: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+              })()}
+            </div>
+          </div>
+        {/if}
+      </div>
+
+      <!-- Batch Results Table -->
+      <ResultsTable
+        results={batchResults}
+        mode="batch"
+        metadataOnly={$analysisMode === 'filename-only'}
+        experimentalMode={$analysisMode === 'experimental'}
+      />
     {/if}
   {/if}
 </div>
