@@ -239,7 +239,12 @@
         await processFile(file);
       } else {
         // Full or audio-only mode: Download the actual file
-        const file = await boxAPI.downloadFileFromUrl(fileUrl);
+        // Get metadata first to pass filename for optimization
+        const metadata = await boxAPI.getFileMetadataFromUrl(fileUrl);
+        const file = await boxAPI.downloadFileFromUrl(fileUrl, {
+          mode: $analysisMode,
+          filename: metadata.name
+        });
         await processFile(file);
       }
 
@@ -270,7 +275,10 @@
 
       try {
         // Re-download from URL
-        const file = await boxAPI.downloadFileFromUrl(originalFileUrl);
+        const file = await boxAPI.downloadFileFromUrl(originalFileUrl, {
+          mode: $analysisMode,
+          filename: currentFile?.name || ''
+        });
         await processFile(file);
       } catch (err) {
         error = err instanceof Error ? err.message : 'Failed to reprocess file';

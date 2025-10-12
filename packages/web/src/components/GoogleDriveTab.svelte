@@ -234,7 +234,11 @@
                 file = new File([], driveFile.name, { type: 'application/octet-stream' });
               } else {
                 // Download file from Google Drive for audio analysis
-                file = await driveAPI!.downloadFile(driveFile.id);
+                // Pass mode and filename for optimization (WAV files use partial download)
+                file = await driveAPI!.downloadFile(driveFile.id, {
+                  mode: $analysisMode,
+                  filename: driveFile.name
+                });
               }
 
               // Analyze file (pure function)
@@ -338,7 +342,10 @@
             const file = new File([], fileMetadata.name, { type: 'application/octet-stream' });
             await processSingleFile(file);
           } else {
-            const file = await driveAPI.downloadFile(fileMetadata.id);
+            const file = await driveAPI.downloadFile(fileMetadata.id, {
+              mode: $analysisMode,
+              filename: fileMetadata.name
+            });
             await processSingleFile(file);
           }
           processing = false;
@@ -361,7 +368,12 @@
           await processSingleFile(file);
         } else {
           // Full or audio-only mode: Download the actual file
-          const file = await driveAPI.downloadFileFromUrl(fileUrl);
+          // Get metadata first to pass filename for optimization
+          const metadata = await driveAPI.getFileMetadataFromUrl(fileUrl);
+          const file = await driveAPI.downloadFileFromUrl(fileUrl, {
+            mode: $analysisMode,
+            filename: metadata.name
+          });
           await processSingleFile(file);
         }
       }
@@ -455,7 +467,10 @@
           await processSingleFile(file);
         } else {
           // Download and process file
-          const file = await driveAPI.downloadFile(fileMetadata.id);
+          const file = await driveAPI.downloadFile(fileMetadata.id, {
+            mode: $analysisMode,
+            filename: fileMetadata.name
+          });
           await processSingleFile(file);
         }
         processing = false;
@@ -505,10 +520,16 @@
 
         if (originalFileUrl) {
           // Re-download from URL
-          file = await driveAPI.downloadFileFromUrl(originalFileUrl);
+          file = await driveAPI.downloadFileFromUrl(originalFileUrl, {
+            mode: $analysisMode,
+            filename: currentFile?.name || ''
+          });
         } else if (originalFileId) {
           // Re-download using file ID
-          file = await driveAPI.downloadFile(originalFileId);
+          file = await driveAPI.downloadFile(originalFileId, {
+            mode: $analysisMode,
+            filename: currentFile?.name || ''
+          });
         } else {
           throw new Error('No file source available for reprocessing');
         }

@@ -32,7 +32,12 @@ vi.mock('../../src/box-auth.js', () => {
       init: vi.fn().mockResolvedValue(undefined),
       isSignedIn: vi.fn().mockReturnValue(false),
       signIn: vi.fn().mockResolvedValue(undefined),
-      signOut: vi.fn().mockResolvedValue(undefined)
+      signOut: vi.fn().mockResolvedValue(undefined),
+      getUserInfo: vi.fn().mockResolvedValue({
+        login: 'boxuser@example.com',
+        name: 'Box User',
+        id: '12345'
+      })
     }))
   };
 });

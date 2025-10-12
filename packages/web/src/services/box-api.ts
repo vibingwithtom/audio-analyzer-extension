@@ -87,25 +87,56 @@ export class BoxAPI {
   }
 
   /**
-   * Download a file from Box
+   * Download a file from Box with smart optimization
+   *
+   * Automatically uses partial download (100KB) for WAV files in non-experimental modes.
+   * Falls back to full download for:
+   * - Experimental mode (needs full audio data)
+   * - Non-WAV files (MP3, FLAC, etc. - Web Audio API needs complete file)
    *
    * @param fileId - Box file ID
    * @param sharedLink - Optional Box shared link URL
+   * @param options - Download options
    * @returns File object with correct name and mime type
    * @throws Error if download fails or user is not authenticated
    */
-  async downloadFile(fileId: string, sharedLink?: string): Promise<File> {
-    return await this.boxAuth.downloadFile(fileId, sharedLink || null);
+  async downloadFile(fileId: string, sharedLink?: string, options?: {
+    mode?: 'audio-only' | 'full' | 'filename-only' | 'experimental';
+    filename?: string;
+  }): Promise<File> {
+    const mode = options?.mode || 'audio-only';
+    const filename = options?.filename || '';
+
+    // Determine if we can use partial download optimization
+    const isWav = filename.toLowerCase().endsWith('.wav');
+    const needsFullFile = mode === 'experimental' || !isWav;
+
+    if (needsFullFile) {
+      // Full download needed for:
+      // - Experimental mode (any format - needs full audio for analysis)
+      // - Non-WAV files (MP3, FLAC, etc. - Web Audio API requires complete file)
+      return await this.boxAuth.downloadFile(fileId, sharedLink ? sharedLink : null);
+    } else {
+      // Partial download optimization for WAV files in audio-only/full mode
+      // WAV headers contain all metadata, only need first ~100KB
+      const partialBlob = await this.boxAuth.downloadFileHeaders(fileId, 102400, sharedLink ? sharedLink : null);
+      const metadata = await this.getFileMetadata(fileId, sharedLink);
+      return new File([partialBlob], metadata.name, { type: 'audio/wav' });
+    }
   }
 
   /**
    * Download a file from Box using a URL
    *
    * @param url - Box file URL or shared link
+   * @param options - Download options (mode and filename for optimization)
    * @returns File object
    * @throws Error if URL is invalid, not a file, or download fails
    */
-  async downloadFileFromUrl(url: string): Promise<File> {
+  async downloadFileFromUrl(url: string, options?: {
+    mode?: 'audio-only' | 'full' | 'filename-only' | 'experimental';
+    filename?: string;
+  }): Promise<File> {
     const parsed = this.parseUrl(url);
 
     if (parsed.type === 'folder') {
@@ -121,11 +152,11 @@ export class BoxAPI {
       }
 
       // For now, use the proxy to get file info from shared link
-      // The downloadFile method in BoxAuth will handle shared links
-      return await this.boxAuth.downloadFile('0', url); // Pass full URL as sharedLink param
+      // The downloadFile method will handle the optimization
+      return await this.downloadFile('0', url, options); // Pass full URL as sharedLink param
     }
 
-    return await this.downloadFile(parsed.id);
+    return await this.downloadFile(parsed.id, undefined, options);
   }
 
   /**
@@ -137,7 +168,7 @@ export class BoxAPI {
    * @throws Error if listing fails
    */
   async listAudioFilesInFolder(folderId: string, sharedLink?: string): Promise<BoxFileMetadata[]> {
-    return await this.boxAuth.listAudioFilesInFolder(folderId, sharedLink || null);
+    return await this.boxAuth.listAudioFilesInFolder(folderId, sharedLink ? sharedLink : null);
   }
 
   /**
@@ -149,7 +180,7 @@ export class BoxAPI {
    */
   async getFileMetadata(fileId: string, sharedLink?: string): Promise<BoxFileMetadata> {
     const boxFile = { id: fileId, name: '', type: 'file' };
-    return await this.boxAuth.getFileMetadata(boxFile, sharedLink || null);
+    return await this.boxAuth.getFileMetadata(boxFile, sharedLink ? sharedLink : null);
   }
 
   /**

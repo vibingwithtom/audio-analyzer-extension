@@ -98,31 +98,62 @@ export class GoogleDriveAPI {
   }
 
   /**
-   * Download a file from Google Drive
+   * Download a file from Google Drive with smart optimization
+   *
+   * Automatically uses partial download (100KB) for WAV files in non-experimental modes.
+   * Falls back to full download for:
+   * - Experimental mode (needs full audio data)
+   * - Non-WAV files (MP3, FLAC, etc. - Web Audio API needs complete file)
    *
    * @param fileId - Google Drive file ID
+   * @param options - Download options
    * @returns File object with correct name and mime type
    * @throws Error if download fails or user is not authenticated
    */
-  async downloadFile(fileId: string): Promise<File> {
-    return await this.googleAuth.downloadFile(fileId);
+  async downloadFile(fileId: string, options?: {
+    mode?: 'audio-only' | 'full' | 'filename-only' | 'experimental';
+    filename?: string;
+  }): Promise<File> {
+    const mode = options?.mode || 'audio-only';
+    const filename = options?.filename || '';
+
+    // Determine if we can use partial download optimization
+    const isWav = filename.toLowerCase().endsWith('.wav');
+    const needsFullFile = mode === 'experimental' || !isWav;
+
+    if (needsFullFile) {
+      // Full download needed for:
+      // - Experimental mode (any format - needs full audio for analysis)
+      // - Non-WAV files (MP3, FLAC, etc. - Web Audio API requires complete file)
+      return await this.googleAuth.downloadFile(fileId);
+    } else {
+      // Partial download optimization for WAV files in audio-only/full mode
+      // WAV headers contain all metadata, only need first ~100KB
+      const partialBlob = await this.googleAuth.downloadFileHeaders(fileId);
+      const metadata = await this.getFileMetadata(fileId);
+      return new File([partialBlob], metadata.name, { type: metadata.mimeType });
+    }
   }
 
   /**
    * Download a file from Google Drive using a URL
    *
    * @param url - Google Drive file URL
+   * @param options - Download options (mode and filename for optimization)
    * @returns File object
    * @throws Error if URL is invalid, not a file, or download fails
    */
-  async downloadFileFromUrl(url: string): Promise<File> {
+  async downloadFileFromUrl(url: string, options?: {
+    mode?: 'audio-only' | 'full' | 'filename-only' | 'experimental';
+    filename?: string;
+  }): Promise<File> {
     const parsed = this.parseUrl(url);
 
     if (parsed.type !== 'file') {
       throw new Error('URL is a folder, not a file. Use downloadFolderFiles() instead.');
     }
 
-    return await this.downloadFile(parsed.id);
+    return await this.downloadFile(parsed.id, options);
   }
 
   /**
