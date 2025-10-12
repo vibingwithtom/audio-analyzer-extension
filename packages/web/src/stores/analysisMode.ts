@@ -2,16 +2,17 @@
  * Analysis Mode Store
  *
  * Manages the analysis mode selection for presets that support filename validation.
- * Three modes available:
+ * Four modes available:
  * - 'full': Audio analysis + filename validation
  * - 'audio-only': Audio analysis only (skip filename validation)
  * - 'filename-only': Filename validation + metadata only (skip audio decoding - fast)
+ * - 'experimental': Full analysis + experimental features (reverb, noise floor, silence, stereo separation, mic bleed)
  */
 
 import { writable, derived } from 'svelte/store';
 import { currentPresetId } from './settings';
 
-export type AnalysisMode = 'full' | 'audio-only' | 'filename-only';
+export type AnalysisMode = 'full' | 'audio-only' | 'filename-only' | 'experimental';
 
 // Create writable store with default value
 const analysisModeStore = writable<AnalysisMode>('full');
@@ -19,7 +20,7 @@ const analysisModeStore = writable<AnalysisMode>('full');
 // Load saved mode from localStorage on initialization
 if (typeof window !== 'undefined') {
   const saved = localStorage.getItem('analysisMode') as AnalysisMode | null;
-  if (saved && ['full', 'audio-only', 'filename-only'].includes(saved)) {
+  if (saved && ['full', 'audio-only', 'filename-only', 'experimental'].includes(saved)) {
     analysisModeStore.set(saved);
   }
 }

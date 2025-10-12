@@ -4,6 +4,7 @@
   export let id: string;
   export let processing = false;
   export let accept = 'audio/*';
+  export let multiple = false;
 
   const dispatch = createEventDispatcher();
 
@@ -34,7 +35,16 @@
       if (input) {
         // Create a new FileList-like object
         const dataTransfer = new DataTransfer();
-        dataTransfer.items.add(files[0]);
+
+        // Add all files if multiple is enabled, otherwise just the first
+        if (multiple) {
+          for (let i = 0; i < files.length; i++) {
+            dataTransfer.items.add(files[i]);
+          }
+        } else {
+          dataTransfer.items.add(files[0]);
+        }
+
         input.files = dataTransfer.files;
 
         // Dispatch change event
@@ -129,11 +139,11 @@
     on:drop={handleDrop}
   >
     <label for={id} class="file-upload-label" class:disabled={processing}>
-      <span>📁 {processing ? 'Processing...' : 'Choose Audio File'}</span>
+      <span>📁 {processing ? 'Processing...' : multiple ? 'Choose Audio Files' : 'Choose Audio File'}</span>
     </label>
-    <input type="file" {id} {accept} on:change disabled={processing} class="file-input" />
+    <input type="file" {id} {accept} {multiple} on:change disabled={processing} class="file-input" />
 
-    <div class="drop-instruction">or drag and drop file here</div>
+    <div class="drop-instruction">or drag and drop {multiple ? 'files' : 'file'} here</div>
     <div class="file-info">Supported formats: WAV, MP3, FLAC, M4A, OGG</div>
   </div>
 </div>

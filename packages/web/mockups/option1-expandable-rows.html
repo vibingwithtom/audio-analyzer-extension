@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Option 1: Expandable Rows - Experimental Analysis Mockup</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f8f9fa;
+      padding: 2rem;
+      color: #333;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      color: #2563eb;
+    }
+
+    .mockup-label {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(37, 99, 235, 0.15) 100%);
+      border: 1px solid rgba(37, 99, 235, 0.3);
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 2rem;
+      font-weight: 500;
+    }
+
+    .batch-summary {
+      margin: 1.5rem 0;
+      padding: 1.5rem;
+      background: var(--bg-secondary, #ffffff);
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .batch-summary h2 {
+      margin: 0 0 1.25rem 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .summary-stats {
+      display: flex;
+      gap: 2rem;
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 80px;
+    }
+
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+      font-size: 0.875rem;
+      color: #666;
+      font-weight: 500;
+    }
+
+    .stat.pass .stat-value { color: #4CAF50; }
+    .stat.warning .stat-value { color: #ff9800; }
+    .stat.fail .stat-value { color: #f44336; }
+    .stat.error .stat-value { color: #f44336; }
+
+    .results-table {
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(37, 99, 235, 0.1) 100%);
+      padding: 0.875rem;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: #333;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    td {
+      padding: 0.875rem;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 0.875rem;
+    }
+
+    tr:hover {
+      background: rgba(37, 99, 235, 0.02);
+    }
+
+    .expand-icon {
+      cursor: pointer;
+      user-select: none;
+      font-size: 0.75rem;
+      color: #666;
+      transition: transform 0.2s;
+      display: inline-block;
+      width: 20px;
+    }
+
+    .expand-icon.expanded {
+      transform: rotate(90deg);
+    }
+
+    .status-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      font-weight: 500;
+      font-size: 0.75rem;
+      display: inline-block;
+    }
+
+    .status-pass {
+      background: rgba(76, 175, 80, 0.1);
+      color: #2e7d32;
+    }
+
+    .status-warning {
+      background: rgba(255, 152, 0, 0.1);
+      color: #e65100;
+    }
+
+    .status-fail {
+      background: rgba(244, 67, 54, 0.1);
+      color: #c62828;
+    }
+
+    .expanded-details {
+      display: none;
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.02) 0%, rgba(37, 99, 235, 0.05) 100%);
+      padding: 1.5rem;
+      border-top: 2px solid #e0e0e0;
+    }
+
+    .expanded-details.visible {
+      display: block;
+    }
+
+    .advanced-analysis-header {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #2563eb;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .metric-card {
+      background: white;
+      padding: 1rem;
+      border-radius: 6px;
+      border: 1px solid #e0e0e0;
+    }
+
+    .metric-label {
+      font-size: 0.75rem;
+      color: #666;
+      font-weight: 500;
+      margin-bottom: 0.5rem;
+    }
+
+    .metric-value {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .metric-value.success {
+      color: #4CAF50;
+    }
+
+    .metric-value.warning {
+      color: #ff9800;
+    }
+
+    .metric-value.error {
+      color: #f44336;
+    }
+
+    .metric-subtitle {
+      font-size: 0.75rem;
+      color: #666;
+      margin-top: 0.25rem;
+    }
+
+    .metric-subtitle.success {
+      color: #4CAF50;
+    }
+
+    .metric-subtitle.warning {
+      color: #ff9800;
+    }
+
+    .metric-subtitle.error {
+      color: #f44336;
+    }
+
+    .wide-metric {
+      grid-column: span 2;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Option 1: Expandable Rows</h1>
+
+    <div class="mockup-label">
+      📋 <strong>Concept:</strong> Click the arrow (▶) to expand any row and see experimental analysis details inline. Basic table stays clean and scannable.
+    </div>
+
+    <div class="batch-summary">
+      <h2>Batch Analysis Results</h2>
+      <div class="summary-stats">
+        <div class="stat pass">
+          <div class="stat-value">15</div>
+          <div class="stat-label">Pass</div>
+        </div>
+        <div class="stat warning">
+          <div class="stat-value">1</div>
+          <div class="stat-label">Warnings</div>
+        </div>
+        <div class="stat fail">
+          <div class="stat-value">1</div>
+          <div class="stat-label">Failed</div>
+        </div>
+        <div class="stat error">
+          <div class="stat-value">0</div>
+          <div class="stat-label">Errors</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="results-table">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 30px;"></th>
+            <th>Filename</th>
+            <th>Sample Rate</th>
+            <th>Bit Depth</th>
+            <th>Channels</th>
+            <th>Duration</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <span class="expand-icon" onclick="toggleExpand(this)">▶</span>
+            </td>
+            <td>recording_001.wav</td>
+            <td>48000 Hz</td>
+            <td>24-bit</td>
+            <td>Mono</td>
+            <td>0:15</td>
+            <td><span class="status-badge status-pass">✓ Pass</span></td>
+          </tr>
+          <tr>
+            <td colspan="7" class="expanded-details">
+              <div class="advanced-analysis-header">🧪 Advanced Analysis</div>
+              <div class="metrics-grid">
+                <div class="metric-card">
+                  <div class="metric-label">Peak Level</div>
+                  <div class="metric-value">-9.1 dB</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Normalization</div>
+                  <div class="metric-value warning">Too quiet</div>
+                  <div class="metric-subtitle warning">Peak: -9.1dB (Target: -6.0dB)</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Noise Floor (Old Model)</div>
+                  <div class="metric-value">-41.5 dB</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Noise Floor (New Model)</div>
+                  <div class="metric-value">-27.0 dB</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Reverb Time (RT60)</div>
+                  <div class="metric-value warning">~0.62 s</div>
+                  <div class="metric-subtitle warning">Fair (Slightly Live)</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Leading Silence</div>
+                  <div class="metric-value">0:00</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Trailing Silence</div>
+                  <div class="metric-value">0:00</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Longest Silence</div>
+                  <div class="metric-value">0:02</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Stereo Separation</div>
+                  <div class="metric-value">Mono file</div>
+                </div>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <span class="expand-icon expanded" onclick="toggleExpand(this)">▶</span>
+            </td>
+            <td>recording_002.wav</td>
+            <td>48000 Hz</td>
+            <td>16-bit</td>
+            <td>Stereo</td>
+            <td>0:23</td>
+            <td><span class="status-badge status-warning">⚠ Warning</span></td>
+          </tr>
+          <tr>
+            <td colspan="7" class="expanded-details visible">
+              <div class="advanced-analysis-header">🧪 Advanced Analysis</div>
+              <div class="metrics-grid">
+                <div class="metric-card">
+                  <div class="metric-label">Peak Level</div>
+                  <div class="metric-value">-5.5 dB</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Normalization</div>
+                  <div class="metric-value error">Too loud</div>
+                  <div class="metric-subtitle error">Peak: -5.5dB (Target: -6.0dB)</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Noise Floor (Old Model)</div>
+                  <div class="metric-value success">-110.4 dB</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Noise Floor (New Model)</div>
+                  <div class="metric-value success">-100.0 dB</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Reverb Time (RT60)</div>
+                  <div class="metric-value success">~0.48 s</div>
+                  <div class="metric-subtitle success">Good (Controlled)</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Leading Silence</div>
+                  <div class="metric-value">0:00</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Trailing Silence</div>
+                  <div class="metric-value">0:00</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Longest Silence</div>
+                  <div class="metric-value">0:02</div>
+                </div>
+                <div class="metric-card wide-metric">
+                  <div class="metric-label">Stereo Separation</div>
+                  <div class="metric-value">Conversational Stereo</div>
+                  <div class="metric-subtitle">100% confidence</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Mic Bleed (Old Method)</div>
+                  <div class="metric-value success">Not detected</div>
+                  <div class="metric-subtitle">L: -86.3dB, R: -85.3dB</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Mic Bleed (New Method)</div>
+                  <div class="metric-value success">Not detected</div>
+                  <div class="metric-subtitle">Med: 76.7dB, P10: 50.8dB, Bleed: 0.0%</div>
+                </div>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <span class="expand-icon" onclick="toggleExpand(this)">▶</span>
+            </td>
+            <td>recording_003.wav</td>
+            <td>44100 Hz</td>
+            <td>16-bit</td>
+            <td>Mono</td>
+            <td>0:18</td>
+            <td><span class="status-badge status-pass">✓ Pass</span></td>
+          </tr>
+          <tr>
+            <td colspan="7" class="expanded-details">
+              <div class="advanced-analysis-header">🧪 Advanced Analysis</div>
+              <div class="metrics-grid">
+                <div class="metric-card">
+                  <div class="metric-label">Peak Level</div>
+                  <div class="metric-value">-6.0 dB</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Normalization</div>
+                  <div class="metric-value success">Properly normalized</div>
+                  <div class="metric-subtitle success">Peak: -6.0dB (Target: -6.0dB)</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Noise Floor (Old Model)</div>
+                  <div class="metric-value">-65.2 dB</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Noise Floor (New Model)</div>
+                  <div class="metric-value">-58.1 dB</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Reverb Time (RT60)</div>
+                  <div class="metric-value success">~0.31 s</div>
+                  <div class="metric-subtitle success">Excellent (Dry)</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Leading Silence</div>
+                  <div class="metric-value">0:00</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Trailing Silence</div>
+                  <div class="metric-value">0:01</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Longest Silence</div>
+                  <div class="metric-value">0:03</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Stereo Separation</div>
+                  <div class="metric-value">Mono file</div>
+                </div>
+              </div>
+            </td>
+          </tr>
+
+          <!-- More rows would follow... -->
+          <tr>
+            <td>
+              <span class="expand-icon" onclick="toggleExpand(this)">▶</span>
+            </td>
+            <td>recording_004.wav</td>
+            <td>48000 Hz</td>
+            <td>24-bit</td>
+            <td>Mono</td>
+            <td>0:22</td>
+            <td><span class="status-badge status-pass">✓ Pass</span></td>
+          </tr>
+          <tr>
+            <td colspan="7" class="expanded-details">
+              <div class="advanced-analysis-header">🧪 Advanced Analysis</div>
+              <div class="metrics-grid">
+                <div class="metric-card">
+                  <div class="metric-label">Peak Level</div>
+                  <div class="metric-value">-6.2 dB</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Normalization</div>
+                  <div class="metric-value success">Properly normalized</div>
+                  <div class="metric-subtitle success">Peak: -6.2dB (Target: -6.0dB)</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Noise Floor (Old Model)</div>
+                  <div class="metric-value">-52.8 dB</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Noise Floor (New Model)</div>
+                  <div class="metric-value">-48.3 dB</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Reverb Time (RT60)</div>
+                  <div class="metric-value success">~0.42 s</div>
+                  <div class="metric-subtitle success">Good (Controlled)</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Leading Silence</div>
+                  <div class="metric-value">0:00</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Trailing Silence</div>
+                  <div class="metric-value">0:00</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Longest Silence</div>
+                  <div class="metric-value">0:01</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Stereo Separation</div>
+                  <div class="metric-value">Mono file</div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    function toggleExpand(icon) {
+      const isExpanded = icon.classList.contains('expanded');
+      const row = icon.closest('tr');
+      const detailsRow = row.nextElementSibling;
+      const detailsCell = detailsRow.querySelector('.expanded-details');
+
+      if (isExpanded) {
+        icon.classList.remove('expanded');
+        detailsCell.classList.remove('visible');
+      } else {
+        icon.classList.add('expanded');
+        detailsCell.classList.add('visible');
+      }
+    }
+  </script>
+</body>
+</html>

@@ -22,8 +22,25 @@
   let resultsStale = false;
   let resultsMode: AnalysisMode | null = null; // The mode used to generate current results
 
+  // Batch processing state
+  let batchResults: AudioResults[] = [];
+  let totalFiles = 0;
+  let processedFiles = 0;
+  let isBatchMode = false;
+  let cancelRequested = false;
+  let batchFiles: File[] = []; // Store files for reprocessing
+
   const audioAnalyzer = new AudioAnalyzer();
   const levelAnalyzer = new LevelAnalyzer();
+
+  // Reuse a single AudioContext for performance
+  let audioContext: AudioContext | null = null;
+  function getAudioContext(): AudioContext {
+    if (!audioContext) {
+      audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    return audioContext;
+  }
 
   // Cleanup blob URL when component is destroyed
   function cleanup() {
@@ -33,11 +50,21 @@
     }
   }
 
-  onDestroy(cleanup);
+  function cleanupAudioContext() {
+    if (audioContext) {
+      audioContext.close();
+      audioContext = null;
+    }
+  }
+
+  onDestroy(() => {
+    cleanup();
+    cleanupAudioContext();
+  });
 
   // Detect when analysis mode changes while results exist
   $: {
-    if (results && resultsMode !== null) {
+    if ((results || (isBatchMode && batchResults.length > 0)) && resultsMode !== null) {
       // If mode changed back to original, results are no longer stale
       if ($analysisMode === resultsMode) {
         resultsStale = false;
@@ -64,15 +91,16 @@
       // Basic file analysis
       const basicResults = await audioAnalyzer.analyzeFile(file);
 
-      // Advanced analysis (skip if filename-only mode)
+      // Advanced analysis (ONLY in experimental mode)
       let advancedResults = null;
-      if ($analysisMode !== 'filename-only') {
+      if ($analysisMode === 'experimental') {
         // Decode audio for advanced analysis
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const ctx = getAudioContext();
         const arrayBuffer = await file.arrayBuffer();
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
 
-        advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer);
+        // Run level analysis with experimental features
+        advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer, null, true);
       }
 
       // Create blob URL for audio playback
@@ -158,16 +186,169 @@
 
   async function handleFileChange(event: CustomEvent) {
     const inputElement = event.target as HTMLInputElement;
-    const file = inputElement?.files?.[0];
+    const files = inputElement?.files;
 
-    if (!file) return;
+    if (!files || files.length === 0) return;
 
-    await processFile(file);
+    // Convert FileList to array
+    const filesArray = Array.from(files);
+
+    if (filesArray.length === 1) {
+      // Single file mode
+      isBatchMode = false;
+      batchResults = [];
+      await processFile(filesArray[0]);
+    } else {
+      // Batch mode
+      isBatchMode = true;
+      results = null;
+      await processBatchFiles(filesArray);
+    }
+  }
+
+  async function processBatchFiles(files: File[]) {
+    processing = true;
+    error = '';
+    batchResults = [];
+    batchFiles = files; // Store for reprocessing
+    totalFiles = files.length;
+    processedFiles = 0;
+    cancelRequested = false;
+    resultsStale = false;
+    resultsMode = $analysisMode;
+
+    for (let i = 0; i < files.length; i++) {
+      // Check if cancel was requested
+      if (cancelRequested) {
+        error = 'Processing cancelled by user';
+        break;
+      }
+
+      const file = files[i];
+      processedFiles = i + 1;
+
+      try {
+        const result = await processSingleFile(file);
+        batchResults = [...batchResults, result];
+      } catch (err) {
+        // Add error result (separate from validation failures)
+        batchResults = [...batchResults, {
+          filename: file.name,
+          fileSize: file.size,
+          fileType: 'unknown',
+          channels: 0,
+          sampleRate: 0,
+          bitDepth: 0,
+          duration: 0,
+          status: 'error' as any,
+          validation: {
+            fileType: {
+              status: 'fail',
+              value: 'Error',
+              issue: err instanceof Error ? err.message : 'Unknown error'
+            }
+          }
+        }];
+      }
+    }
+
+    processing = false;
+    cancelRequested = false;
+  }
+
+  async function processSingleFile(file: File): Promise<AudioResults> {
+    // Basic file analysis
+    const basicResults = await audioAnalyzer.analyzeFile(file);
+
+    // Advanced analysis (ONLY in experimental mode)
+    let advancedResults = null;
+    if ($analysisMode === 'experimental') {
+      // Decode audio for advanced analysis
+      const ctx = getAudioContext();
+      const arrayBuffer = await file.arrayBuffer();
+      const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+
+      // Run level analysis with experimental features
+      advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer, null, true);
+    }
+
+    // Combine results
+    const analysisResults = {
+      filename: file.name,
+      fileSize: file.size,
+      ...basicResults,
+      ...(advancedResults || {})
+    };
+
+    // Validate against criteria if a preset is selected
+    const criteria = $currentCriteria;
+    const mode = $analysisMode;
+    if (criteria && $currentPresetId !== 'custom') {
+      // Run audio criteria validation (skip if filename-only mode)
+      const skipAudioValidation = mode === 'filename-only';
+      const validation = CriteriaValidator.validateResults(analysisResults, criteria, skipAudioValidation);
+
+      // Add filename validation if the preset supports it (skip if audio-only mode)
+      const currentPreset = availablePresets[$currentPresetId];
+      if (currentPreset?.filenameValidationType && mode !== 'audio-only') {
+        let filenameValidation;
+
+        if (currentPreset.filenameValidationType === 'bilingual-pattern') {
+          // Validate bilingual conversational filename
+          filenameValidation = FilenameValidator.validateBilingual(file.name);
+        } else if (currentPreset.filenameValidationType === 'script-match') {
+          // Script matching not available in local file tab (requires Google Drive scripts folder)
+          filenameValidation = {
+            status: 'warning',
+            value: file.name,
+            issue: 'Script matching only available on Google Drive tab'
+          };
+        }
+
+        if (filenameValidation && validation) {
+          validation.filename = {
+            status: filenameValidation.status as 'pass' | 'warning' | 'fail',
+            value: file.name,
+            issue: filenameValidation.issue || undefined
+          };
+        }
+      }
+
+      // Determine overall status based on validation
+      let overallStatus: 'pass' | 'warning' | 'fail' = 'pass';
+      if (validation) {
+        const validationValues = Object.values(validation);
+        if (validationValues.some((v: any) => v.status === 'fail')) {
+          overallStatus = 'fail';
+        } else if (validationValues.some((v: any) => v.status === 'warning')) {
+          overallStatus = 'warning';
+        }
+      }
+
+      return {
+        ...analysisResults,
+        status: overallStatus,
+        validation
+      };
+    } else {
+      // No validation - just show results
+      return {
+        ...analysisResults,
+        status: 'pass'
+      };
+    }
   }
 
   async function handleReprocess() {
-    if (!currentFile) return;
-    await processFile(currentFile);
+    if (isBatchMode && batchFiles.length > 0) {
+      await processBatchFiles(batchFiles);
+    } else if (currentFile) {
+      await processFile(currentFile);
+    }
+  }
+
+  function handleCancelBatch() {
+    cancelRequested = true;
   }
 </script>
 
@@ -441,6 +622,156 @@
     cursor: not-allowed;
     transform: none;
   }
+
+  /* Batch Processing Styles */
+  .batch-progress-section {
+    margin: 1.5rem 0;
+    padding: 1.25rem;
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.05) 0%, rgba(76, 175, 80, 0.1) 100%);
+    border: 1px solid rgba(76, 175, 80, 0.2);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .progress-bar-container {
+    width: 100%;
+    height: 24px;
+    background: var(--bg-tertiary, #e0e0e0);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--success, #4CAF50) 0%, #66BB6A 100%);
+    transition: width 0.3s ease;
+    border-radius: 12px;
+  }
+
+  .progress-text {
+    text-align: center;
+    font-weight: 500;
+    color: var(--success, #4CAF50);
+    font-size: 0.95rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .cancel-button {
+    display: block;
+    margin: 0 auto;
+    padding: 0.5rem 1.25rem;
+    background: var(--danger, #f44336);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .cancel-button:hover:not(:disabled) {
+    background: #d32f2f;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(244, 67, 54, 0.3);
+  }
+
+  .cancel-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .batch-summary {
+    margin: 1.5rem 0;
+    padding: 1.5rem;
+    background: var(--bg-secondary, #f5f5f5);
+    border: 1px solid var(--bg-tertiary, #e0e0e0);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .batch-summary h2 {
+    margin: 0 0 1.25rem 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary, #333333);
+  }
+
+  .summary-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .summary-stats {
+    display: flex;
+    gap: 0;
+    flex: 1;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    min-width: 80px;
+  }
+
+  .stat-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 0.25rem;
+  }
+
+  .stat-label {
+    font-size: 0.875rem;
+    color: var(--text-secondary, #666666);
+    font-weight: 500;
+  }
+
+  .stat.pass .stat-value {
+    color: var(--success, #4CAF50);
+  }
+
+  .stat.warning .stat-value {
+    color: var(--warning, #ff9800);
+  }
+
+  .stat.fail .stat-value {
+    color: var(--danger, #f44336);
+  }
+
+  .stat.error .stat-value {
+    color: var(--danger, #f44336);
+  }
+
+  .duration-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    min-width: 200px;
+  }
+
+  .duration-label {
+    font-size: 0.875rem;
+    color: var(--text-secondary, #666666);
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+  }
+
+  .duration-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--primary, #2563eb);
+    line-height: 1;
+  }
 </style>
 
 <div class="local-file-tab">
@@ -461,6 +792,7 @@
     id="local-file-upload"
     {processing}
     accept="audio/*"
+    multiple={true}
     on:change={handleFileChange}
   />
 
@@ -480,7 +812,7 @@
           />
           <div class="radio-content">
             <span class="radio-title">Full Analysis</span>
-            <span class="radio-description">Audio analysis + filename validation</span>
+            <span class="radio-description">Basic properties + filename validation</span>
           </div>
         </label>
 
@@ -495,7 +827,7 @@
           />
           <div class="radio-content">
             <span class="radio-title">Audio Analysis Only</span>
-            <span class="radio-description">Skip filename validation</span>
+            <span class="radio-description">Basic properties (sample rate, bit depth, duration)</span>
           </div>
         </label>
 
@@ -510,7 +842,22 @@
           />
           <div class="radio-content">
             <span class="radio-title">Filename Validation Only</span>
-            <span class="radio-description">Fast - metadata only, no audio processing</span>
+            <span class="radio-description">Fastest - metadata only, no audio decode</span>
+          </div>
+        </label>
+
+        <label class="radio-label">
+          <input
+            type="radio"
+            name="analysis-mode"
+            value="experimental"
+            checked={$analysisMode === 'experimental'}
+            on:change={() => setAnalysisMode('experimental')}
+            disabled={processing}
+          />
+          <div class="radio-content">
+            <span class="radio-title">Experimental Analysis</span>
+            <span class="radio-description">Peak level, noise floor, reverb, silence detection</span>
           </div>
         </label>
       </div>
@@ -528,25 +875,105 @@
   {/if}
 
   {#if processing}
-    <div class="processing-indicator">Processing file...</div>
+    {#if isBatchMode && totalFiles > 1}
+      <div class="batch-progress-section">
+        <div class="progress-bar-container">
+          <div class="progress-bar" style="width: {(processedFiles / totalFiles) * 100}%"></div>
+        </div>
+        <div class="progress-text">
+          Processing {processedFiles} of {totalFiles} files... ({Math.round((processedFiles / totalFiles) * 100)}%)
+        </div>
+        <button class="cancel-button" on:click={handleCancelBatch} disabled={cancelRequested}>
+          {cancelRequested ? 'Cancelling...' : '✕ Cancel'}
+        </button>
+      </div>
+    {:else}
+      <div class="processing-indicator">Processing file...</div>
+    {/if}
   {/if}
 
-  {#if resultsStale}
-    <div class="stale-indicator">
-      <span class="stale-indicator-text">
-        ⚠️ Results are from {resultsMode === 'full' ? 'Full Analysis' : resultsMode === 'audio-only' ? 'Audio Only' : 'Filename Only'} mode
-      </span>
-      <button
-        class="reprocess-button"
-        on:click={handleReprocess}
-        disabled={processing}
-      >
-        ⟳ Reprocess with {$analysisMode === 'full' ? 'Full Analysis' : $analysisMode === 'audio-only' ? 'Audio Only' : 'Filename Only'}
-      </button>
+  {#if isBatchMode && batchResults.length > 0}
+    {#if resultsStale}
+      <div class="stale-indicator">
+        <span class="stale-indicator-text">
+          ⚠️ Results are from {resultsMode === 'full' ? 'Full Analysis' : resultsMode === 'audio-only' ? 'Audio Only' : resultsMode === 'experimental' ? 'Experimental Analysis' : 'Filename Only'} mode
+        </span>
+        <button
+          class="reprocess-button"
+          on:click={handleReprocess}
+          disabled={processing}
+        >
+          ⟳ Reprocess Batch with {$analysisMode === 'full' ? 'Full Analysis' : $analysisMode === 'audio-only' ? 'Audio Only' : $analysisMode === 'experimental' ? 'Experimental Analysis' : 'Filename Only'}
+        </button>
+      </div>
+    {/if}
+
+    <!-- Batch Summary and Results -->
+    <div class:stale-results-overlay={resultsStale}>
+      <div class="batch-summary">
+        <h2>Batch Analysis Results</h2>
+        <div class="summary-content">
+          <div class="summary-stats">
+            <div class="stat pass">
+              <div class="stat-value">{batchResults.filter(r => r.status === 'pass').length}</div>
+              <div class="stat-label">Pass</div>
+            </div>
+            <div class="stat warning">
+              <div class="stat-value">{batchResults.filter(r => r.status === 'warning').length}</div>
+              <div class="stat-label">Warnings</div>
+            </div>
+            <div class="stat fail">
+              <div class="stat-value">{batchResults.filter(r => r.status === 'fail').length}</div>
+              <div class="stat-label">Failed</div>
+            </div>
+            <div class="stat error">
+              <div class="stat-value">{batchResults.filter(r => r.status === 'error').length}</div>
+              <div class="stat-label">Errors</div>
+            </div>
+          </div>
+          {#if $analysisMode !== 'filename-only'}
+            <div class="duration-stat">
+              <div class="duration-label">Total Duration (Pass + Warning):</div>
+              <div class="duration-value">
+                {(() => {
+                  // Only count pass and warning files (exclude failed and errors)
+                  const total = batchResults
+                    .filter(r => r.status === 'pass' || r.status === 'warning')
+                    .reduce((sum, r) => sum + (r.duration || 0), 0);
+                  const minutes = Math.floor(total / 60);
+                  const seconds = Math.floor(total % 60);
+                  return `${minutes}m ${seconds}s`;
+                })()}
+              </div>
+            </div>
+          {/if}
+        </div>
+      </div>
+
+      <!-- Batch Results Table -->
+      <ResultsTable
+        results={batchResults}
+        mode="batch"
+        metadataOnly={$analysisMode === 'filename-only'}
+      />
     </div>
-  {/if}
+  {:else if results}
+    <!-- Single File Results -->
+    {#if resultsStale}
+      <div class="stale-indicator">
+        <span class="stale-indicator-text">
+          ⚠️ Results are from {resultsMode === 'full' ? 'Full Analysis' : resultsMode === 'audio-only' ? 'Audio Only' : resultsMode === 'experimental' ? 'Experimental Analysis' : 'Filename Only'} mode
+        </span>
+        <button
+          class="reprocess-button"
+          on:click={handleReprocess}
+          disabled={processing}
+        >
+          ⟳ Reprocess with {$analysisMode === 'full' ? 'Full Analysis' : $analysisMode === 'audio-only' ? 'Audio Only' : $analysisMode === 'experimental' ? 'Experimental Analysis' : 'Filename Only'}
+        </button>
+      </div>
+    {/if}
 
-  {#if results}
     <div class:stale-results-overlay={resultsStale}>
       <ResultsTable
         results={[results]}
