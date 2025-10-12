@@ -3,9 +3,8 @@
   import { authState, authService } from '../stores/auth';
   import { AppBridge } from '../bridge/app-bridge';
   import ResultsDisplay from './ResultsDisplay.svelte';
-  import { AudioAnalyzer, LevelAnalyzer, CriteriaValidator } from '@audio-analyzer/core';
-  import { FilenameValidator } from '../validation/filename-validator';
-  import { currentCriteria, currentPresetId, availablePresets } from '../stores/settings';
+  import { analyzeAudioFile } from '../services/audio-analysis-service';
+  import { currentPresetId, availablePresets, currentCriteria } from '../stores/settings';
   import { currentTab } from '../stores/tabs';
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
   import { GoogleDriveAPI, type DriveFileMetadata } from '../services/google-drive-api';
@@ -53,10 +52,6 @@
   let processedFiles = 0;
   let batchCancelled = false;
   let batchDriveFiles: DriveFileMetadata[] = []; // Store for batch reprocessing
-
-  const audioAnalyzer = new AudioAnalyzer();
-  // Note: Don't create a shared LevelAnalyzer instance - create new instances per file
-  // to avoid concurrent analysis conflicts with the analysisInProgress flag
 
   // Cleanup blob URL when component is destroyed
   function cleanup() {
@@ -148,121 +143,15 @@
   }
 
   /**
-   * Pure function to analyze a file (no side effects)
-   * @param file - The file to analyze
-   * @returns Analysis results with validation
+   * Analyze a file using the shared analysis service
    */
   async function analyzeFile(file: File): Promise<AudioResults> {
-    // Skip audio analysis if file is empty (filename-only mode)
-    let basicResults = null;
-    if (file.size === 0) {
-      // Extract file type from filename extension
-      const extension = file.name.split('.').pop()?.toLowerCase() || '';
-      const fileType = extension || 'unknown';
-
-      // Minimal results for filename-only validation
-      basicResults = {
-        fileType: fileType,
-        channels: 0,
-        sampleRate: 0,
-        bitDepth: 0,
-        duration: 0
-      };
-    } else {
-      // Basic file analysis
-      basicResults = await audioAnalyzer.analyzeFile(file);
-    }
-
-    // Advanced analysis (ONLY in experimental mode)
-    let advancedResults = null;
-    if ($analysisMode === 'experimental' && file.size > 0) {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const arrayBuffer = await file.arrayBuffer();
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-
-      // Create a new LevelAnalyzer instance for each file to avoid concurrent analysis conflicts
-      const levelAnalyzer = new LevelAnalyzer();
-
-      // Run level analysis with experimental features
-      advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer, null, true);
-
-      // Add stereo separation analysis
-      const stereoSeparation = levelAnalyzer.analyzeStereoSeparation(audioBuffer);
-      if (stereoSeparation) {
-        advancedResults.stereoSeparation = stereoSeparation;
-      }
-
-      // Add mic bleed analysis (only for stereo files)
-      const micBleed = levelAnalyzer.analyzeMicBleed(audioBuffer);
-      if (micBleed) {
-        advancedResults.micBleed = micBleed;
-      }
-    }
-
-    // Combine results
-    const analysisResults = {
-      filename: file.name,
-      fileSize: file.size,
-      ...basicResults,
-      ...(advancedResults || {})
-    };
-
-    // Validate against criteria if a preset is selected
-    const criteria = $currentCriteria;
-    const mode = $analysisMode;
-    if (criteria && $currentPresetId !== 'custom') {
-      // Run audio criteria validation (skip if filename-only mode)
-      const skipAudioValidation = mode === 'filename-only';
-      const validation = CriteriaValidator.validateResults(analysisResults, criteria, skipAudioValidation);
-
-      // Add filename validation if the preset supports it (only for filename-only and full modes)
-      const currentPreset = availablePresets[$currentPresetId];
-      if (currentPreset?.filenameValidationType && (mode === 'filename-only' || mode === 'full')) {
-        let filenameValidation;
-
-        if (currentPreset.filenameValidationType === 'bilingual-pattern') {
-          filenameValidation = FilenameValidator.validateBilingual(file.name);
-        } else if (currentPreset.filenameValidationType === 'script-match') {
-          // Three Hour validation - available on Google Drive tab
-          // TODO: Implement in Phase 5.7 with scripts folder URL and speaker ID
-          filenameValidation = {
-            status: 'warning',
-            value: file.name,
-            issue: 'Three Hour validation requires configuration (Phase 5.7)'
-          };
-        }
-
-        if (filenameValidation && validation) {
-          validation.filename = {
-            status: filenameValidation.status as 'pass' | 'warning' | 'fail',
-            value: file.name,
-            issue: filenameValidation.issue || undefined
-          };
-        }
-      }
-
-      // Determine overall status based on validation
-      let overallStatus: 'pass' | 'warning' | 'fail' = 'pass';
-      if (validation) {
-        const validationValues = Object.values(validation);
-        if (validationValues.some((v: any) => v.status === 'fail')) {
-          overallStatus = 'fail';
-        } else if (validationValues.some((v: any) => v.status === 'warning')) {
-          overallStatus = 'warning';
-        }
-      }
-
-      return {
-        ...analysisResults,
-        status: overallStatus,
-        validation
-      };
-    } else {
-      return {
-        ...analysisResults,
-        status: 'pass'
-      };
-    }
+    return await analyzeAudioFile(file, {
+      analysisMode: $analysisMode,
+      preset: $currentPresetId ? availablePresets[$currentPresetId] : null,
+      presetId: $currentPresetId,
+      criteria: $currentCriteria
+    });
   }
 
   /**
