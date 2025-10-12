@@ -2,9 +2,8 @@
   import { onDestroy } from 'svelte';
   import { authState, authService } from '../stores/auth';
   import { AppBridge } from '../bridge/app-bridge';
-  import ResultsTable from './ResultsTable.svelte';
-  import { AudioAnalyzer, LevelAnalyzer, CriteriaValidator } from '@audio-analyzer/core';
-  import { FilenameValidator } from '../validation/filename-validator';
+  import ResultsDisplay from './ResultsDisplay.svelte';
+  import { analyzeAudioFile } from '../services/audio-analysis-service';
   import { currentCriteria, currentPresetId, availablePresets } from '../stores/settings';
   import { currentTab } from '../stores/tabs';
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
@@ -50,8 +49,12 @@
   let fileUrl = '';
   let originalFileUrl: string | null = null; // Store URL for re-downloading
 
-  const audioAnalyzer = new AudioAnalyzer();
-  const levelAnalyzer = new LevelAnalyzer();
+  // Batch processing state
+  let batchProcessing = false;
+  let batchResults: AudioResults[] = [];
+  let totalFiles = 0;
+  let processedFiles = 0;
+  let batchCancelled = false;
 
   // Cleanup blob URL when component is destroyed
   function cleanup() {
@@ -63,37 +66,84 @@
 
   onDestroy(cleanup);
 
-  // Detect when analysis mode changes while results exist
+  // Helper functions for smart staleness detection
+  function hasValidatedAudioProperties(result: AudioResults): boolean {
+    return result.validation?.sampleRate !== undefined || result.validation?.bitDepth !== undefined;
+  }
+
+  function hasFilenameValidation(result: AudioResults): boolean {
+    return result.validation?.filename !== undefined;
+  }
+
+  function hasExperimentalMetrics(result: AudioResults): boolean {
+    return result.peakDb !== undefined || result.reverbInfo !== undefined;
+  }
+
+  function areResultsStaleForMode(
+    results: AudioResults | AudioResults[],
+    newMode: AnalysisMode,
+    currentPreset: any
+  ): boolean {
+    const resultArray = Array.isArray(results) ? results : [results];
+    const firstResult = resultArray[0];
+
+    if (!firstResult) return true;
+
+    switch (newMode) {
+      case 'audio-only':
+        return !hasValidatedAudioProperties(firstResult);
+
+      case 'filename-only':
+        if (currentPreset?.supportsFilenameValidation) {
+          return !hasFilenameValidation(firstResult);
+        }
+        return false;
+
+      case 'full':
+        const needsFilename = currentPreset?.supportsFilenameValidation;
+        if (!hasValidatedAudioProperties(firstResult)) return true;
+        if (needsFilename && !hasFilenameValidation(firstResult)) return true;
+        return false;
+
+      case 'experimental':
+        return !hasExperimentalMetrics(firstResult);
+
+      default:
+        return false;
+    }
+  }
+
+  // Smart staleness detection - only mark stale if new mode needs data we don't have
   $: {
-    if (results && resultsMode !== null) {
+    if ((results || batchResults.length > 0) && resultsMode !== null) {
       if ($analysisMode === resultsMode) {
         resultsStale = false;
       } else {
-        // Check if we actually need to reprocess based on available data
-        const hasAudioData = results.sampleRate && results.sampleRate > 0;
-        const hasFilenameValidation = results.validation?.filename !== undefined;
-
-        // Determine if current mode needs data that's missing
-        let needsReprocessing = false;
-
-        if ($analysisMode === 'audio-only' && !hasAudioData) {
-          needsReprocessing = true; // Need audio but don't have it
-        } else if ($analysisMode === 'filename-only' && !hasFilenameValidation) {
-          needsReprocessing = true; // Need filename validation but don't have it
-        } else if ($analysisMode === 'full' && (!hasAudioData || !hasFilenameValidation)) {
-          needsReprocessing = true; // Need both but missing one or both
-        }
-        // experimental mode needs audio data
-        else if ($analysisMode === 'experimental' && !hasAudioData) {
-          needsReprocessing = true;
-        }
-
-        resultsStale = needsReprocessing;
+        const currentPreset = availablePresets[$currentPresetId];
+        const currentResults = batchResults.length > 0 ? batchResults : results;
+        const isStale = areResultsStaleForMode(currentResults, $analysisMode, currentPreset);
+        resultsStale = isStale;
       }
     }
   }
 
-  async function processFile(file: File) {
+  /**
+   * Analyze a file using the shared analysis service
+   */
+  async function analyzeFile(file: File): Promise<AudioResults> {
+    return await analyzeAudioFile(file, {
+      analysisMode: $analysisMode,
+      preset: $currentPresetId ? availablePresets[$currentPresetId] : null,
+      presetId: $currentPresetId,
+      criteria: $currentCriteria
+    });
+  }
+
+  /**
+   * Process a single file (with UI side effects)
+   * @param file - The file to process
+   */
+  async function processSingleFile(file: File) {
     cleanup();
 
     processing = true;
@@ -105,106 +155,17 @@
     currentFile = file;
 
     try {
-      let basicResults = null;
-      let advancedResults = null;
-
-      // Skip audio analysis if file is empty (filename-only mode)
-      if (file.size === 0) {
-        // Extract file type from filename extension
-        const extension = file.name.split('.').pop()?.toLowerCase() || '';
-        const fileType = extension || 'unknown';
-
-        // Minimal results for filename-only validation
-        basicResults = {
-          fileType: fileType,
-          channels: 0,
-          sampleRate: 0,
-          bitDepth: 0,
-          duration: 0
-        };
-      } else {
-        // Basic file analysis
-        basicResults = await audioAnalyzer.analyzeFile(file);
-
-        // Advanced analysis (skip if filename-only mode)
-        if ($analysisMode !== 'filename-only') {
-          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-          const arrayBuffer = await file.arrayBuffer();
-          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-
-          advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer);
-        }
-      }
+      // Analyze file (pure function)
+      const analysisResults = await analyzeFile(file);
 
       // Create blob URL for audio playback (skip for empty files)
       if (file.size > 0) {
         currentAudioUrl = URL.createObjectURL(file);
+        analysisResults.audioUrl = currentAudioUrl;
       }
 
-      // Combine results
-      const analysisResults = {
-        filename: file.name,
-        fileSize: file.size,
-        audioUrl: currentAudioUrl,
-        ...basicResults,
-        ...(advancedResults || {})
-      };
-
-      // Validate against criteria if a preset is selected
-      const criteria = $currentCriteria;
-      const mode = $analysisMode;
-      if (criteria && $currentPresetId !== 'custom') {
-        const skipAudioValidation = mode === 'filename-only';
-        validation = CriteriaValidator.validateResults(analysisResults, criteria, skipAudioValidation);
-
-        // Add filename validation if the preset supports it (skip if audio-only mode)
-        const currentPreset = availablePresets[$currentPresetId];
-        if (currentPreset?.filenameValidationType && mode !== 'audio-only') {
-          let filenameValidation;
-
-          if (currentPreset.filenameValidationType === 'bilingual-pattern') {
-            filenameValidation = FilenameValidator.validateBilingual(file.name);
-          } else if (currentPreset.filenameValidationType === 'script-match') {
-            // Three Hour validation - not available on Box tab
-            filenameValidation = {
-              status: 'warning',
-              value: file.name,
-              issue: 'Three Hour validation requires Google Drive access (Phase 5.9)'
-            };
-          }
-
-          if (filenameValidation && validation) {
-            validation.filename = {
-              status: filenameValidation.status as 'pass' | 'warning' | 'fail',
-              value: file.name,
-              issue: filenameValidation.issue || undefined
-            };
-          }
-        }
-
-        // Determine overall status based on validation
-        let overallStatus: 'pass' | 'warning' | 'fail' = 'pass';
-        if (validation) {
-          const validationValues = Object.values(validation);
-          if (validationValues.some((v: any) => v.status === 'fail')) {
-            overallStatus = 'fail';
-          } else if (validationValues.some((v: any) => v.status === 'warning')) {
-            overallStatus = 'warning';
-          }
-        }
-
-        results = {
-          ...analysisResults,
-          status: overallStatus,
-          validation
-        };
-      } else {
-        results = {
-          ...analysisResults,
-          status: 'pass'
-        };
-      }
-
+      results = analysisResults;
+      validation = analysisResults.validation || null;
       resultsMode = $analysisMode;
 
     } catch (err) {
@@ -225,38 +186,164 @@
     processing = true;
     error = '';
     results = null;
+    batchResults = []; // Clear previous batch results
 
     try {
-      // Store the URL for reprocessing
-      originalFileUrl = fileUrl;
+      // Parse the URL to determine if it's a file or folder
+      const parsed = boxAPI.parseUrl(fileUrl);
 
-      if ($analysisMode === 'filename-only') {
-        // Filename-only mode: Just fetch metadata, don't download file
-        const metadata = await boxAPI.getFileMetadataFromUrl(fileUrl);
+      if (parsed.type === 'folder') {
+        // Folder URL - list audio files and batch process
+        const filesToProcess = await boxAPI.listAudioFilesInFolder(parsed.id, parsed.sharedLink);
 
-        // Create a minimal File object for filename validation
-        const file = new File([], metadata.name, { type: 'application/octet-stream' });
-        await processFile(file);
+        if (filesToProcess.length === 0) {
+          error = 'No audio files found in the folder';
+          processing = false;
+          return;
+        }
+
+        // Multiple files: use batch processing
+        processing = false;
+        await processBatchFiles(filesToProcess);
       } else {
-        // Full or audio-only mode: Download the actual file
-        // Get metadata first to pass filename for optimization
-        const metadata = await boxAPI.getFileMetadataFromUrl(fileUrl);
-        const file = await boxAPI.downloadFileFromUrl(fileUrl, {
-          mode: $analysisMode,
-          filename: metadata.name
-        });
-        await processFile(file);
+        // File URL - single file processing
+        originalFileUrl = fileUrl;
+
+        if ($analysisMode === 'filename-only') {
+          // Filename-only mode: Just fetch metadata, don't download file
+          const metadata = await boxAPI.getFileMetadataFromUrl(fileUrl);
+
+          // Create a minimal File object for filename validation
+          const file = new File([], metadata.name, { type: 'application/octet-stream' });
+          await processSingleFile(file);
+        } else {
+          // Full or audio-only mode: Download the actual file
+          // Get metadata first to pass filename for optimization
+          const metadata = await boxAPI.getFileMetadataFromUrl(fileUrl);
+          const file = await boxAPI.downloadFileFromUrl(fileUrl, {
+            mode: $analysisMode,
+            filename: metadata.name
+          });
+          await processSingleFile(file);
+        }
+        processing = false;
       }
 
       fileUrl = ''; // Clear input on success
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to process Box URL';
       results = null;
-    } finally {
-      if (!currentFile) {
-        processing = false;
-      }
+      processing = false;
     }
+  }
+
+  /**
+   * Process multiple files in batch with parallel processing
+   * @param boxFiles - Array of Box file metadata to process
+   */
+  async function processBatchFiles(boxFiles: any[]) {
+    batchProcessing = true;
+    totalFiles = boxFiles.length;
+    processedFiles = 0;
+    batchResults = [];
+    batchCancelled = false;
+    error = '';
+    resultsMode = $analysisMode;
+
+    const concurrency = 3; // Process 3 files at once
+    let index = 0;
+    const inProgress: Promise<void>[] = [];
+
+    try {
+      while (index < boxFiles.length || inProgress.length > 0) {
+        // Check if cancelled
+        if (batchCancelled) {
+          // Wait for in-progress downloads to complete
+          await Promise.allSettled(inProgress);
+          break;
+        }
+
+        // Start new downloads up to concurrency limit
+        while (inProgress.length < concurrency && index < boxFiles.length) {
+          const boxFile = boxFiles[index];
+          index++;
+
+          const promise = (async () => {
+            try {
+              // Check if filename-only mode - don't download the actual file
+              let file: File;
+              if ($analysisMode === 'filename-only') {
+                // Filename-only mode: Create minimal File object with metadata only
+                file = new File([], boxFile.name, { type: 'application/octet-stream' });
+              } else {
+                // Download file from Box for audio analysis
+                // Pass mode and filename for optimization (WAV files use partial download)
+                file = await boxAPI!.downloadFile(boxFile.id, undefined, {
+                  mode: $analysisMode,
+                  filename: boxFile.name
+                });
+              }
+
+              // Analyze file (pure function)
+              const result = await analyzeFile(file);
+
+              // Add to results and increment processed count
+              batchResults = [...batchResults, result];
+              processedFiles = batchResults.length;
+            } catch (err) {
+              // Log error for debugging
+              console.error(`Error processing ${boxFile.name}:`, err);
+
+              // Add error result
+              const errorResult: AudioResults = {
+                filename: boxFile.name,
+                fileSize: boxFile.size || 0,
+                fileType: 'unknown',
+                channels: 0,
+                sampleRate: 0,
+                bitDepth: 0,
+                duration: 0,
+                status: 'error',
+                error: err instanceof Error ? err.message : 'Unknown error'
+              };
+              batchResults = [...batchResults, errorResult];
+              processedFiles = batchResults.length;
+            }
+          })();
+
+          inProgress.push(promise);
+        }
+
+        // Wait for at least one to complete
+        if (inProgress.length > 0) {
+          await Promise.race(inProgress);
+          // Remove completed promises
+          const stillInProgress = [];
+          for (const p of inProgress) {
+            const result = await Promise.race([p, Promise.resolve('still-running')]);
+            if (result === 'still-running') {
+              stillInProgress.push(p);
+            }
+          }
+          inProgress.length = 0;
+          inProgress.push(...stillInProgress);
+        }
+      }
+
+    } catch (err) {
+      if (!batchCancelled) {
+        error = err instanceof Error ? err.message : 'Batch processing failed';
+      }
+    } finally {
+      batchProcessing = false;
+    }
+  }
+
+  /**
+   * Cancel batch processing
+   */
+  function handleCancelBatch() {
+    batchCancelled = true;
   }
 
   async function handleReprocess() {
@@ -279,7 +366,7 @@
           mode: $analysisMode,
           filename: currentFile?.name || ''
         });
-        await processFile(file);
+        await processSingleFile(file);
       } catch (err) {
         error = err instanceof Error ? err.message : 'Failed to reprocess file';
         results = null;
@@ -288,7 +375,7 @@
       }
     } else if (currentFile) {
       // Normal reprocessing (just re-validate with different mode)
-      await processFile(currentFile);
+      await processSingleFile(currentFile);
     }
   }
 </script>
@@ -773,41 +860,17 @@
       </div>
     {/if}
 
-    <!-- Error Message -->
-    {#if error}
-      <div class="error-message">{error}</div>
-    {/if}
-
-    <!-- Processing Indicator -->
-    {#if processing}
-      <div class="processing-indicator">Processing file...</div>
-    {/if}
-
-    <!-- Stale Results Warning -->
-    {#if resultsStale}
-      <div class="stale-indicator">
-        <span class="stale-indicator-text">
-          ⚠️ Results are from {resultsMode === 'full' ? 'Full Analysis' : resultsMode === 'audio-only' ? 'Audio Only' : 'Filename Only'} mode
-        </span>
-        <button
-          class="reprocess-button"
-          on:click={handleReprocess}
-          disabled={processing}
-        >
-          ⟳ Reprocess with {$analysisMode === 'full' ? 'Full Analysis' : $analysisMode === 'audio-only' ? 'Audio Only' : 'Filename Only'}
-        </button>
-      </div>
-    {/if}
-
-    <!-- Results Table -->
-    {#if results}
-      <div class:stale-results-overlay={resultsStale}>
-        <ResultsTable
-          results={[results]}
-          mode="single"
-          metadataOnly={$analysisMode === 'filename-only'}
-        />
-      </div>
-    {/if}
+    <ResultsDisplay
+      results={batchResults.length > 0 ? batchResults : results}
+      isProcessing={processing || batchProcessing}
+      {error}
+      {resultsMode}
+      {resultsStale}
+      {processedFiles}
+      {totalFiles}
+      onReprocess={handleReprocess}
+      onCancel={handleCancelBatch}
+      cancelRequested={batchCancelled}
+    />
   {/if}
 </div>
