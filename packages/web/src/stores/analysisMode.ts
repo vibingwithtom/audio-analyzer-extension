@@ -14,8 +14,8 @@ import { currentPresetId } from './settings';
 
 export type AnalysisMode = 'full' | 'audio-only' | 'filename-only' | 'experimental';
 
-// Create writable store with default value
-const analysisModeStore = writable<AnalysisMode>('full');
+// Create writable store with default value (audio-only is simplest/fastest)
+const analysisModeStore = writable<AnalysisMode>('audio-only');
 
 // Load saved mode from localStorage on initialization
 if (typeof window !== 'undefined') {
@@ -32,10 +32,10 @@ analysisModeStore.subscribe((mode) => {
   }
 });
 
-// Reset to 'full' when preset changes (unless it's a custom preset)
+// Reset to 'audio-only' when preset changes (unless it's a custom preset)
 currentPresetId.subscribe((presetId) => {
   if (presetId && presetId !== 'custom') {
-    analysisModeStore.set('full');
+    analysisModeStore.set('audio-only');
   }
 });
 

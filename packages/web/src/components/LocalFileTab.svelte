@@ -830,22 +830,7 @@
       <div class="radio-group">
 
         {#if availablePresets[$currentPresetId]?.supportsFilenameValidation}
-          <!-- Filename validation presets: Show all 4 options -->
-          <label class="radio-label">
-            <input
-              type="radio"
-              name="analysis-mode"
-              value="full"
-              checked={$analysisMode === 'full'}
-              on:change={() => setAnalysisMode('full')}
-              disabled={processing}
-            />
-            <div class="radio-content">
-              <span class="radio-title">Full Analysis</span>
-              <span class="radio-description">Basic properties + filename validation</span>
-            </div>
-          </label>
-
+          <!-- Filename validation presets: Show all 4 options (Audio Only, Filename Only, Full, Experimental) -->
           <label class="radio-label">
             <input
               type="radio"
@@ -876,8 +861,38 @@
             </div>
           </label>
 
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode"
+              value="full"
+              checked={$analysisMode === 'full'}
+              on:change={() => setAnalysisMode('full')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Full Analysis</span>
+              <span class="radio-description">Basic properties + filename validation</span>
+            </div>
+          </label>
+
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode"
+              value="experimental"
+              checked={$analysisMode === 'experimental'}
+              on:change={() => setAnalysisMode('experimental')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Experimental Analysis</span>
+              <span class="radio-description">Peak level, noise floor, reverb, silence detection</span>
+            </div>
+          </label>
+
         {:else}
-          <!-- Non-filename presets: Show only Audio Analysis option -->
+          <!-- Non-filename presets: Show 2 options (Audio Analysis, Experimental) -->
           <label class="radio-label">
             <input
               type="radio"
@@ -892,23 +907,22 @@
               <span class="radio-description">Basic properties (sample rate, bit depth, duration)</span>
             </div>
           </label>
-        {/if}
 
-        <!-- Experimental is ALWAYS shown (for non-auditions) -->
-        <label class="radio-label">
-          <input
-            type="radio"
-            name="analysis-mode"
-            value="experimental"
-            checked={$analysisMode === 'experimental'}
-            on:change={() => setAnalysisMode('experimental')}
-            disabled={processing}
-          />
-          <div class="radio-content">
-            <span class="radio-title">Experimental Analysis</span>
-            <span class="radio-description">Peak level, noise floor, reverb, silence detection</span>
-          </div>
-        </label>
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode"
+              value="experimental"
+              checked={$analysisMode === 'experimental'}
+              on:change={() => setAnalysisMode('experimental')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Experimental Analysis</span>
+              <span class="radio-description">Peak level, noise floor, reverb, silence detection</span>
+            </div>
+          </label>
+        {/if}
 
       </div>
 
