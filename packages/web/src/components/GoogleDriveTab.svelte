@@ -65,7 +65,26 @@
       if ($analysisMode === resultsMode) {
         resultsStale = false;
       } else {
-        resultsStale = true;
+        // Check if we actually need to reprocess based on available data
+        const hasAudioData = results.sampleRate && results.sampleRate > 0;
+        const hasFilenameValidation = results.validation?.filename !== undefined;
+
+        // Determine if current mode needs data that's missing
+        let needsReprocessing = false;
+
+        if ($analysisMode === 'audio-only' && !hasAudioData) {
+          needsReprocessing = true; // Need audio but don't have it
+        } else if ($analysisMode === 'filename-only' && !hasFilenameValidation) {
+          needsReprocessing = true; // Need filename validation but don't have it
+        } else if ($analysisMode === 'full' && (!hasAudioData || !hasFilenameValidation)) {
+          needsReprocessing = true; // Need both but missing one or both
+        }
+        // experimental mode needs audio data
+        else if ($analysisMode === 'experimental' && !hasAudioData) {
+          needsReprocessing = true;
+        }
+
+        resultsStale = needsReprocessing;
       }
     }
   }
