@@ -32,11 +32,14 @@ analysisModeStore.subscribe((mode) => {
   }
 });
 
-// Reset to 'audio-only' when preset changes (unless it's a custom preset)
+// Reset to 'audio-only' when preset actually changes (not on initial load)
+let previousPresetId: string | null = null;
 currentPresetId.subscribe((presetId) => {
-  if (presetId && presetId !== 'custom') {
+  // Only reset if this is a real change, not initial load
+  if (previousPresetId !== null && presetId && presetId !== 'custom' && presetId !== previousPresetId) {
     analysisModeStore.set('audio-only');
   }
+  previousPresetId = presetId;
 });
 
 /**
