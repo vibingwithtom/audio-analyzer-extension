@@ -345,31 +345,62 @@
     results = null;
 
     try {
-      // Store the URL for reprocessing
-      originalFileUrl = fileUrl;
-      originalFileId = null;
+      // Parse the URL to determine if it's a file or folder
+      const parsed = driveAPI.parseUrl(fileUrl);
 
-      if ($analysisMode === 'filename-only') {
-        // Filename-only mode: Just fetch metadata, don't download file
-        const metadata = await driveAPI.getFileMetadataFromUrl(fileUrl);
+      if (parsed.type === 'folder') {
+        // Folder URL - list audio files and batch process
+        const filesToProcess = await driveAPI.getAllAudioFilesInFolder(parsed.id);
 
-        // Create a minimal File object for filename validation
-        const file = new File([], metadata.name, { type: 'application/octet-stream' });
-        await processSingleFile(file);
+        if (filesToProcess.length === 0) {
+          error = 'No audio files found in the folder';
+          processing = false;
+          return;
+        }
+
+        // Single file: use single-file processing
+        if (filesToProcess.length === 1) {
+          const fileMetadata = filesToProcess[0];
+          originalFileUrl = null;
+          originalFileId = fileMetadata.id;
+
+          if ($analysisMode === 'filename-only') {
+            const file = new File([], fileMetadata.name, { type: 'application/octet-stream' });
+            await processSingleFile(file);
+          } else {
+            const file = await driveAPI.downloadFile(fileMetadata.id);
+            await processSingleFile(file);
+          }
+          processing = false;
+        } else {
+          // Multiple files: use batch processing
+          processing = false;
+          await processBatchFiles(filesToProcess);
+        }
       } else {
-        // Full or audio-only mode: Download the actual file
-        const file = await driveAPI.downloadFileFromUrl(fileUrl);
-        await processSingleFile(file);
+        // File URL - single file processing
+        originalFileUrl = fileUrl;
+        originalFileId = null;
+
+        if ($analysisMode === 'filename-only') {
+          // Filename-only mode: Just fetch metadata, don't download file
+          const metadata = await driveAPI.getFileMetadataFromUrl(fileUrl);
+
+          // Create a minimal File object for filename validation
+          const file = new File([], metadata.name, { type: 'application/octet-stream' });
+          await processSingleFile(file);
+        } else {
+          // Full or audio-only mode: Download the actual file
+          const file = await driveAPI.downloadFileFromUrl(fileUrl);
+          await processSingleFile(file);
+        }
       }
 
       fileUrl = ''; // Clear input on success
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to process Google Drive URL';
       results = null;
-    } finally {
-      if (!currentFile) {
-        processing = false;
-      }
+      processing = false;
     }
   }
 
@@ -401,7 +432,7 @@
       // Show picker with multi-select and folder support
       const pickerResult = await driveAPI.showPicker({
         multiSelect: true,
-        selectFolders: false, // Allow folders in file view
+        selectFolders: true, // Enable folder selection
         audioOnly: true
       });
 
@@ -1102,7 +1133,7 @@
           <input
             type="text"
             bind:value={fileUrl}
-            placeholder="Paste Google Drive file URL (e.g., https://drive.google.com/file/d/...)"
+            placeholder="Paste Google Drive file or folder URL (e.g., https://drive.google.com/...)"
             disabled={processing}
           />
           <button on:click={handleUrlSubmit} disabled={processing || !fileUrl.trim()}>

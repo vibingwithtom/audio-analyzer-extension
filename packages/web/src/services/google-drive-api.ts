@@ -223,36 +223,29 @@ export class GoogleDriveAPI {
       try {
         const picker = new window.google.picker.PickerBuilder();
 
-        // Configure view based on options
-        if (options?.selectFolders) {
-          // Folder selection view
-          const folderView = new window.google.picker.DocsView(window.google.picker.ViewId.FOLDERS)
-            .setSelectFolderEnabled(true);
-          picker.addView(folderView);
-        } else {
-          // File selection view - shows hierarchical Drive structure starting from My Drive
-          const docsView = new window.google.picker.DocsView()
-            .setIncludeFolders(true)
-            .setParent('root');
+        // Add file selection view with folders visible for navigation
+        const docsView = new window.google.picker.DocsView()
+          .setIncludeFolders(true)
+          .setSelectFolderEnabled(options?.selectFolders || false)
+          .setParent('root');
 
-          // Add MIME type filter for audio files if specified
-          if (options?.audioOnly !== false) { // Default to audio-only
-            docsView.setMimeTypes([
-              'audio/mpeg',
-              'audio/wav',
-              'audio/x-wav',
-              'audio/wave',
-              'audio/flac',
-              'audio/x-flac',
-              'audio/aac',
-              'audio/mp4',
-              'audio/ogg',
-              'audio/x-m4a'
-            ].join(','));
-          }
-
-          picker.addView(docsView);
+        // Add MIME type filter for audio files if specified
+        if (options?.audioOnly !== false) { // Default to audio-only
+          docsView.setMimeTypes([
+            'audio/mpeg',
+            'audio/wav',
+            'audio/x-wav',
+            'audio/wave',
+            'audio/flac',
+            'audio/x-flac',
+            'audio/aac',
+            'audio/mp4',
+            'audio/ogg',
+            'audio/x-m4a'
+          ].join(','));
         }
+
+        picker.addView(docsView);
 
         // Enable multi-select if specified
         if (options?.multiSelect) {
