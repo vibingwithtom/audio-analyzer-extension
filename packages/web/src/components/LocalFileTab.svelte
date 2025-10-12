@@ -171,6 +171,18 @@
 
         // Run level analysis with experimental features
         advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer, null, true);
+
+        // Add stereo separation analysis
+        const stereoSeparation = levelAnalyzer.analyzeStereoSeparation(audioBuffer);
+        if (stereoSeparation) {
+          advancedResults.stereoSeparation = stereoSeparation;
+        }
+
+        // Add mic bleed analysis (only for stereo files)
+        const micBleed = levelAnalyzer.analyzeMicBleed(audioBuffer);
+        if (micBleed) {
+          advancedResults.micBleed = micBleed;
+        }
       }
 
       // Create blob URL for audio playback
@@ -340,6 +352,18 @@
 
       // Run level analysis with experimental features
       advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer, null, true);
+
+      // Add stereo separation analysis
+      const stereoSeparation = levelAnalyzer.analyzeStereoSeparation(audioBuffer);
+      if (stereoSeparation) {
+        advancedResults.stereoSeparation = stereoSeparation;
+      }
+
+      // Add mic bleed analysis (only for stereo files)
+      const micBleed = levelAnalyzer.analyzeMicBleed(audioBuffer);
+      if (micBleed) {
+        advancedResults.micBleed = micBleed;
+      }
     }
 
     // Combine results

@@ -58,45 +58,27 @@
     return 'warning';
   }
 
+  function getNoiseFloorClass(noiseFloorDb: number | undefined): string {
+    if (noiseFloorDb === undefined || noiseFloorDb === -Infinity) return '';
+    // Excellent/Good: <= -60 dB
+    if (noiseFloorDb <= -60) return 'success';
+    // Fair: -60 to -50 dB
+    if (noiseFloorDb <= -50) return 'warning';
+    // Poor: > -50 dB
+    return 'error';
+  }
+
   function formatTime(seconds: number | undefined): string {
     if (seconds === undefined || seconds === null) return 'N/A';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
-
-  // Calculate summary stats for batch mode
-  $: summaryStats = mode === 'batch' ? {
-    total: results.length,
-    passed: results.filter(r => r.status === 'pass').length,
-    failed: results.filter(r => r.status === 'fail').length,
-    warnings: results.filter(r => r.status === 'warning').length,
-    errors: results.filter(r => r.status === 'error').length
-  } : null;
 </script>
 
 <style>
   .results-container {
     margin-top: 2rem;
-  }
-
-  .batch-summary {
-    margin-bottom: 1.5rem;
-    padding: 1.25rem;
-    background: var(--bg-secondary, #f5f5f5);
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  }
-
-  .batch-summary h3 {
-    margin: 0 0 0.5rem 0;
-    font-size: 1.125rem;
-    color: var(--text-primary, #333333);
-  }
-
-  .batch-summary p {
-    margin: 0;
-    color: var(--text-secondary, #666666);
   }
 
   .results-table {
@@ -239,13 +221,6 @@
 </style>
 
 <div class="results-container">
-  {#if mode === 'batch' && summaryStats}
-    <div class="batch-summary">
-      <h3>Summary</h3>
-      <p>{summaryStats.total} files: {summaryStats.passed} passed, {summaryStats.failed} failed</p>
-    </div>
-  {/if}
-
   {#if experimentalMode}
     <!-- EXPERIMENTAL MODE TABLE -->
     <div class="experimental-table-wrapper">
@@ -262,7 +237,8 @@
             <th>Trailing Silence</th>
             <th>Longest Silence</th>
             <th>Stereo Separation</th>
-            <th>Mic Bleed</th>
+            <th>Mic Bleed (Old Method)</th>
+            <th>Mic Bleed (New Method)</th>
           </tr>
         </thead>
         <tbody>
@@ -282,8 +258,24 @@
                   N/A
                 {/if}
               </td>
-              <td>{result.noiseFloorDb !== undefined ? result.noiseFloorDb.toFixed(1) + ' dB' : 'N/A'}</td>
-              <td>{result.noiseFloorDbHistogram !== undefined ? result.noiseFloorDbHistogram.toFixed(1) + ' dB' : 'N/A'}</td>
+              <td>
+                {#if result.noiseFloorDb !== undefined}
+                  <span class="value-{getNoiseFloorClass(result.noiseFloorDb)}">
+                    {result.noiseFloorDb === -Infinity ? '-∞' : result.noiseFloorDb.toFixed(1)} dB
+                  </span>
+                {:else}
+                  N/A
+                {/if}
+              </td>
+              <td>
+                {#if result.noiseFloorDbHistogram !== undefined}
+                  <span class="value-{getNoiseFloorClass(result.noiseFloorDbHistogram)}">
+                    {result.noiseFloorDbHistogram === -Infinity ? '-∞' : result.noiseFloorDbHistogram.toFixed(1)} dB
+                  </span>
+                {:else}
+                  N/A
+                {/if}
+              </td>
               <td>
                 {#if result.reverbInfo}
                   <span class="value-{getReverbClass(result.reverbInfo.label)}">
@@ -306,11 +298,21 @@
                 {/if}
               </td>
               <td>
+                {#if result.micBleed?.old}
+                  <span class="value-success">
+                    Not detected
+                  </span>
+                  <span class="subtitle">L: {result.micBleed.old.leftChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.leftChannelBleedDb.toFixed(1)}dB, R: {result.micBleed.old.rightChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.rightChannelBleedDb.toFixed(1)}dB</span>
+                {:else}
+                  <span style="color: #999;">N/A</span>
+                {/if}
+              </td>
+              <td>
                 {#if result.micBleed?.new}
                   <span class="value-{getMicBleedClass(result.micBleed.new)}">
                     {result.micBleed.new.percentageConfirmedBleed > 0.5 ? 'Detected' : 'Not detected'}
                   </span>
-                  <span class="subtitle">Med: {result.micBleed.new.medianSeparation.toFixed(1)}dB</span>
+                  <span class="subtitle">Med: {result.micBleed.new.medianSeparation.toFixed(1)}dB, P10: {result.micBleed.new.p10Separation.toFixed(1)}dB, Bleed: {result.micBleed.new.percentageConfirmedBleed.toFixed(1)}%</span>
                 {:else}
                   <span style="color: #999;">N/A</span>
                 {/if}
