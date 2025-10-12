@@ -797,7 +797,7 @@ export const batchProgress = createBatchStore();
 
 ---
 
-#### 5.10 Three Hour Configuration (1-2 days) ⬜
+#### 5.11 Three Hour Configuration (1-2 days) ⬜
 
 **Goal:** Add scripts folder and speaker ID configuration for Three Hour preset filename validation
 
@@ -881,7 +881,7 @@ Three Hour filename validation requires additional inputs that are:
 
 ---
 
-#### 5.11 Settings Tab Migration (1-2 days) ⬜
+#### 5.12 Settings Tab Migration (1-2 days) ⬜
 
 **Goal:** Finalize Settings tab Svelte conversion and polish
 
