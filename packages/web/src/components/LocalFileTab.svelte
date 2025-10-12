@@ -1008,21 +1008,23 @@
         experimentalMode={$analysisMode === 'experimental'}
       />
 
-      <!-- Mode Switcher Hints -->
-      {#if $analysisMode === 'experimental'}
-        <div class="mode-switcher">
-          💡 Want to see basic file properties? Switch to
-          <a href="#" on:click|preventDefault={() => setAnalysisMode('audio-only')}>
-            Audio Analysis
-          </a> mode
-        </div>
-      {:else if $analysisMode === 'audio-only'}
-        <div class="mode-switcher">
-          💡 Want to check reverb, noise floor, or silence issues? Switch to
-          <a href="#" on:click|preventDefault={() => setAnalysisMode('experimental')}>
-            Experimental Analysis
-          </a> mode
-        </div>
+      <!-- Mode Switcher Hints (only for non-auditions presets) -->
+      {#if !$currentPresetId?.startsWith('auditions-')}
+        {#if $analysisMode === 'experimental'}
+          <div class="mode-switcher">
+            💡 Want to see basic file properties? Switch to
+            <a href="#" on:click|preventDefault={() => setAnalysisMode('audio-only')}>
+              Audio Analysis
+            </a> mode
+          </div>
+        {:else if $analysisMode === 'audio-only'}
+          <div class="mode-switcher">
+            💡 Want to check reverb, noise floor, or silence issues? Switch to
+            <a href="#" on:click|preventDefault={() => setAnalysisMode('experimental')}>
+              Experimental Analysis
+            </a> mode
+          </div>
+        {/if}
       {/if}
     </div>
   {:else if results}
@@ -1050,21 +1052,23 @@
         experimentalMode={$analysisMode === 'experimental'}
       />
 
-      <!-- Mode Switcher Hints -->
-      {#if $analysisMode === 'experimental'}
-        <div class="mode-switcher">
-          💡 Want to see basic file properties? Switch to
-          <a href="#" on:click|preventDefault={() => setAnalysisMode('audio-only')}>
-            Audio Analysis
-          </a> mode
-        </div>
-      {:else if $analysisMode === 'audio-only'}
-        <div class="mode-switcher">
-          💡 Want to check reverb, noise floor, or silence issues? Switch to
-          <a href="#" on:click|preventDefault={() => setAnalysisMode('experimental')}>
-            Experimental Analysis
-          </a> mode
-        </div>
+      <!-- Mode Switcher Hints (only for non-auditions presets) -->
+      {#if !$currentPresetId?.startsWith('auditions-')}
+        {#if $analysisMode === 'experimental'}
+          <div class="mode-switcher">
+            💡 Want to see basic file properties? Switch to
+            <a href="#" on:click|preventDefault={() => setAnalysisMode('audio-only')}>
+              Audio Analysis
+            </a> mode
+          </div>
+        {:else if $analysisMode === 'audio-only'}
+          <div class="mode-switcher">
+            💡 Want to check reverb, noise floor, or silence issues? Switch to
+            <a href="#" on:click|preventDefault={() => setAnalysisMode('experimental')}>
+              Experimental Analysis
+            </a> mode
+          </div>
+        {/if}
       {/if}
     </div>
   {/if}
