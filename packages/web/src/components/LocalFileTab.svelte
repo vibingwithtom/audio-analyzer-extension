@@ -67,15 +67,67 @@
     setAnalysisMode('audio-only');
   }
 
-  // Detect when analysis mode changes while results exist
+  // Helper functions for smart staleness detection
+  function hasAudioProperties(result: AudioResults): boolean {
+    return result.sampleRate !== undefined && result.bitDepth !== undefined;
+  }
+
+  function hasFilenameValidation(result: AudioResults): boolean {
+    return result.validation?.filename !== undefined;
+  }
+
+  function hasExperimentalMetrics(result: AudioResults): boolean {
+    return result.peakDb !== undefined || result.reverbInfo !== undefined;
+  }
+
+  function areResultsStaleForMode(
+    results: AudioResults | AudioResults[],
+    newMode: AnalysisMode,
+    currentPreset: any
+  ): boolean {
+    const resultArray = Array.isArray(results) ? results : [results];
+    const firstResult = resultArray[0];
+
+    if (!firstResult) return true; // No results = stale
+
+    switch (newMode) {
+      case 'audio-only':
+        // Need audio properties
+        return !hasAudioProperties(firstResult);
+
+      case 'filename-only':
+        // Need filename validation (if preset supports it)
+        if (currentPreset?.supportsFilenameValidation) {
+          return !hasFilenameValidation(firstResult);
+        }
+        return false; // Preset doesn't support filename validation, so not stale
+
+      case 'full':
+        // Need both audio properties and filename validation
+        const needsFilename = currentPreset?.supportsFilenameValidation;
+        if (!hasAudioProperties(firstResult)) return true;
+        if (needsFilename && !hasFilenameValidation(firstResult)) return true;
+        return false;
+
+      case 'experimental':
+        // Need experimental metrics
+        return !hasExperimentalMetrics(firstResult);
+
+      default:
+        return false;
+    }
+  }
+
+  // Smart staleness detection - only mark stale if new mode needs data we don't have
   $: {
     if ((results || (isBatchMode && batchResults.length > 0)) && resultsMode !== null) {
-      // If mode changed back to original, results are no longer stale
       if ($analysisMode === resultsMode) {
         resultsStale = false;
       } else {
-        // Mode is different from what generated results
-        resultsStale = true;
+        // Smart staleness detection based on what data is present vs needed
+        const currentPreset = availablePresets[$currentPresetId];
+        const currentResults = isBatchMode ? batchResults : results;
+        resultsStale = areResultsStaleForMode(currentResults, $analysisMode, currentPreset);
       }
     }
   }
