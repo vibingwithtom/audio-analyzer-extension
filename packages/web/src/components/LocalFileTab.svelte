@@ -68,8 +68,9 @@
   }
 
   // Helper functions for smart staleness detection
-  function hasAudioProperties(result: AudioResults): boolean {
-    return result.sampleRate !== undefined && result.bitDepth !== undefined;
+  // For audio properties, check if they were VALIDATED, not just if raw data exists
+  function hasValidatedAudioProperties(result: AudioResults): boolean {
+    return result.validation?.sampleRate !== undefined || result.validation?.bitDepth !== undefined;
   }
 
   function hasFilenameValidation(result: AudioResults): boolean {
@@ -92,8 +93,8 @@
 
     switch (newMode) {
       case 'audio-only':
-        // Need audio properties
-        return !hasAudioProperties(firstResult);
+        // Need audio properties (check for VALIDATED data, not just raw data)
+        return !hasValidatedAudioProperties(firstResult);
 
       case 'filename-only':
         // Need filename validation (if preset supports it)
@@ -105,7 +106,7 @@
       case 'full':
         // Need both audio properties and filename validation
         const needsFilename = currentPreset?.supportsFilenameValidation;
-        if (!hasAudioProperties(firstResult)) return true;
+        if (!hasValidatedAudioProperties(firstResult)) return true;
         if (needsFilename && !hasFilenameValidation(firstResult)) return true;
         return false;
 
@@ -127,7 +128,19 @@
         // Smart staleness detection based on what data is present vs needed
         const currentPreset = availablePresets[$currentPresetId];
         const currentResults = isBatchMode ? batchResults : results;
-        resultsStale = areResultsStaleForMode(currentResults, $analysisMode, currentPreset);
+        const isStale = areResultsStaleForMode(currentResults, $analysisMode, currentPreset);
+
+        // Debug logging
+        console.log('Staleness Check:', {
+          resultsMode,
+          newMode: $analysisMode,
+          isStale,
+          hasValidatedAudio: results ? hasValidatedAudioProperties(results) : (batchResults.length > 0 ? hasValidatedAudioProperties(batchResults[0]) : false),
+          hasFilename: results ? hasFilenameValidation(results) : (batchResults.length > 0 ? hasFilenameValidation(batchResults[0]) : false),
+          hasExperimental: results ? hasExperimentalMetrics(results) : (batchResults.length > 0 ? hasExperimentalMetrics(batchResults[0]) : false)
+        });
+
+        resultsStale = isStale;
       }
     }
   }
@@ -180,9 +193,9 @@
         const skipAudioValidation = mode === 'filename-only';
         validation = CriteriaValidator.validateResults(analysisResults, criteria, skipAudioValidation);
 
-        // Add filename validation if the preset supports it (skip if audio-only mode)
+        // Add filename validation if the preset supports it (only for filename-only and full modes)
         const currentPreset = availablePresets[$currentPresetId];
-        if (currentPreset?.filenameValidationType && mode !== 'audio-only') {
+        if (currentPreset?.filenameValidationType && (mode === 'filename-only' || mode === 'full')) {
           let filenameValidation;
 
           if (currentPreset.filenameValidationType === 'bilingual-pattern') {
@@ -345,9 +358,9 @@
       const skipAudioValidation = mode === 'filename-only';
       const validation = CriteriaValidator.validateResults(analysisResults, criteria, skipAudioValidation);
 
-      // Add filename validation if the preset supports it (skip if audio-only mode)
+      // Add filename validation if the preset supports it (only for filename-only and full modes)
       const currentPreset = availablePresets[$currentPresetId];
-      if (currentPreset?.filenameValidationType && mode !== 'audio-only') {
+      if (currentPreset?.filenameValidationType && (mode === 'filename-only' || mode === 'full')) {
         let filenameValidation;
 
         if (currentPreset.filenameValidationType === 'bilingual-pattern') {
