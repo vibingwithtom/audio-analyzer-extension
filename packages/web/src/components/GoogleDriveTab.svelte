@@ -26,13 +26,10 @@
     bridge.dispatch({ type: 'auth:google:signout:requested' });
   }
 
-  // Initialize Drive API when authenticated
+  // Initialize Drive API when authenticated (picker loads lazily on button click)
   $: if ($authState.google.isAuthenticated && !driveAPI) {
     const googleAuth = authService.getGoogleAuthInstance();
     driveAPI = new GoogleDriveAPI(googleAuth);
-    driveAPI.initPicker().catch(err => {
-      console.warn('Failed to initialize Google Picker:', err);
-    });
   }
 
   let processing = false;
@@ -44,6 +41,8 @@
   let resultsStale = false;
   let resultsMode: AnalysisMode | null = null;
   let fileUrl = '';
+  let pickerInitialized = false;
+  let pickerLoading = false;
 
   const audioAnalyzer = new AudioAnalyzer();
   const levelAnalyzer = new LevelAnalyzer();
@@ -232,6 +231,20 @@
     if (!driveAPI) {
       error = 'Google Drive API not initialized. Please sign in again.';
       return;
+    }
+
+    // Lazy-load the picker on first use
+    if (!pickerInitialized) {
+      pickerLoading = true;
+      try {
+        await driveAPI.initPicker();
+        pickerInitialized = true;
+      } catch (err) {
+        error = err instanceof Error ? err.message : 'Failed to load Google Drive Picker';
+        pickerLoading = false;
+        return;
+      }
+      pickerLoading = false;
     }
 
     processing = true;
@@ -730,8 +743,12 @@
           <button on:click={handleUrlSubmit} disabled={processing || !fileUrl.trim()}>
             Analyze URL
           </button>
-          <button class="browse-drive-button" on:click={handleBrowseDrive} disabled={processing}>
-            📁 Browse
+          <button class="browse-drive-button" on:click={handleBrowseDrive} disabled={processing || pickerLoading}>
+            {#if pickerLoading}
+              🔄 Loading Picker...
+            {:else}
+              📁 Browse
+            {/if}
           </button>
         </div>
       </div>
