@@ -62,6 +62,11 @@
     cleanupAudioContext();
   });
 
+  // Auto-set mode for auditions presets (watch for preset changes)
+  $: if ($currentPresetId?.startsWith('auditions-') && $analysisMode !== 'audio-only') {
+    setAnalysisMode('audio-only');
+  }
+
   // Detect when analysis mode changes while results exist
   $: {
     if ((results || (isBatchMode && batchResults.length > 0)) && resultsMode !== null) {
@@ -772,6 +777,28 @@
     color: var(--primary, #2563eb);
     line-height: 1;
   }
+
+  /* Mode Switcher Hints */
+  .mode-switcher {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(139, 92, 246, 0.1) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 6px;
+    text-align: center;
+    font-size: 0.875rem;
+    color: var(--text-secondary, #666);
+  }
+
+  .mode-switcher a {
+    color: #7c3aed;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .mode-switcher a:hover {
+    text-decoration: underline;
+  }
 </style>
 
 <div class="local-file-tab">
@@ -796,56 +823,78 @@
     on:change={handleFileChange}
   />
 
-  <!-- Analysis Mode Selection (only for presets with filename validation) -->
-  {#if $currentPresetId && availablePresets[$currentPresetId]?.supportsFilenameValidation}
+  <!-- Analysis Mode Selection (only show for non-auditions presets) -->
+  {#if !$currentPresetId?.startsWith('auditions-')}
     <div class="analysis-mode-section">
       <h3>Analysis Mode:</h3>
       <div class="radio-group">
-        <label class="radio-label">
-          <input
-            type="radio"
-            name="analysis-mode"
-            value="full"
-            checked={$analysisMode === 'full'}
-            on:change={() => setAnalysisMode('full')}
-            disabled={processing}
-          />
-          <div class="radio-content">
-            <span class="radio-title">Full Analysis</span>
-            <span class="radio-description">Basic properties + filename validation</span>
-          </div>
-        </label>
 
-        <label class="radio-label">
-          <input
-            type="radio"
-            name="analysis-mode"
-            value="audio-only"
-            checked={$analysisMode === 'audio-only'}
-            on:change={() => setAnalysisMode('audio-only')}
-            disabled={processing}
-          />
-          <div class="radio-content">
-            <span class="radio-title">Audio Analysis Only</span>
-            <span class="radio-description">Basic properties (sample rate, bit depth, duration)</span>
-          </div>
-        </label>
+        {#if availablePresets[$currentPresetId]?.supportsFilenameValidation}
+          <!-- Filename validation presets: Show all 4 options -->
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode"
+              value="full"
+              checked={$analysisMode === 'full'}
+              on:change={() => setAnalysisMode('full')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Full Analysis</span>
+              <span class="radio-description">Basic properties + filename validation</span>
+            </div>
+          </label>
 
-        <label class="radio-label">
-          <input
-            type="radio"
-            name="analysis-mode"
-            value="filename-only"
-            checked={$analysisMode === 'filename-only'}
-            on:change={() => setAnalysisMode('filename-only')}
-            disabled={processing}
-          />
-          <div class="radio-content">
-            <span class="radio-title">Filename Validation Only</span>
-            <span class="radio-description">Fastest - metadata only, no audio decode</span>
-          </div>
-        </label>
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode"
+              value="audio-only"
+              checked={$analysisMode === 'audio-only'}
+              on:change={() => setAnalysisMode('audio-only')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Audio Only</span>
+              <span class="radio-description">Basic properties only</span>
+            </div>
+          </label>
 
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode"
+              value="filename-only"
+              checked={$analysisMode === 'filename-only'}
+              on:change={() => setAnalysisMode('filename-only')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Filename Only</span>
+              <span class="radio-description">Fastest - metadata only</span>
+            </div>
+          </label>
+
+        {:else}
+          <!-- Non-filename presets: Show only Audio Analysis option -->
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode"
+              value="audio-only"
+              checked={$analysisMode === 'audio-only'}
+              on:change={() => setAnalysisMode('audio-only')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Audio Analysis</span>
+              <span class="radio-description">Basic properties (sample rate, bit depth, duration)</span>
+            </div>
+          </label>
+        {/if}
+
+        <!-- Experimental is ALWAYS shown (for non-auditions) -->
         <label class="radio-label">
           <input
             type="radio"
@@ -860,6 +909,7 @@
             <span class="radio-description">Peak level, noise floor, reverb, silence detection</span>
           </div>
         </label>
+
       </div>
 
       {#if availablePresets[$currentPresetId]?.filenameValidationType === 'script-match'}
@@ -955,7 +1005,25 @@
         results={batchResults}
         mode="batch"
         metadataOnly={$analysisMode === 'filename-only'}
+        experimentalMode={$analysisMode === 'experimental'}
       />
+
+      <!-- Mode Switcher Hints -->
+      {#if $analysisMode === 'experimental'}
+        <div class="mode-switcher">
+          💡 Want to see basic file properties? Switch to
+          <a href="#" on:click|preventDefault={() => setAnalysisMode('audio-only')}>
+            Audio Analysis
+          </a> mode
+        </div>
+      {:else if $analysisMode === 'audio-only'}
+        <div class="mode-switcher">
+          💡 Want to check reverb, noise floor, or silence issues? Switch to
+          <a href="#" on:click|preventDefault={() => setAnalysisMode('experimental')}>
+            Experimental Analysis
+          </a> mode
+        </div>
+      {/if}
     </div>
   {:else if results}
     <!-- Single File Results -->
@@ -979,7 +1047,25 @@
         results={[results]}
         mode="single"
         metadataOnly={$analysisMode === 'filename-only'}
+        experimentalMode={$analysisMode === 'experimental'}
       />
+
+      <!-- Mode Switcher Hints -->
+      {#if $analysisMode === 'experimental'}
+        <div class="mode-switcher">
+          💡 Want to see basic file properties? Switch to
+          <a href="#" on:click|preventDefault={() => setAnalysisMode('audio-only')}>
+            Audio Analysis
+          </a> mode
+        </div>
+      {:else if $analysisMode === 'audio-only'}
+        <div class="mode-switcher">
+          💡 Want to check reverb, noise floor, or silence issues? Switch to
+          <a href="#" on:click|preventDefault={() => setAnalysisMode('experimental')}>
+            Experimental Analysis
+          </a> mode
+        </div>
+      {/if}
     </div>
   {/if}
 </div>

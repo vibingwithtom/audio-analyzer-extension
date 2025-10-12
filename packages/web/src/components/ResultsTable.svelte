@@ -7,6 +7,7 @@
   export let results: AudioResults[] = [];
   export let mode: 'single' | 'batch' = 'single';
   export let metadataOnly = false;
+  export let experimentalMode = false;
 
   $: isSingleFile = mode === 'single';
 
@@ -35,6 +36,33 @@
     });
 
     return issues;
+  }
+
+  // Helper functions for experimental metrics color-coding
+  function getNormalizationClass(status: any): string {
+    if (!status) return '';
+    if (status.status === 'normalized') return 'success';
+    return 'warning';
+  }
+
+  function getReverbClass(label: string): string {
+    if (!label) return '';
+    if (label.includes('Excellent') || label.includes('Good')) return 'success';
+    if (label.includes('Fair')) return 'warning';
+    return 'error';
+  }
+
+  function getMicBleedClass(micBleed: any): string {
+    if (!micBleed) return '';
+    if (micBleed.percentageConfirmedBleed < 0.5) return 'success';
+    return 'warning';
+  }
+
+  function formatTime(seconds: number | undefined): string {
+    if (seconds === undefined || seconds === null) return 'N/A';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
 
   // Calculate summary stats for batch mode
@@ -180,6 +208,34 @@
   .error-line:last-child {
     margin-bottom: 0;
   }
+
+  /* Experimental mode value color-coding */
+  .value-success {
+    color: var(--success, #4CAF50);
+    font-weight: 500;
+  }
+
+  .value-warning {
+    color: var(--warning, #ff9800);
+    font-weight: 500;
+  }
+
+  .value-error {
+    color: var(--danger, #f44336);
+    font-weight: 500;
+  }
+
+  .subtitle {
+    font-size: 0.7rem;
+    color: var(--text-secondary, #666);
+    display: block;
+    margin-top: 0.15rem;
+  }
+
+  /* Experimental table should be scrollable horizontally if needed */
+  .experimental-table-wrapper {
+    overflow-x: auto;
+  }
 </style>
 
 <div class="results-container">
@@ -190,7 +246,83 @@
     </div>
   {/if}
 
-  <table class="results-table">
+  {#if experimentalMode}
+    <!-- EXPERIMENTAL MODE TABLE -->
+    <div class="experimental-table-wrapper">
+      <table class="results-table">
+        <thead>
+          <tr>
+            <th>Filename</th>
+            <th>Peak Level</th>
+            <th>Normalization</th>
+            <th>Noise Floor (Old)</th>
+            <th>Noise Floor (New)</th>
+            <th>Reverb (RT60)</th>
+            <th>Leading Silence</th>
+            <th>Trailing Silence</th>
+            <th>Longest Silence</th>
+            <th>Stereo Separation</th>
+            <th>Mic Bleed</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each results as result}
+            <tr>
+              <td>{result.filename}</td>
+              <td>{result.peakDb !== undefined ? result.peakDb.toFixed(1) + ' dB' : 'N/A'}</td>
+              <td>
+                {#if result.normalizationStatus}
+                  <span class="value-{getNormalizationClass(result.normalizationStatus)}">
+                    {result.normalizationStatus.message || 'N/A'}
+                  </span>
+                  {#if result.normalizationStatus.peakDb !== undefined}
+                    <span class="subtitle">Peak: {result.normalizationStatus.peakDb.toFixed(1)}dB</span>
+                  {/if}
+                {:else}
+                  N/A
+                {/if}
+              </td>
+              <td>{result.noiseFloorDb !== undefined ? result.noiseFloorDb.toFixed(1) + ' dB' : 'N/A'}</td>
+              <td>{result.noiseFloorDbHistogram !== undefined ? result.noiseFloorDbHistogram.toFixed(1) + ' dB' : 'N/A'}</td>
+              <td>
+                {#if result.reverbInfo}
+                  <span class="value-{getReverbClass(result.reverbInfo.label)}">
+                    ~{result.reverbInfo.time.toFixed(2)} s
+                  </span>
+                  <span class="subtitle">{result.reverbInfo.label}</span>
+                {:else}
+                  N/A
+                {/if}
+              </td>
+              <td>{formatTime(result.leadingSilence)}</td>
+              <td>{formatTime(result.trailingSilence)}</td>
+              <td>{formatTime(result.longestSilence)}</td>
+              <td>
+                {#if result.stereoSeparation}
+                  {result.stereoSeparation.stereoType}
+                  <span class="subtitle">{Math.round(result.stereoSeparation.stereoConfidence * 100)}% conf</span>
+                {:else}
+                  Mono file
+                {/if}
+              </td>
+              <td>
+                {#if result.micBleed?.new}
+                  <span class="value-{getMicBleedClass(result.micBleed.new)}">
+                    {result.micBleed.new.percentageConfirmedBleed > 0.5 ? 'Detected' : 'Not detected'}
+                  </span>
+                  <span class="subtitle">Med: {result.micBleed.new.medianSeparation.toFixed(1)}dB</span>
+                {:else}
+                  <span style="color: #999;">N/A</span>
+                {/if}
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  {:else}
+    <!-- STANDARD MODE TABLE -->
+    <table class="results-table">
     <thead>
       <tr>
         <th>Filename</th>
@@ -290,4 +422,5 @@
       {/each}
     </tbody>
   </table>
+  {/if}
 </div>
