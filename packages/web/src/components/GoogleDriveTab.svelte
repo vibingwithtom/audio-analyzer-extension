@@ -43,6 +43,8 @@
   let fileUrl = '';
   let pickerInitialized = false;
   let pickerLoading = false;
+  let originalFileUrl: string | null = null; // Store URL for re-downloading
+  let originalFileId: string | null = null;   // Store file ID for re-downloading
 
   const audioAnalyzer = new AudioAnalyzer();
   const levelAnalyzer = new LevelAnalyzer();
@@ -203,6 +205,10 @@
     results = null;
 
     try {
+      // Store the URL for reprocessing
+      originalFileUrl = fileUrl;
+      originalFileId = null;
+
       if ($analysisMode === 'filename-only') {
         // Filename-only mode: Just fetch metadata, don't download file
         const metadata = await driveAPI.getFileMetadataFromUrl(fileUrl);
@@ -260,16 +266,29 @@
           const doc = pickerResult.docs[0];
           const metadata = await driveAPI.getFileMetadata(doc.id);
 
+          // Store file ID for reprocessing
+          originalFileUrl = null;
+          originalFileId = doc.id;
+
           // Create a minimal File object for filename validation
           const file = new File([], metadata.name, { type: 'application/octet-stream' });
           await processFile(file);
         }
       } else {
         // Full or audio-only mode: Show picker and download files
-        const files = await driveAPI.pickAndDownloadFiles(false); // single file for now
+        const pickerResult = await driveAPI.showPicker({ multiSelect: false });
 
-        if (files.length > 0) {
-          await processFile(files[0]);
+        if (pickerResult.docs && pickerResult.docs.length > 0) {
+          const doc = pickerResult.docs[0];
+
+          // Store file ID for reprocessing
+          originalFileUrl = null;
+          originalFileId = doc.id;
+
+          const files = await driveAPI.pickAndDownloadFiles(false); // single file for now
+          if (files.length > 0) {
+            await processFile(files[0]);
+          }
         }
       }
     } catch (err) {
@@ -288,8 +307,43 @@
   }
 
   async function handleReprocess() {
-    if (!currentFile) return;
-    await processFile(currentFile);
+    if (!driveAPI) {
+      error = 'Google Drive API not initialized. Please sign in again.';
+      return;
+    }
+
+    // Check if we need to re-download (switching from filename-only to audio mode)
+    const needsRedownload = resultsMode === 'filename-only' && $analysisMode !== 'filename-only';
+
+    if (needsRedownload && (originalFileUrl || originalFileId)) {
+      processing = true;
+      error = '';
+      results = null;
+
+      try {
+        let file: File;
+
+        if (originalFileUrl) {
+          // Re-download from URL
+          file = await driveAPI.downloadFileFromUrl(originalFileUrl);
+        } else if (originalFileId) {
+          // Re-download using file ID
+          file = await driveAPI.downloadFile(originalFileId);
+        } else {
+          throw new Error('No file source available for reprocessing');
+        }
+
+        await processFile(file);
+      } catch (err) {
+        error = err instanceof Error ? err.message : 'Failed to reprocess file';
+        results = null;
+      } finally {
+        processing = false;
+      }
+    } else if (currentFile) {
+      // Normal reprocessing (just re-validate with different mode)
+      await processFile(currentFile);
+    }
   }
 </script>
 

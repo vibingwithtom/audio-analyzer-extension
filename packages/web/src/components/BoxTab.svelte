@@ -48,6 +48,7 @@
   let resultsStale = false;
   let resultsMode: AnalysisMode | null = null;
   let fileUrl = '';
+  let originalFileUrl: string | null = null; // Store URL for re-downloading
 
   const audioAnalyzer = new AudioAnalyzer();
   const levelAnalyzer = new LevelAnalyzer();
@@ -207,6 +208,9 @@
     results = null;
 
     try {
+      // Store the URL for reprocessing
+      originalFileUrl = fileUrl;
+
       if ($analysisMode === 'filename-only') {
         // Filename-only mode: Just fetch metadata, don't download file
         const metadata = await boxAPI.getFileMetadataFromUrl(fileUrl);
@@ -232,8 +236,33 @@
   }
 
   async function handleReprocess() {
-    if (!currentFile) return;
-    await processFile(currentFile);
+    if (!boxAPI) {
+      error = 'Box API not initialized. Please sign in again.';
+      return;
+    }
+
+    // Check if we need to re-download (switching from filename-only to audio mode)
+    const needsRedownload = resultsMode === 'filename-only' && $analysisMode !== 'filename-only';
+
+    if (needsRedownload && originalFileUrl) {
+      processing = true;
+      error = '';
+      results = null;
+
+      try {
+        // Re-download from URL
+        const file = await boxAPI.downloadFileFromUrl(originalFileUrl);
+        await processFile(file);
+      } catch (err) {
+        error = err instanceof Error ? err.message : 'Failed to reprocess file';
+        results = null;
+      } finally {
+        processing = false;
+      }
+    } else if (currentFile) {
+      // Normal reprocessing (just re-validate with different mode)
+      await processFile(currentFile);
+    }
   }
 </script>
 
