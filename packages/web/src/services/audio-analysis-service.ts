@@ -120,12 +120,12 @@ async function analyzeFullFile(
   }
 
   // Validation against preset criteria
-  if (criteria && presetId !== 'custom') {
+  if (criteria) {
     const skipAudioValidation = mode === 'filename-only';
     const validation = CriteriaValidator.validateResults(result, criteria, skipAudioValidation);
 
     // Add filename validation if preset supports it
-    if (preset.filenameValidationType && (mode === 'filename-only' || mode === 'full')) {
+    if (preset?.filenameValidationType && (mode === 'filename-only' || mode === 'full')) {
       const filenameValidation = validateFilename(filename, preset, presetId, scriptsList, speakerId);
       if (filenameValidation && validation) {
         validation.filename = filenameValidation;
