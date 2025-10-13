@@ -5,7 +5,11 @@
   import GoogleDriveTab from './GoogleDriveTab.svelte';
   import BoxTab from './BoxTab.svelte';
   import SettingsTab from './SettingsTab.svelte';
+  import UpdateBanner from './UpdateBanner.svelte';
   import { currentTab, type TabType } from '../stores/tabs';
+  import { versionCheckService } from '../services/version-check-service';
+
+  let updateAvailable = false;
 
   /**
    * Toggle dark mode
@@ -15,6 +19,20 @@
     const isDark = html.getAttribute('data-theme') === 'dark';
     html.setAttribute('data-theme', isDark ? 'light' : 'dark');
     localStorage.setItem('theme', isDark ? 'light' : 'dark');
+  }
+
+  /**
+   * Handle update reload
+   */
+  function handleReload(): void {
+    versionCheckService.reload();
+  }
+
+  /**
+   * Handle update banner dismissal
+   */
+  function handleDismiss(): void {
+    updateAvailable = false;
   }
 
   // Apply saved theme on mount
@@ -36,8 +54,20 @@
 
     window.addEventListener('box-auth-complete', handleBoxAuthComplete as EventListener);
 
+    // Initialize version checking
+    versionCheckService.initialize().then(() => {
+      // Start checking for updates every 30 minutes
+      versionCheckService.startPeriodicCheck(30);
+
+      // Listen for update notifications
+      versionCheckService.onUpdateAvailable(() => {
+        updateAvailable = true;
+      });
+    });
+
     return () => {
       window.removeEventListener('box-auth-complete', handleBoxAuthComplete as EventListener);
+      versionCheckService.stopPeriodicCheck();
     };
   });
 </script>
@@ -142,6 +172,13 @@
 </style>
 
 <div class="app sv-app">
+  <!-- Update Banner -->
+  <UpdateBanner
+    visible={updateAvailable}
+    onReload={handleReload}
+    onDismiss={handleDismiss}
+  />
+
   <!-- Header -->
   <header class="header">
     <div class="header-content">
