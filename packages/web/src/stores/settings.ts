@@ -80,7 +80,7 @@ export function updateCustomCriteria(newCriteria: AudioCriteria): void {
 // Check if current configuration is valid (has a properly configured preset)
 export const hasValidPresetConfig: Readable<boolean> = derived(
   [selectedPresetId, criteria],
-  ([$presetId, $criteria]) => {
+  ([$presetId, $criteria]): boolean => {
     // If no preset selected, invalid
     if (!$presetId) return false;
 
@@ -97,6 +97,6 @@ export const hasValidPresetConfig: Readable<boolean> = derived(
       ($criteria.channels && $criteria.channels.length > 0) ||
       ($criteria.minDuration && $criteria.minDuration.length > 0);
 
-    return hasAnyCriteria;
+    return Boolean(hasAnyCriteria);
   }
 );
