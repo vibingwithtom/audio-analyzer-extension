@@ -185,7 +185,7 @@ async function analyzeExperimental(arrayBuffer: ArrayBuffer): Promise<Partial<Au
   const advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer, null, true) as any;
 
   // Add stereo separation analysis
-  const stereoSeparation = levelAnalyzer.analyzeStereoSeparation(audioBuffer);
+  const stereoSeparation = levelAnalyzer.analyzeStereoSeparation(audioBuffer) as any;
   if (stereoSeparation) {
     advancedResults.stereoSeparation = stereoSeparation;
 
