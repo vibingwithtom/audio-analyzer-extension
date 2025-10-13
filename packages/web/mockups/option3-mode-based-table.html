@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Option 3: Mode-Based Table Display - Experimental Analysis Mockup</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f8f9fa;
+      padding: 2rem;
+      color: #333;
+    }
+
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      color: #2563eb;
+    }
+
+    .mockup-label {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(37, 99, 235, 0.15) 100%);
+      border: 1px solid rgba(37, 99, 235, 0.3);
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 2rem;
+      font-weight: 500;
+    }
+
+    .analysis-mode-section {
+      margin: 1.5rem 0;
+      padding: 1.25rem;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .analysis-mode-section h3 {
+      margin: 0 0 1rem 0;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .radio-group {
+      display: flex;
+      flex-direction: row;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .radio-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.625rem 0.875rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .radio-label:hover {
+      border-color: #2563eb;
+      background: rgba(37, 99, 235, 0.02);
+    }
+
+    .radio-label.selected {
+      border-color: #2563eb;
+      background: rgba(37, 99, 235, 0.05);
+    }
+
+    .radio-label input[type="radio"] {
+      cursor: pointer;
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .radio-content {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .radio-title {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: #333;
+    }
+
+    .radio-description {
+      font-size: 0.75rem;
+      color: #666;
+      line-height: 1.2;
+    }
+
+    .batch-summary {
+      margin: 1.5rem 0;
+      padding: 1.5rem;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .batch-summary h2 {
+      margin: 0 0 1.25rem 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .mode-switcher {
+      margin: 1rem 0;
+      padding: 1rem;
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(139, 92, 246, 0.1) 100%);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      border-radius: 6px;
+      text-align: center;
+      font-size: 0.875rem;
+      color: #666;
+    }
+
+    .mode-switcher a {
+      color: #7c3aed;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .mode-switcher a:hover {
+      text-decoration: underline;
+    }
+
+    .results-table {
+      background: white;
+      border-radius: 8px;
+      overflow-x: auto;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1400px;
+    }
+
+    th {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(37, 99, 235, 0.1) 100%);
+      padding: 0.75rem 0.5rem;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.75rem;
+      color: #333;
+      border-bottom: 2px solid #e0e0e0;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 0.75rem 0.5rem;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 0.8rem;
+    }
+
+    tr:hover {
+      background: rgba(37, 99, 235, 0.02);
+    }
+
+    .value-success {
+      color: #4CAF50;
+      font-weight: 500;
+    }
+
+    .value-warning {
+      color: #ff9800;
+      font-weight: 500;
+    }
+
+    .value-error {
+      color: #f44336;
+      font-weight: 500;
+    }
+
+    .subtitle {
+      font-size: 0.7rem;
+      color: #666;
+      display: block;
+      margin-top: 0.15rem;
+    }
+
+    .standard-table { display: none; }
+    .experimental-table { display: none; }
+
+    .standard-table.active { display: block; }
+    .experimental-table.active { display: block; }
+
+    .progress-note {
+      margin: 1rem 0;
+      padding: 1rem;
+      background: linear-gradient(135deg, rgba(76, 175, 80, 0.05) 0%, rgba(76, 175, 80, 0.1) 100%);
+      border: 1px solid rgba(76, 175, 80, 0.2);
+      border-radius: 6px;
+      text-align: center;
+      font-size: 0.875rem;
+      color: #2e7d32;
+      font-weight: 500;
+    }
+
+    .col-filename { min-width: 160px; }
+    .col-narrow { width: 90px; }
+    .col-medium { width: 110px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Option 3: Mode-Based Table Display</h1>
+
+    <div class="mockup-label">
+      📋 <strong>Concept:</strong> Selecting experimental mode changes what the table shows. Each mode focuses on relevant data. No expandable rows needed - everything fits naturally. Click radio buttons below to switch views.
+    </div>
+
+    <div class="analysis-mode-section">
+      <h3>Analysis Mode:</h3>
+      <div class="radio-group">
+        <label class="radio-label selected" onclick="showMode('standard')">
+          <input type="radio" name="mode" value="standard" checked />
+          <div class="radio-content">
+            <span class="radio-title">Audio Analysis Only</span>
+            <span class="radio-description">Basic properties (sample rate, bit depth, duration)</span>
+          </div>
+        </label>
+        <label class="radio-label" onclick="showMode('experimental')">
+          <input type="radio" name="mode" value="experimental" />
+          <div class="radio-content">
+            <span class="radio-title">Experimental Analysis</span>
+            <span class="radio-description">Peak level, noise floor, reverb, silence detection</span>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- STANDARD MODE TABLE -->
+    <div class="standard-table active">
+      <div class="batch-summary">
+        <h2>Audio Analysis Results - 17 files</h2>
+        <p style="color: #666; font-size: 0.875rem;">✓ Processed in 0.8 seconds</p>
+      </div>
+
+      <div class="results-table">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-filename">Filename</th>
+              <th class="col-medium">Sample Rate</th>
+              <th class="col-narrow">Bit Depth</th>
+              <th class="col-narrow">Channels</th>
+              <th class="col-narrow">Duration</th>
+              <th class="col-medium">File Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>recording_001.wav</td>
+              <td>48000 Hz</td>
+              <td>24-bit</td>
+              <td>Mono</td>
+              <td>0:15</td>
+              <td>WAV (PCM)</td>
+            </tr>
+            <tr>
+              <td>recording_002.wav</td>
+              <td>48000 Hz</td>
+              <td>16-bit</td>
+              <td>Stereo</td>
+              <td>0:23</td>
+              <td>WAV (PCM)</td>
+            </tr>
+            <tr>
+              <td>recording_003.wav</td>
+              <td>44100 Hz</td>
+              <td>16-bit</td>
+              <td>Mono</td>
+              <td>0:18</td>
+              <td>WAV (PCM)</td>
+            </tr>
+            <tr>
+              <td>recording_004.wav</td>
+              <td>48000 Hz</td>
+              <td>24-bit</td>
+              <td>Mono</td>
+              <td>0:22</td>
+              <td>WAV (PCM)</td>
+            </tr>
+            <tr>
+              <td>recording_005.wav</td>
+              <td>48000 Hz</td>
+              <td>24-bit</td>
+              <td>Mono</td>
+              <td>0:19</td>
+              <td>WAV (PCM)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mode-switcher">
+        💡 Want to check reverb, noise floor, or silence issues? Switch to <a onclick="showMode('experimental')">Experimental Analysis</a> mode
+      </div>
+    </div>
+
+    <!-- EXPERIMENTAL MODE TABLE -->
+    <div class="experimental-table">
+      <div class="progress-note">
+        ⏱️ Experimental analysis takes approximately 30 seconds for 17 files
+      </div>
+
+      <div class="batch-summary">
+        <h2>Experimental Analysis Results - 17 files</h2>
+      </div>
+
+      <div class="results-table">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-filename">Filename</th>
+              <th class="col-narrow">Peak<br/>Level</th>
+              <th class="col-medium">Normalization</th>
+              <th class="col-narrow">Noise<br/>(Old)</th>
+              <th class="col-narrow">Noise<br/>(New)</th>
+              <th class="col-medium">Reverb<br/>(RT60)</th>
+              <th class="col-narrow">Lead<br/>Silence</th>
+              <th class="col-narrow">Trail<br/>Silence</th>
+              <th class="col-narrow">Longest<br/>Silence</th>
+              <th class="col-medium">Stereo<br/>Separation</th>
+              <th class="col-medium">Mic Bleed</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>recording_001.wav</td>
+              <td>-9.1 dB</td>
+              <td>
+                <span class="value-warning">Too quiet</span>
+                <span class="subtitle">Peak: -9.1dB</span>
+              </td>
+              <td>-41.5 dB</td>
+              <td>-27.0 dB</td>
+              <td>
+                <span class="value-warning">~0.62 s</span>
+                <span class="subtitle">Fair</span>
+              </td>
+              <td>0:00</td>
+              <td>0:00</td>
+              <td>0:02</td>
+              <td>Mono file</td>
+              <td style="color: #999;">N/A</td>
+            </tr>
+            <tr>
+              <td>recording_002.wav</td>
+              <td>-5.5 dB</td>
+              <td>
+                <span class="value-error">Too loud</span>
+                <span class="subtitle">Peak: -5.5dB</span>
+              </td>
+              <td class="value-success">-110.4 dB</td>
+              <td class="value-success">-100.0 dB</td>
+              <td>
+                <span class="value-success">~0.48 s</span>
+                <span class="subtitle">Good</span>
+              </td>
+              <td>0:00</td>
+              <td>0:00</td>
+              <td>0:02</td>
+              <td>
+                Conv. Stereo
+                <span class="subtitle">100% conf</span>
+              </td>
+              <td>
+                <span class="value-success">Not detected</span>
+                <span class="subtitle">Med: 76.7dB</span>
+              </td>
+            </tr>
+            <tr>
+              <td>recording_003.wav</td>
+              <td>-6.0 dB</td>
+              <td>
+                <span class="value-success">Normalized</span>
+                <span class="subtitle">Peak: -6.0dB</span>
+              </td>
+              <td>-65.2 dB</td>
+              <td>-58.1 dB</td>
+              <td>
+                <span class="value-success">~0.31 s</span>
+                <span class="subtitle">Excellent</span>
+              </td>
+              <td>0:00</td>
+              <td>0:01</td>
+              <td>0:03</td>
+              <td>Mono file</td>
+              <td style="color: #999;">N/A</td>
+            </tr>
+            <tr>
+              <td>recording_004.wav</td>
+              <td>-6.2 dB</td>
+              <td>
+                <span class="value-success">Normalized</span>
+                <span class="subtitle">Peak: -6.2dB</span>
+              </td>
+              <td>-52.8 dB</td>
+              <td>-48.3 dB</td>
+              <td>
+                <span class="value-success">~0.42 s</span>
+                <span class="subtitle">Good</span>
+              </td>
+              <td>0:00</td>
+              <td>0:00</td>
+              <td>0:01</td>
+              <td>Mono file</td>
+              <td style="color: #999;">N/A</td>
+            </tr>
+            <tr>
+              <td>recording_005.wav</td>
+              <td>-7.3 dB</td>
+              <td>
+                <span class="value-warning">Too quiet</span>
+                <span class="subtitle">Peak: -7.3dB</span>
+              </td>
+              <td>-38.9 dB</td>
+              <td>-32.1 dB</td>
+              <td>
+                <span class="value-warning">~0.71 s</span>
+                <span class="subtitle">Fair</span>
+              </td>
+              <td>0:01</td>
+              <td>0:01</td>
+              <td>0:04</td>
+              <td>Mono file</td>
+              <td style="color: #999;">N/A</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mode-switcher">
+        💡 Want to see basic file properties? Switch to <a onclick="showMode('standard')">Audio Analysis Only</a> mode
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showMode(mode) {
+      // Update radio buttons
+      document.querySelectorAll('.radio-label').forEach(label => {
+        label.classList.remove('selected');
+      });
+
+      if (mode === 'standard') {
+        document.querySelectorAll('.radio-label')[0].classList.add('selected');
+        document.querySelectorAll('input[type="radio"]')[0].checked = true;
+        document.querySelector('.standard-table').classList.add('active');
+        document.querySelector('.experimental-table').classList.remove('active');
+      } else {
+        document.querySelectorAll('.radio-label')[1].classList.add('selected');
+        document.querySelectorAll('input[type="radio"]')[1].checked = true;
+        document.querySelector('.standard-table').classList.remove('active');
+        document.querySelector('.experimental-table').classList.add('active');
+      }
+    }
+  </script>
+</body>
+</html>

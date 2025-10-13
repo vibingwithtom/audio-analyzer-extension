@@ -8,7 +8,7 @@ export class LevelAnalyzer {
     this.analysisInProgress = false;
   }
 
-  async analyzeAudioBuffer(audioBuffer, progressCallback = null) {
+  async analyzeAudioBuffer(audioBuffer, progressCallback = null, includeExperimental = false) {
     const sampleRate = audioBuffer.sampleRate;
     const channels = audioBuffer.numberOfChannels;
     const length = audioBuffer.length;
@@ -53,40 +53,50 @@ export class LevelAnalyzer {
 
       const peakDb = globalPeak > 0 ? 20 * Math.log10(globalPeak) : -Infinity;
 
-      // 2. Noise Floor Analysis
+      // 2. Noise Floor Analysis (Old Method - always included)
       if (progressCallback) progressCallback('Analyzing noise floor...', 0.5);
       const noiseFloorDb = await this.analyzeNoiseFloor(channelData, channels, length, progressCallback);
-      const noiseFloorDbHistogram = await this.analyzeNoiseFloorHistogram(channelData, channels, length);
 
       // 3. Normalization Check
       if (progressCallback) progressCallback('Checking normalization...', 0.9);
       const normalizationStatus = this.checkNormalization(peakDb);
 
-            // 4. Reverb Estimation
-            if (progressCallback) progressCallback('Estimating reverb...', 0.95);
-            const reverbTime = await this.estimateReverb(channelData, channels, length, sampleRate, noiseFloorDbHistogram);
-            const reverbInfo = this.interpretReverb(reverbTime);
-      
-            // 5. Silence Analysis
-            if (progressCallback) progressCallback('Analyzing silence...', 0.98);
-            const { leadingSilence, trailingSilence, longestSilence } = this.analyzeSilence(channelData, channels, length, sampleRate, noiseFloorDbHistogram, peakDb);
-      
-            if (progressCallback) progressCallback('Analysis complete!', 1.0);
-      
-            return {
-              peakDb: peakDb,
-              noiseFloorDb: noiseFloorDb,
-              noiseFloorDbHistogram: noiseFloorDbHistogram,
-              normalizationStatus: normalizationStatus,
-              reverbInfo: reverbInfo,
-              leadingSilence: leadingSilence,
-              trailingSilence: trailingSilence,
-              longestSilence: longestSilence
-            };
-          } finally {
-            this.analysisInProgress = false;
-          }
-        }
+      // Base results (always included)
+      const results = {
+        peakDb: peakDb,
+        noiseFloorDb: noiseFloorDb,
+        normalizationStatus: normalizationStatus
+      };
+
+      // Experimental analysis (only when requested)
+      if (includeExperimental) {
+        // Histogram-based noise floor
+        const noiseFloorDbHistogram = await this.analyzeNoiseFloorHistogram(channelData, channels, length);
+
+        // Reverb Estimation
+        if (progressCallback) progressCallback('Estimating reverb...', 0.95);
+        const reverbTime = await this.estimateReverb(channelData, channels, length, sampleRate, noiseFloorDbHistogram);
+        const reverbInfo = this.interpretReverb(reverbTime);
+
+        // Silence Analysis
+        if (progressCallback) progressCallback('Analyzing silence...', 0.98);
+        const { leadingSilence, trailingSilence, longestSilence } = this.analyzeSilence(channelData, channels, length, sampleRate, noiseFloorDbHistogram, peakDb);
+
+        // Add experimental results
+        results.noiseFloorDbHistogram = noiseFloorDbHistogram;
+        results.reverbInfo = reverbInfo;
+        results.leadingSilence = leadingSilence;
+        results.trailingSilence = trailingSilence;
+        results.longestSilence = longestSilence;
+      }
+
+      if (progressCallback) progressCallback('Analysis complete!', 1.0);
+
+      return results;
+    } finally {
+      this.analysisInProgress = false;
+    }
+  }
       
           interpretReverb(rt60) {
             if (rt60 <= 0) {

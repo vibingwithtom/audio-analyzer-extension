@@ -8,19 +8,14 @@ import { describe, it, expect, beforeEach } from 'vitest';
  * 2. Spontaneous: SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav
  */
 
-// We need to import the WebAudioAnalyzer class from main.js
-// For now, we'll create a minimal mock that imports from the actual implementation
-// In the real test, we would need to set up proper imports
+// Phase 5.2b Note: These are stub tests that will be fully implemented
+// when the validation logic is accessible as a standalone module
+// Currently they just document expected behavior
 
 describe('Bilingual Filename Validation', () => {
-  let analyzer;
-
-  beforeEach(async () => {
-    // Dynamic import of the WebAudioAnalyzer class
-    // This is a workaround since main.js exports as window.analyzer
-    // We'll need to refactor this in Phase 4
-    const mainModule = await import('../../src/main.js');
-    // For now, we'll test the validation logic separately
+  beforeEach(() => {
+    // These tests will be implemented in Phase 5.3+ when we refactor
+    // the validation logic out of main.js into standalone modules
   });
 
   describe('Regular Format: [ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav', () => {

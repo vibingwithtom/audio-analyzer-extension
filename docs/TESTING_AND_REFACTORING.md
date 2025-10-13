@@ -1,8 +1,9 @@
 # Audio Analyzer: Testing & Refactoring Strategy
 
-**Status:** ✅ Phase 4 Complete - TypeScript Refactoring Done
+**Status:** 🔄 Phase 5 In Progress - Phase 5.9.1.1 
 **Started:** October 9, 2025
 **Phase 4 Completed:** October 10, 2025
+**Phase 5.8.1 Completed:** October 11, 2025
 
 ---
 
@@ -13,8 +14,6 @@ This document outlines a comprehensive strategy to improve code quality, maintai
 **Strategy:** Test infrastructure first, build comprehensive test suite, then refactor with TypeScript, and migrate to component-based architecture.
 
 **Development Approach:** LLM-assisted development with human review and testing cycles.
-
-**Timeline:** ~2 weeks of development work across 5 phases (actual calendar time depends on review cycles)
 
 ---
 
@@ -109,104 +108,6 @@ packages/web/src/
 
 ---
 
-## Why Testing First?
-
-### Critical Reasoning
-
-**✅ Pros of Testing First:**
-
-1. **Safety Net:** Tests verify refactoring doesn't break existing functionality
-2. **Risk Mitigation:** 3,159 lines = high chance of breaking subtle behaviors
-3. **Documentation:** Tests document current behavior before we change it
-4. **Confidence:** Can refactor aggressively with comprehensive coverage
-5. **Edge Cases:** Will discover hidden bugs during test writing
-6. **Regression Prevention:** Catches issues immediately during refactoring
-
-**❌ Risks of Refactoring Without Tests:**
-
-1. **No Verification:** How do you know the refactor works correctly?
-2. **Silent Failures:** Subtle bugs may not be noticed until production
-3. **Fear of Change:** Without tests, developers become afraid to touch code
-4. **Time Loss:** Debugging production issues takes far longer than writing tests
-5. **False Confidence:** Code may look better but behave differently
-
-### Real-World Example
-
-Consider the recent bug fix: "Audio Quality Analysis checkbox not working for single files"
-
-- **With Tests:** Would have caught this immediately
-- **Without Tests:** Required manual testing on beta, multiple deployments
-- **Risk:** Could have shipped broken to production
-
-**After refactoring without tests, how would we verify:**
-- Filename validation still works for all patterns?
-- Metadata-only mode behaves correctly?
-- Batch processing handles errors properly?
-- Google Drive/Box authentication flows work?
-- Advanced analysis calculations are correct?
-
-**Answer:** We couldn't, reliably.
-
----
-
-## LLM-First Development Approach
-
-### Why This Matters for LLM-Assisted Development
-
-This project will be developed **primarily by LLMs** (Claude, etc.) with human review. This fundamentally changes the priorities:
-
-#### Testing is **Critical** (Not Just Nice-to-Have)
-- **LLMs generate code fast** but need verification
-- Tests are executable specifications that LLMs can understand
-- Without tests, you can't verify LLM-generated code works until production
-- **Verdict:** Testing becomes THE most important phase
-
-#### TypeScript is **Essential** (Not Optional)
-- Types are documentation that LLMs can parse reliably
-- Prevents "looks correct but crashes at runtime" code
-- Helps LLMs infer intent without asking questions
-- Enables better autocomplete and error detection during generation
-- **Verdict:** TypeScript should be added during refactoring, not later
-
-#### Component Architecture is **Valuable** (Not Future Work)
-- Smaller, focused modules are easier for LLMs to reason about
-- Clear boundaries reduce context needed for each task
-- Component-based frameworks (React/Vue/Svelte) have extensive training data
-- "Add a file upload component" is clearer than "modify lines 900-1000 of main.js"
-- **Verdict:** Framework migration should happen sooner than originally planned
-
-#### Documentation is **Required** (Not Optional)
-- LLMs need architectural context to make good decisions
-- Rationale for decisions prevents LLMs from undoing intentional choices
-- Test descriptions guide LLM test generation
-- **Verdict:** All modules and decisions must be documented
-
-### Development Workflow
-
-**Typical cycle:**
-1. LLM generates code/tests based on specifications
-2. Human reviews diffs and logic
-3. Run tests to verify correctness
-4. Deploy to beta for integration testing
-5. Human validates in beta
-6. Merge to production
-
-**Bottleneck:** Human review and testing cycles, not development time
-
-### Timeline Considerations
-
-**Est. times are LLM development time** (not human developer time with meetings, context switching, etc.)
-
-**Actual calendar time depends on:**
-- How quickly you review changes
-- Beta testing cycles
-- Decision points requiring your input
-- Issues discovered during testing
-
-**Example:** Phase 2 (Core Tests) = "2-3 days" of LLM work, but might take 1-2 weeks calendar time depending on your availability.
-
----
-
 ## Git & Branching Strategy
 
 ### Overview
@@ -229,75 +130,6 @@ main (production-ready, always stable)
 
 ### Workflow by Phase
 
-#### Phase 1: Test Infrastructure
-```bash
-git checkout -b feature/phase-1-test-infrastructure
-# Complete all Phase 1 tasks (Vitest setup, config, sample tests)
-# Run tests locally
-# Merge to main (low risk - just adds tooling, no app changes)
-```
-
-**Merge Criteria:**
-- ✅ Vitest installed and configured
-- ✅ Sample tests passing
-- ✅ Coverage reporting works
-- ✅ No changes to application code
-
-**Risk Level:** Low (tooling only)
-
-#### Phases 2-3: Test Writing
-```bash
-git checkout -b feature/phase-2-3-comprehensive-tests
-# Write all unit tests (Phase 2)
-# Write all integration tests (Phase 3)
-# Deploy to beta frequently to verify tests work
-# Merge to main when 70%+ coverage achieved
-```
-
-**Merge Criteria:**
-- ✅ 70%+ code coverage
-- ✅ All tests passing
-- ✅ No changes to application code (tests only)
-
-**Risk Level:** Low (tests only, no refactoring yet)
-
-**Rationale:** Combining Phases 2-3 since both are "writing tests" with no refactoring.
-
-#### Phase 4: TypeScript Refactoring
-
-**Option A: Single Branch (Recommended for small team)**
-```bash
-git checkout -b feature/phase-4-typescript-refactor
-# Complete all Phase 4 tasks incrementally
-# Commit after each major extraction (TypeScript setup, handlers, settings, etc.)
-# Deploy to beta after each significant change
-# Merge to main after all extractions complete and beta verified
-```
-
-**Option B: Sub-Branches (For larger changes or parallel work)**
-```bash
-# 4.1 TypeScript Setup
-git checkout -b feature/phase-4-typescript-setup
-# Set up TypeScript infrastructure
-# Merge to main (enables creating .ts files)
-
-# 4.2-4.6 Major Extractions
-git checkout -b feature/phase-4-file-handlers
-git checkout -b feature/phase-4-settings-manager
-# etc. - one branch per major extraction
-# Merge each to main after beta verification
-```
-
-**Merge Criteria (per extraction or final):**
-- ✅ All tests passing
-- ✅ TypeScript type checking passing
-- ✅ Beta deployment tested and verified
-- ✅ No regressions in functionality
-- ✅ Code coverage maintained or improved
-
-**Risk Level:** Medium-High (refactoring existing code)
-
-**Beta Testing Required:** Yes - deploy after each major change
 
 #### Phase 5: Svelte Migration
 ```bash
@@ -457,1836 +289,1533 @@ git branch -d feature/phase-X-description
 git push origin --delete feature/phase-X-description
 ```
 
-### Decision Rationale
-
-**Why phase-based branches?**
-- ✅ Clear scope per branch
-- ✅ Easier to track progress
-- ✅ Manageable PR sizes
-- ✅ Can pause/resume phases independently
-
-**Why not one giant refactor branch?**
-- ❌ Massive changeset hard to review
-- ❌ High risk of merge conflicts
-- ❌ Difficult to isolate issues
-- ❌ Can't deploy incrementally
-
-**Why not task-based branches (30+ branches)?**
-- ❌ Too much overhead
-- ❌ Merge conflicts between tasks
-- ❌ Harder to see big picture
-
 ---
 
-## Phase 1: Test Infrastructure Setup
 
-**Status:** ✅ Complete
-**LLM Development Time:** 2-3 hours
-**Calendar Time:** 1 day (with review cycles)
-**Owner:** Claude Code
-**Completed:** October 10, 2025
-
-### Goals
-
-- Set up modern testing framework (Vitest)
-- Configure code coverage reporting
-- Create test file structure
-- Establish testing patterns
-- Write sample tests to verify setup
-
-### Tasks
-
-#### 1.1 Install Dependencies ⬜
-
-```bash
-npm install --save-dev vitest @vitest/ui c8 jsdom
-```
-
-**Dependencies:**
-- `vitest`: Fast test framework (built for Vite)
-- `@vitest/ui`: Interactive test UI
-- `c8`: Code coverage tool (native V8 coverage)
-- `jsdom`: DOM environment for browser testing
-
-#### 1.2 Configure Vitest ⬜
-
-Create `packages/web/vitest.config.js`:
-```javascript
-import { defineConfig } from 'vitest/config';
-import path from 'path';
-
-export default defineConfig({
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    coverage: {
-      provider: 'c8',
-      reporter: ['text', 'html', 'lcov'],
-      exclude: [
-        'node_modules/',
-        'dist/',
-        '**/*.test.js',
-        '**/*.spec.js'
-      ]
-    }
-  },
-  resolve: {
-    alias: {
-      '@audio-analyzer/core': path.resolve(__dirname, '../core')
-    }
-  }
-});
-```
-
-#### 1.3 Update package.json Scripts ⬜
-
-Add to `packages/web/package.json`:
-```json
-{
-  "scripts": {
-    "test": "vitest",
-    "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage",
-    "test:run": "vitest run"
-  }
-}
-```
-
-#### 1.4 Create Test Structure ⬜
-
-```
-packages/web/
-├── src/
-│   ├── main.js
-│   ├── google-auth.js
-│   └── box-auth.js
-└── tests/                          ← NEW
-    ├── unit/
-    │   ├── validation.test.js
-    │   ├── criteria.test.js
-    │   └── formatting.test.js
-    ├── integration/
-    │   ├── file-processing.test.js
-    │   └── batch-processing.test.js
-    ├── helpers/
-    │   ├── test-utils.js
-    │   └── mock-data.js
-    └── setup.js
-```
-
-#### 1.5 Write Sample Tests ⬜
-
-Create `tests/unit/validation.test.js`:
-```javascript
-import { describe, it, expect } from 'vitest';
-import { WebAudioAnalyzer } from '../src/main.js';
-
-describe('Filename Validation', () => {
-  it('should validate Bilingual filename format', () => {
-    const analyzer = new WebAudioAnalyzer();
-    const result = analyzer.validateBilingualFilename(
-      'CONV12345-EN-user-001-agent-002.wav'
-    );
-    expect(result.status).toBe('pass');
-  });
-
-  it('should reject invalid Bilingual filename', () => {
-    const analyzer = new WebAudioAnalyzer();
-    const result = analyzer.validateBilingualFilename('invalid.wav');
-    expect(result.status).toBe('fail');
-  });
-});
-```
-
-#### 1.6 Verify Setup ⬜
-
-```bash
-npm run test
-npm run test:coverage
-```
-
-Expected: Tests pass, coverage report generated.
-
-### Deliverables
-
-- [x] Vitest installed and configured
-- [x] Coverage reporting working
-- [x] Test file structure created
-- [x] Sample tests passing
-- [x] Documentation updated
-
-### GitHub Issues
-
-- [ ] Issue #TBD: Set up Vitest and testing infrastructure
-
----
-
-## Phase 2: Core Business Logic Tests
-
-**Status:** ✅ Complete - Test Specifications Written
-**LLM Development Time:** 2-3 days
-**Calendar Time:** 1-2 weeks (with review cycles)
-**Owner:** Claude Code
-**Completed:** October 10, 2025
-**Goal:** 60%+ coverage of core business logic
-
-### Priority Areas (Highest ROI)
-
-#### 2.1 Filename Validation Tests ✅
-
-**Target:** `validateBilingualFilename()`, `validateFilename()` (Three Hour)
-
-Test cases:
-- ✅ Valid Bilingual patterns
-- ✅ Invalid Bilingual patterns
-- ✅ SPONTANEOUS prefix handling
-- ✅ Three Hour script matching
-- ✅ Speaker ID validation
-- ✅ Edge cases (special characters, empty strings, etc.)
-
-**Files:** `tests/unit/filename-validation.test.js`
-
-**Estimated Coverage:** ~150 lines of critical validation logic
-
-#### 2.2 Criteria Validation Tests ✅
-
-**Target:** `validateCriteria()`, criteria validator logic
-
-Test cases:
-- ✅ Sample rate validation (all presets)
-- ✅ Bit depth validation
-- ✅ Channel validation (mono, stereo, mixed)
-- ✅ File type validation
-- ✅ Duration validation (SPONTANEOUS files)
-- ✅ Metadata-only mode handling
-- ✅ Overall status calculation
-
-**Files:** `tests/unit/criteria-validation.test.js`
-
-**Estimated Coverage:** ~200 lines of validation logic
-
-#### 2.3 File Type Detection Tests ✅
-
-**Target:** `getFileTypeFromName()`
-
-Test cases:
-- ✅ All supported extensions (wav, mp3, flac, aac, m4a, ogg)
-- ✅ Case insensitivity
-- ✅ Unknown file types
-- ✅ Missing extensions
-
-**Files:** `tests/unit/file-type.test.js`
-
-**Estimated Coverage:** ~30 lines
-
-#### 2.4 Result Formatting Tests ✅
-
-**Target:** `formatResults()`, formatting logic
-
-Test cases:
-- ✅ Sample rate formatting (Hz, kHz)
-- ✅ File size formatting (bytes, KB, MB)
-- ✅ Duration formatting (seconds, minutes)
-- ✅ Bit depth formatting
-- ✅ Unknown value handling
-
-**Files:** `tests/unit/result-formatting.test.js`
-
-**Estimated Coverage:** ~100 lines
-
-#### 2.5 Preset Configuration Tests ✅
-
-**Target:** `getPresetConfigurations()`, preset logic
-
-Test cases:
-- ✅ All preset configurations loaded correctly
-- ✅ Filename validation types set correctly
-- ✅ Criteria defaults for each preset
-- ✅ Custom preset handling
-
-**Files:** `tests/unit/presets.test.js`
-
-**Estimated Coverage:** ~80 lines
-
-#### 2.6 Overall Status Calculation Tests ✅
-
-**Target:** `getOverallStatus()`
-
-Test cases:
-- ✅ Pass when all criteria pass
-- ✅ Fail when any criteria fail
-- ✅ Warning when criteria have warnings
-- ✅ Metadata-only mode ignoring audio fields
-- ✅ Filename validation status integration
-- ✅ Priority ordering (fail > warning > pass)
-
-**Files:** `tests/unit/overall-status.test.js`
-
-**Estimated Coverage:** ~50 lines
-
-### Test Utilities
-
-Create `tests/helpers/mock-data.js`:
-```javascript
-export const mockAudioFile = {
-  name: 'test-audio.wav',
-  size: 1024000,
-  type: 'audio/wav'
-};
-
-export const mockAnalysisResults = {
-  filename: 'test-audio.wav',
-  fileSize: 1024000,
-  fileType: 'WAV',
-  sampleRate: 48000,
-  bitDepth: 16,
-  channels: 2,
-  duration: 120
-};
-
-export const mockValidationResults = {
-  sampleRate: { status: 'pass' },
-  bitDepth: { status: 'pass' },
-  channels: { status: 'pass' },
-  fileType: { status: 'pass' }
-};
-```
-
-### Success Criteria
-
-- [ ] 60%+ code coverage achieved
-- [ ] All core validation logic tested
-- [ ] Edge cases covered
-- [ ] Tests are fast (<5 seconds total)
-- [ ] Tests are reliable (no flaky tests)
-
-### GitHub Issues
-
-- [ ] Issue #TBD: Add Bilingual filename validation tests
-- [ ] Issue #TBD: Add Three Hour filename validation tests
-- [ ] Issue #TBD: Add criteria validation tests
-- [ ] Issue #TBD: Add result formatting tests
-- [ ] Issue #TBD: Add preset configuration tests
-
----
-
-## Phase 3: Integration Tests
-
-**Status:** ✅ Complete - Test Specifications Written
-**LLM Development Time:** 1-2 days
-**Calendar Time:** 1 week (with review cycles)
-**Owner:** Claude Code
-**Completed:** October 10, 2025
-
-### Goals
-
-- Test complete workflows end-to-end
-- Verify component interactions
-- Test error handling
-- Mock external dependencies (auth, file APIs)
-
-### Integration Test Areas
-
-#### 3.1 File Processing Workflows ✅
-
-**Target:** `handleFileSelect()`, `handleGoogleDriveFile()`, `handleBoxFile()`
-
-Test cases:
-- ✅ Local file upload and analysis
-- ✅ Metadata-only mode for local files
-- ✅ Full audio analysis mode
-- ✅ Error handling (invalid files, decode errors)
-- ✅ Progress indicators
-- ✅ Result display
-
-**Files:** `tests/integration/file-processing.test.js`
-
-#### 3.2 Batch Processing ✅
-
-**Target:** `handleBatchFiles()`, `handleGoogleDriveBatch()`, `handleBoxBatch()`
-
-Test cases:
-- ✅ Multiple file processing
-- ✅ Folder processing
-- ✅ Progress tracking
-- ✅ Cancellation
-- ✅ Error handling (mixed success/failure)
-- ✅ Summary statistics
-- ✅ Metadata-only batch mode
-
-**Files:** `tests/integration/batch-processing.test.js`
-
-#### 3.3 Auth State Management ✅
-
-**Target:** Auth status updates, sign in/out flows
-
-Test cases:
-- ✅ Google Drive auth status display
-- ✅ Box auth status display
-- ✅ Sign in flow (mocked)
-- ✅ Sign out flow
-- ✅ Token expiration handling
-
-**Files:** `tests/integration/auth-management.test.js`
-
-#### 3.4 Display Rendering ✅
-
-**Target:** `validateAndDisplayResults()`, `showBatchResults()`
-
-Test cases:
-- ✅ Single file result display
-- ✅ Batch results table
-- ✅ Validation status badges
-- ✅ Filename validation display
-- ✅ Column visibility (metadata-only mode)
-- ✅ Audio player display
-
-**Files:** `tests/integration/display-rendering.test.js`
-
-### Mocking Strategy
-
-Create `tests/helpers/test-utils.js`:
-```javascript
-import { vi } from 'vitest';
-
-export function mockGoogleAuth() {
-  return {
-    isSignedIn: vi.fn(() => true),
-    getFileMetadata: vi.fn(() => Promise.resolve({
-      name: 'test.wav',
-      size: '1024000'
-    })),
-    downloadFile: vi.fn(() => Promise.resolve(new Blob()))
-  };
-}
-
-export function mockBoxAuth() {
-  return {
-    isAuthenticated: vi.fn(() => true),
-    getFileMetadata: vi.fn(() => Promise.resolve({
-      name: 'test.wav',
-      size: 1024000
-    })),
-    downloadFile: vi.fn(() => Promise.resolve(new Blob()))
-  };
-}
-
-export function mockAudioContext() {
-  return {
-    decodeAudioData: vi.fn(() => Promise.resolve({
-      sampleRate: 48000,
-      duration: 120,
-      numberOfChannels: 2
-    }))
-  };
-}
-```
-
-### Success Criteria
-
-- [ ] All major workflows tested
-- [ ] External dependencies properly mocked
-- [ ] Error paths covered
-- [ ] Tests run reliably
-- [ ] Coverage above 70% overall
-
-### GitHub Issues
-
-- [ ] Issue #TBD: Add file processing integration tests
-- [ ] Issue #TBD: Add batch processing integration tests
-- [ ] Issue #TBD: Add auth management tests
-- [ ] Issue #TBD: Add display rendering tests
-
----
-
-## Phase 4: Refactoring with TypeScript
-
-**Status:** ✅ Complete
-**LLM Development Time:** 3-5 days
-**Calendar Time:** 1 day (completed in single session)
-**Owner:** Claude Code
-**Started:** October 10, 2025
-**Completed:** October 10, 2025
-
-### Prerequisites
-
-✅ Comprehensive test suite (Phases 1-3 complete)
-✅ 70%+ code coverage (566 tests, all passing)
-✅ All tests passing
-
-### Goals
-
-- **Set up TypeScript infrastructure first**
-- **Create all new modules as .ts files from the outset**
-- Extract modules and create clean architecture with type safety
-- Eliminate code duplication
-- Maintain test coverage throughout
-
-### Strategy
-
-**TypeScript-First Approach:**
-All newly created files during refactoring will be TypeScript (.ts) from the start. This approach:
-- Provides immediate type safety during extraction
-- Catches errors during refactoring, not after
-- Eliminates the need for a separate JS → TS conversion step
-- Produces cleaner git history (one commit per module instead of create + convert)
-
-**Legacy Code:**
-Existing files (main.js, google-auth.js, box-auth.js) remain as .js until refactored. Mixed .ts/.js is supported by modern build tools.
-
-### Refactoring Priorities
-
-#### 4.1 TypeScript Setup ✅
-
-**Goal:** Configure TypeScript infrastructure before creating new modules
-**Completed:** October 10, 2025
-
-**Tasks:**
-
-1. Install TypeScript dependencies:
-```bash
-npm install --save-dev typescript @types/node
-```
-
-2. Create `tsconfig.json`:
-```json
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "ESNext",
-    "lib": ["ES2020", "DOM"],
-    "moduleResolution": "node",
-    "allowJs": true,
-    "checkJs": false,
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "tests"]
-}
-```
-
-3. Update `vite.config.js` to handle TypeScript:
-```javascript
-import { defineConfig } from 'vite';
-import path from 'path';
-
-export default defineConfig({
-  resolve: {
-    alias: {
-      '@audio-analyzer/core': path.resolve(__dirname, '../core')
-    }
-  },
-  build: {
-    // Vite handles TypeScript automatically
-    target: 'es2020'
-  }
-});
-```
-
-4. Add TypeScript build script to `package.json`:
-```json
-{
-  "scripts": {
-    "typecheck": "tsc --noEmit",
-    "build": "vite build"
-  }
-}
-```
-
-**Testing:** Run `npm run typecheck` to verify TypeScript is working
-
-**Impact:** Enables creating .ts files in subsequent refactoring steps
-
-**GitHub Issue:** #TBD
-
-#### 4.2 Unify Display Logic ✅
-
-**Problem:** Duplicate logic in `validateAndDisplayResults()` and `showBatchResults()`
-**Completed:** October 10, 2025
-
-**Solution:** Created unified `display-utils.ts` module with shared rendering functions
-
-**What Was Done:**
-
-Created `src/display-utils.ts` (246 lines) with:
-- `renderResultRow()` - Unified row rendering for single & batch displays
-- `getValidationStatus()` - Extract validation CSS classes
-- `renderFilenameCheckCell()` - Filename validation display
-- `renderAudioCells()` - Audio property cells with metadata-only mode
-- `updateColumnVisibility()` - Unified column show/hide logic
-- `setupFilenameCheckTooltip()` - Custom tooltip behavior
-- `escapeHtml()` - XSS protection
-
-**Impact:**
-- ✅ Eliminated ~155 lines of duplication from main.js
-- ✅ Single source of truth for display rendering
-- ✅ All 566 tests passing
-- ✅ TypeScript type safety for display logic
-- ✅ No regressions
-
-**Files Created:**
-- `src/display-utils.ts` (246 lines, TypeScript)
-
-**Files Modified:**
-- `src/main.js` (lines 2086-2798 refactored to use display-utils)
-
-**GitHub Issue:** #TBD
-
-#### 4.3 Extract File Utilities ✅
-
-**Problem:** File utility functions scattered in main class
-**Completed:** October 10, 2025
-
-**Solution:** Extracted file-related utilities to TypeScript module
-
-**What Was Done:**
-
-Created `src/file-utils.ts` (65 lines) with:
-- `getFileTypeFromExtension()` - Extracts file type from filename
-- `isAudioFile()` - Checks if filename has audio extension
-- `getFileExtension()` - Gets extension from filename
-- Type-safe file type mapping
-
-**Impact:**
-- ✅ Eliminated duplicate `getFileTypeFromName()` method from main.js
-- ✅ TypeScript type safety for file utilities
-- ✅ All 566 tests passing
-- ✅ No regressions
-
-**Files Created:**
-- `src/file-utils.ts` (65 lines, TypeScript)
-
-**Files Modified:**
-- `src/main.js` (removed `getFileTypeFromName()` method, now imports from file-utils)
-
-**Note:** The actual file *handlers* (handleFileSelect, etc.) are controller methods that will be addressed in later phases. This task focused on extracting utility functions.
-
-**GitHub Issue:** #TBD
-
----
-
-**NOTE:** Tasks 4.4-4.7 below are for full file handler extraction (separate classes for Local/Drive/Box), settings management, validation modules, and UI controllers. These are pending and will be tackled in order.
-
-#### 4.4 Extract File Handler Classes (Pending)
-
-**Problem:** File processing logic mixed into main class
-
-**Solution:** Create dedicated handler classes as TypeScript modules
-
-**Planned Implementation:**
-```typescript
-// src/handlers/types.ts
-export interface FileProcessOptions {
-  metadataOnly: boolean;
-  validateFilename: boolean;
-  filenameValidationConfig?: FilenameValidationConfig;
-}
-
-export interface ProcessResult {
-  filename: string;
-  fileSize: number;
-  fileType: string;
-  status: 'pass' | 'fail' | 'warning' | 'error';
-  // ... other fields
-}
-
-// src/handlers/base-handler.ts
-export abstract class BaseFileHandler {
-  protected validateFilename(filename: string, config: FilenameValidationConfig): ValidationResult {
-    // Implementation
-  }
-
-  protected createMetadataOnlyResult(metadata: FileMetadata): ProcessResult {
-    // Implementation
-  }
-
-  abstract process(source: unknown, options: FileProcessOptions): Promise<ProcessResult>;
-}
-
-// src/handlers/local-file-handler.ts
-export class LocalFileHandler extends BaseFileHandler {
-  async process(file: File, options: FileProcessOptions): Promise<ProcessResult> {
-    // Implementation
-  }
-}
-
-// src/handlers/google-drive-handler.ts
-export class GoogleDriveFileHandler extends BaseFileHandler {
-  constructor(private auth: GoogleAuthService) {
-    super();
-  }
-
-  async process(fileId: string, options: FileProcessOptions): Promise<ProcessResult> {
-    // Implementation
-  }
-}
-
-// src/handlers/box-file-handler.ts
-export class BoxFileHandler extends BaseFileHandler {
-  constructor(private auth: BoxAuthService) {
-    super();
-  }
-
-  async process(fileId: string, options: FileProcessOptions): Promise<ProcessResult> {
-    // Implementation
-  }
-}
-```
-
-**Impact:** Remove ~600 lines from main.js with full type safety
-
-**Testing:**
-- Integration tests verify handlers work
-- TypeScript compiler validates types
-- Add unit tests for each handler
-
-**Files to create:**
-- `src/handlers/types.ts`
-- `src/handlers/base-handler.ts`
-- `src/handlers/local-file-handler.ts`
-- `src/handlers/google-drive-handler.ts`
-- `src/handlers/box-file-handler.ts`
-- `tests/unit/handlers/local-file-handler.test.ts`
-- `tests/unit/handlers/google-drive-handler.test.ts`
-- `tests/unit/handlers/box-file-handler.test.ts`
-
-**Files to modify:**
-- `src/main.js` (lines 900-1900)
-
-**GitHub Issue:** #TBD
-
-#### 4.4 Settings Management Module ✅
-
-**Problem:** Settings logic duplicated for local/Google Drive/Box
-**Completed:** October 10, 2025
-
-**Solution:** Centralized settings manager as TypeScript module
-
-**What Was Done:**
-
-Created `src/settings/` directory with:
-- `types.ts` (170 lines) - TypeScript interfaces for all settings structures
-- `settings-manager.ts` (230 lines) - Centralized SettingsManager class
-
-**Key Features:**
-- Type-safe settings management for all sources (local, Google Drive, Box)
-- Centralized localStorage persistence
-- Preset configuration management
-- Filename validation settings (per source)
-- Dark mode preferences
-- Criteria settings management
-- Export/import functionality for debugging
-
-**Impact:**
-- ✅ Eliminated ~400 lines of settings logic from main.js
-- ✅ Single source of truth for all settings
-- ✅ All 566 tests passing
-- ✅ TypeScript type safety for settings
-- ✅ No regressions
-
-**Files Created:**
-- `src/settings/types.ts` (170 lines, TypeScript)
-- `src/settings/settings-manager.ts` (230 lines, TypeScript)
-
-**Files Modified:**
-- `src/main.js` (lines 275-783 refactored to use SettingsManager)
-  - Updated `loadSettings()` to use SettingsManager.getCriteria()
-  - Updated `saveCriteria()` to use SettingsManager.saveCriteria()
-  - Updated `handlePresetChange()` to use SettingsManager.saveSelectedPreset()
-  - Updated all filename validation methods to use SettingsManager
-  - Updated dark mode methods to use SettingsManager
-
-**Before:**
-```typescript
-// src/settings/types.ts
-export interface AppSettings {
-  darkMode: boolean;
-  criteria: CriteriaSettings;
-  filenameValidation: {
-    local: FilenameValidationConfig;
-    googleDrive: FilenameValidationConfig;
-    box: FilenameValidationConfig;
-  };
-  audioAnalysis: {
-    local: boolean;
-    googleDrive: boolean;
-    box: boolean;
-  };
-}
-
-export interface CriteriaSettings {
-  preset: string;
-  sampleRate?: number;
-  bitDepth?: number;
-  channels?: number;
-  fileTypes?: string[];
-  minDuration?: number;
-}
-
-// src/settings/settings-manager.ts
-export class SettingsManager {
-  private settings: AppSettings;
-
-  constructor() {
-    this.settings = this.loadSettings();
-  }
-
-  private loadSettings(): AppSettings {
-    // Implementation with defaults
-  }
-
-  saveSettings(): void {
-    localStorage.setItem('audioAnalyzerSettings', JSON.stringify(this.settings));
-  }
-
-  // Filename validation settings
-  getFilenameValidationConfig(source: 'local' | 'googleDrive' | 'box'): FilenameValidationConfig {
-    return this.settings.filenameValidation[source];
-  }
-
-  setFilenameValidationEnabled(source: 'local' | 'googleDrive' | 'box', enabled: boolean): void {
-    this.settings.filenameValidation[source].enabled = enabled;
-    this.saveSettings();
-  }
-
-  setAudioAnalysisEnabled(source: 'local' | 'googleDrive' | 'box', enabled: boolean): void {
-    this.settings.audioAnalysis[source] = enabled;
-    this.saveSettings();
-  }
-
-  // Criteria settings
-  getCriteria(): CriteriaSettings {
-    return this.settings.criteria;
-  }
-
-  saveCriteria(criteria: CriteriaSettings): void {
-    this.settings.criteria = criteria;
-    this.saveSettings();
-  }
-
-  // Dark mode
-  isDarkMode(): boolean {
-    return this.settings.darkMode;
-  }
-
-  setDarkMode(enabled: boolean): void {
-    this.settings.darkMode = enabled;
-    this.saveSettings();
-  }
-}
-```
-
-**Impact:** Remove ~400 lines from main.js with type-safe settings
-
-**Testing:**
-- Unit tests for settings manager
-- Test localStorage persistence
-- Test default values
-
-**Files to create:**
-- `src/settings/types.ts`
-- `src/settings/settings-manager.ts`
-- `tests/unit/settings/settings-manager.test.ts`
-
-**Files to modify:**
-- `src/main.js` (lines 275-760)
-
-**GitHub Issue:** #TBD
-
-#### 4.5 Validation Module ⬜
-
-**Problem:** Validation logic scattered throughout main.js
-
-**Solution:** Dedicated validation module with TypeScript
-
-**After:**
-```typescript
-// src/validation/types.ts
-export interface ValidationResult {
-  status: 'pass' | 'fail' | 'warning';
-  issue?: string;
-  details?: Record<string, unknown>;
-}
-
-export interface BilingualValidationResult extends ValidationResult {
-  conversationId?: string;
-  languageCode?: string;
-  userId?: string;
-  agentId?: string;
-}
-
-// src/validation/filename-validator.ts
-export class FilenameValidator {
-  validateBilingual(filename: string): BilingualValidationResult {
-    // Implementation with type safety
-  }
-
-  validateThreeHour(
-    filename: string,
-    scripts: Map<string, string>,
-    speakerId: string
-  ): ValidationResult {
-    // Implementation
-  }
-
-  private extractBilingualParts(filename: string): {
-    conversationId: string;
-    languageCode: string;
-    userId: string;
-    agentId: string;
-  } | null {
-    // Helper method
-  }
-}
-
-// src/validation/validation-display.ts
-export class ValidationDisplay {
-  renderFilenameValidation(result: ValidationResult): HTMLElement {
-    // Implementation
-  }
-
-  renderCriteriaValidation(results: Record<string, ValidationResult>): HTMLElement {
-    // Implementation
-  }
-
-  getStatusBadge(status: 'pass' | 'fail' | 'warning'): string {
-    const badges = {
-      pass: '<span class="badge badge-success">✓ Pass</span>',
-      fail: '<span class="badge badge-danger">✗ Fail</span>',
-      warning: '<span class="badge badge-warning">⚠ Warning</span>'
-    };
-    return badges[status];
-  }
-}
-```
-
-**Impact:** Remove ~400 lines from main.js with type-safe validation
-
-**Testing:**
-- Unit tests already exist for validation logic
-- Add new tests for ValidationDisplay rendering
-- Type checking validates interfaces
-
-**Files to create:**
-- `src/validation/types.ts`
-- `src/validation/filename-validator.ts`
-- `src/validation/validation-display.ts`
-- `tests/unit/validation/validation-display.test.ts`
-
-**Files to modify:**
-- `src/main.js` (lines 1222-1650)
-
-**GitHub Issue:** #TBD
-
-#### 4.6 UI Controller Separation ⬜
-
-**Problem:** DOM manipulation mixed with business logic
-
-**Solution:** Separate UI controller with TypeScript
-
-**After:**
-```typescript
-// src/ui/types.ts
-export interface UIElements {
-  fileInput: HTMLInputElement;
-  analyzeBtn: HTMLButtonElement;
-  resultsContainer: HTMLDivElement;
-  loadingIndicator: HTMLDivElement;
-  errorDisplay: HTMLDivElement;
-  // ... other elements
-}
-
-export type TabName = 'local' | 'googleDrive' | 'box' | 'settings';
-
-// src/ui/ui-controller.ts
-export class UIController {
-  private elements: UIElements;
-  private currentTab: TabName = 'local';
-
-  constructor() {
-    this.initializeElements();
-    this.attachEventListeners();
-  }
-
-  private initializeElements(): void {
-    this.elements = {
-      fileInput: document.getElementById('file-input') as HTMLInputElement,
-      analyzeBtn: document.getElementById('analyze-btn') as HTMLButtonElement,
-      resultsContainer: document.getElementById('results') as HTMLDivElement,
-      loadingIndicator: document.getElementById('loading') as HTMLDivElement,
-      errorDisplay: document.getElementById('error') as HTMLDivElement,
-      // ... other elements
-    };
-  }
-
-  private attachEventListeners(): void {
-    // Event listener setup with type safety
-  }
-
-  showLoading(message: string = 'Processing...'): void {
-    this.elements.loadingIndicator.textContent = message;
-    this.elements.loadingIndicator.style.display = 'block';
-  }
-
-  hideLoading(): void {
-    this.elements.loadingIndicator.style.display = 'none';
-  }
-
-  showResults(html: string): void {
-    this.elements.resultsContainer.innerHTML = html;
-    this.elements.resultsContainer.style.display = 'block';
-  }
-
-  showError(message: string): void {
-    this.elements.errorDisplay.textContent = message;
-    this.elements.errorDisplay.style.display = 'block';
-  }
-
-  switchTab(tabName: TabName): void {
-    this.currentTab = tabName;
-    // Tab switching logic
-  }
-}
-
-// src/ui/tab-controller.ts
-export class TabController {
-  private activeTab: TabName;
-
-  constructor(initialTab: TabName = 'local') {
-    this.activeTab = initialTab;
-  }
-
-  switchTo(tab: TabName): void {
-    // Implementation
-  }
-
-  getActiveTab(): TabName {
-    return this.activeTab;
-  }
-}
-```
-
-**Impact:** Remove ~200 lines from main.js with type-safe UI
-
-**Testing:**
-- Integration tests verify UI works
-- Mock DOM elements in unit tests
-- Test event handling
-
-**Files to create:**
-- `src/ui/types.ts`
-- `src/ui/ui-controller.ts`
-- `src/ui/tab-controller.ts`
-- `tests/unit/ui/ui-controller.test.ts`
-- `tests/unit/ui/tab-controller.test.ts`
-
-**Files to modify:**
-- `src/main.js` (lines 80-275, 2481-2512)
-
-**GitHub Issue:** #TBD
-
-#### 4.7 UI Component Testing ⬜
-
-**Problem:** Display logic and UI controllers need granular testing beyond integration tests
-
-**Solution:** Add component-level tests for all UI modules
-
-**Why This Matters:**
-- Integration tests verify end-to-end workflows but can miss rendering bugs
-- Component tests isolate UI logic for faster, more focused testing
-- Tests document how components should be used
-- Helps catch styling, event handling, and state management issues early
-
-**Test Coverage Areas:**
-
-**ValidationDisplay Tests:**
-```typescript
-// tests/unit/validation/validation-display.test.ts
-import { describe, it, expect, beforeEach } from 'vitest';
-import { ValidationDisplay } from '../../../src/validation/validation-display';
-
-describe('ValidationDisplay', () => {
-  let display: ValidationDisplay;
-
-  beforeEach(() => {
-    display = new ValidationDisplay();
-  });
-
-  describe('getStatusBadge', () => {
-    it('should render pass badge correctly', () => {
-      const badge = display.getStatusBadge('pass');
-      expect(badge).toContain('badge-success');
-      expect(badge).toContain('✓ Pass');
-    });
-
-    it('should render fail badge correctly', () => {
-      const badge = display.getStatusBadge('fail');
-      expect(badge).toContain('badge-danger');
-      expect(badge).toContain('✗ Fail');
-    });
-
-    it('should render warning badge correctly', () => {
-      const badge = display.getStatusBadge('warning');
-      expect(badge).toContain('badge-warning');
-      expect(badge).toContain('⚠ Warning');
-    });
-  });
-
-  describe('renderFilenameValidation', () => {
-    it('should render passing validation', () => {
-      const result = { status: 'pass' as const };
-      const element = display.renderFilenameValidation(result);
-      expect(element.innerHTML).toContain('badge-success');
-    });
-
-    it('should render failing validation with issue message', () => {
-      const result = {
-        status: 'fail' as const,
-        issue: 'Invalid format'
-      };
-      const element = display.renderFilenameValidation(result);
-      expect(element.innerHTML).toContain('badge-danger');
-      expect(element.innerHTML).toContain('Invalid format');
-    });
-  });
-
-  describe('renderCriteriaValidation', () => {
-    it('should render all criteria results', () => {
-      const results = {
-        sampleRate: { status: 'pass' as const },
-        bitDepth: { status: 'fail' as const, issue: 'Expected 16-bit' },
-        channels: { status: 'warning' as const, issue: 'Mono detected' }
-      };
-      const element = display.renderCriteriaValidation(results);
-      expect(element.innerHTML).toContain('badge-success');
-      expect(element.innerHTML).toContain('badge-danger');
-      expect(element.innerHTML).toContain('badge-warning');
-    });
-  });
-});
-```
-
-**UIController Tests:**
-```typescript
-// tests/unit/ui/ui-controller.test.ts
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { UIController } from '../../../src/ui/ui-controller';
-
-describe('UIController', () => {
-  let controller: UIController;
-
-  beforeEach(() => {
-    // Mock DOM elements
-    document.body.innerHTML = `
-      <input id="file-input" type="file" />
-      <button id="analyze-btn">Analyze</button>
-      <div id="results"></div>
-      <div id="loading" style="display: none;"></div>
-      <div id="error" style="display: none;"></div>
-    `;
-    controller = new UIController();
-  });
-
-  describe('showLoading', () => {
-    it('should display loading indicator with default message', () => {
-      controller.showLoading();
-      const loading = document.getElementById('loading') as HTMLDivElement;
-      expect(loading.style.display).toBe('block');
-      expect(loading.textContent).toBe('Processing...');
-    });
-
-    it('should display loading indicator with custom message', () => {
-      controller.showLoading('Analyzing audio...');
-      const loading = document.getElementById('loading') as HTMLDivElement;
-      expect(loading.textContent).toBe('Analyzing audio...');
-    });
-  });
-
-  describe('hideLoading', () => {
-    it('should hide loading indicator', () => {
-      controller.showLoading();
-      controller.hideLoading();
-      const loading = document.getElementById('loading') as HTMLDivElement;
-      expect(loading.style.display).toBe('none');
-    });
-  });
-
-  describe('showError', () => {
-    it('should display error message', () => {
-      controller.showError('File not found');
-      const error = document.getElementById('error') as HTMLDivElement;
-      expect(error.style.display).toBe('block');
-      expect(error.textContent).toBe('File not found');
-    });
-  });
-
-  describe('showResults', () => {
-    it('should display results HTML', () => {
-      const html = '<table><tr><td>Test</td></tr></table>';
-      controller.showResults(html);
-      const results = document.getElementById('results') as HTMLDivElement;
-      expect(results.style.display).toBe('block');
-      expect(results.innerHTML).toBe(html);
-    });
-  });
-});
-```
-
-**Impact:**
-- Granular testing of all UI rendering logic
-- Fast test execution (no heavy integration setup)
-- Documents UI component behavior
-- Catches rendering bugs before integration testing
-
-**Files to create:**
-- `tests/unit/validation/validation-display.test.ts`
-- `tests/unit/ui/ui-controller.test.ts`
-- `tests/unit/ui/tab-controller.test.ts`
-
-**Success Criteria:**
-- All UI components have dedicated unit tests
-- Test coverage for all rendering methods
-- Test coverage for all UI state changes
-- Tests run in <2 seconds
-
-**GitHub Issue:** #TBD
-
-### Refactoring Strategy
-
-For each refactoring task:
-
-1. **Extract** - Create new module/class
-2. **Test** - Write tests for new module
-3. **Migrate** - Move code from main.js
-4. **Verify** - Run full test suite
-5. **Integrate** - Update main.js to use new module
-6. **Test Again** - Verify all tests still pass
-7. **Commit** - Small, focused commits
-
-### Target Architecture
-
-**After Refactoring:**
-
-```
-packages/web/src/
-├── main.js                  (~800 lines)  ← 74% reduction, legacy JS
-├── handlers/
-│   ├── types.ts             ← NEW: TypeScript types
-│   ├── base-handler.ts      ← NEW: TypeScript
-│   ├── local-file-handler.ts
-│   ├── google-drive-handler.ts
-│   └── box-file-handler.ts
-├── validation/
-│   ├── types.ts             ← NEW: TypeScript types
-│   ├── filename-validator.ts
-│   └── validation-display.ts
-├── ui/
-│   ├── types.ts             ← NEW: TypeScript types
-│   ├── ui-controller.ts
-│   └── tab-controller.ts
-├── settings/
-│   ├── types.ts             ← NEW: TypeScript types
-│   └── settings-manager.ts
-├── google-auth.js           ← Legacy JS (refactor later)
-├── box-auth.js              ← Legacy JS (refactor later)
-└── config.js                ← Legacy JS (data file)
-```
-
-**Key Changes:**
-- All new modules created as TypeScript (.ts)
-- Type definitions in dedicated `types.ts` files
-- Legacy files (main.js, auth files) remain JS until refactored
-- Mixed .ts/.js supported by Vite build system
-
-### Success Criteria
-
-- [ ] TypeScript infrastructure set up and working
-- [ ] main.js reduced to <1000 lines
-- [ ] Zero code duplication in display logic
-- [ ] All business logic separated from UI
-- [ ] **All new modules created as TypeScript (.ts) from the start**
-- [ ] Type definitions in dedicated types.ts files
-- [ ] UI components have granular unit tests
-- [ ] All tests passing (including TypeScript type checking)
-- [ ] No regressions in functionality
-- [ ] Code coverage maintained or improved (75%+)
-
-### GitHub Issues
-
-- [ ] Issue #TBD: Set up TypeScript infrastructure
-- [ ] Issue #TBD: Unify single/batch display logic
-- [ ] Issue #TBD: Extract file handler classes with TypeScript
-- [ ] Issue #TBD: Create settings management module with TypeScript
-- [ ] Issue #TBD: Extract validation module with TypeScript
-- [ ] Issue #TBD: Separate UI controller with TypeScript
-- [ ] Issue #TBD: Add UI component testing
+### Phases 1-4: Summary of Achievements
+
+**Testing Infrastructure:**
+- ✅ 635 tests passing (0 flaky tests)
+- ✅ 75%+ code coverage across codebase
+- ✅ Fast test suite (<30 seconds full run)
+- ✅ CI/CD integration with GitHub Actions
+
+**Code Quality:**
+- ✅ TypeScript adoption for all new modules
+- ✅ 100% type coverage in new modules
+- ✅ Better separation of concerns
+- ✅ Eliminated some code duplication
+
+**Refactoring Progress:**
+- ✅ Handler modules extracted and typed
+- ✅ Validation logic modularized
+- ✅ Settings management centralized
+- ✅ UI controller separated
+
+**Remaining Work:**
+- ⬜ main.js still at ~2,800 lines (needs Svelte migration for full reduction)
+- ⬜ Display logic duplication still exists (will be eliminated in Phase 5)
+- ⬜ Tab components still tightly coupled (Phase 5 will componentize)
+
+**Next Step:** Phase 5 - Svelte Migration to achieve final architecture goals
 
 ---
 
 ## Phase 5: Svelte Migration
 
-**Status:** ⬜ Not Started
-**LLM Development Time:** 3-5 days
-**Calendar Time:** 2 weeks (with review cycles)
-**Owner:** TBD
+### Architectural Decisions
 
-### Prerequisites
+**State Management:** Use Svelte stores for shared state (SettingsManager, current results)
 
-✅ Phase 4 complete (clean, typed, tested modules)
-✅ All tests passing
-✅ 75%+ code coverage
+**Auth Integration:** Keep `google-auth.js` and `box-auth.js` as vanilla JS
+- Pass auth instances as props to tabs
+- No Svelte store conversion needed
+- Reduces risk and scope
 
-### Why Svelte?
-
-**For LLM-assisted development:**
-- Component boundaries make it easy for LLMs to work in isolation
-- Svelte has extensive training data
-- Simpler than React/Vue (less boilerplate)
-- Compiles to vanilla JS (minimal bundle overhead)
-- Reactive by default (less manual state management)
-
-**Bundle impact:** +10KB gzipped (vs +170KB for React)
+**UIController:** Remove during Phase 5.8 cleanup (Svelte handles DOM rendering)
 
 ### Migration Strategy
 
-#### 5.1 Set Up Svelte ⬜
+The migration follows a **sequential approach**: infrastructure → app shell → shared components → tabs → cleanup.
 
-```bash
-npm install --save-dev svelte @sveltejs/vite-plugin-svelte
-```
+Each step includes explicit test checklists and manual verification.
 
-Update `vite.config.js`:
-```javascript
-import { svelte } from '@sveltejs/vite-plugin-svelte';
+#### 5.1 Setup & Infrastructure (1 day) ✅
 
-export default defineConfig({
-  plugins: [svelte()],
-  // ... rest of config
-});
-```
+#### 5.8.2 Google Drive Picker Lazy-Loading (0.5 days) ⬜
 
-#### 5.2 Convert One Tab at a Time ⬜
+**Goal:** Apply lazy-loading pattern to Google Drive Picker (conditional on 5.8.1 success)
 
-**Order:** Local Files → Google Drive → Box → Settings
+**Prerequisites:** Phase 5.8.1 must be complete and tested
 
-**For each tab:**
-1. Create Svelte component
-2. Port logic from main.js
-3. Update tests to work with components
-4. Verify functionality in beta
-5. Merge when tests pass
+**Why Conditional:**
+- Only do this if Box Picker lazy-loading works well
+- Google Picker is ~200KB (smaller than Box, but still benefits from lazy-loading)
+- Same UX improvement: URL-only users don't pay picker cost
 
-**Example:**
-```svelte
-<!-- src/components/LocalFileTab.svelte -->
-<script>
-  import { LocalFileHandler } from '../handlers/local-file-handler';
-  import ResultsTable from './ResultsTable.svelte';
+**Tasks:**
 
-  let file = null;
-  let results = null;
+1. Refactor GoogleDriveTab.svelte:
+   - Move `initPicker()` call from mount to button click
+   - Add loading state to "Browse Google Drive" button
+   - Reuse lazy-loading pattern from Box implementation
 
-  async function handleFile(event) {
-    file = event.target.files[0];
-    results = await handler.process(file);
-  }
-</script>
+2. Test:
+   - Verify picker loads only on button click
+   - URL-only workflow unaffected
+   - No regressions in existing functionality
 
-<div class="tab-content">
-  <FileUpload on:file={handleFile} />
-  {#if results}
-    <ResultsTable {results} />
-  {/if}
-</div>
-```
+**Success Criteria:**
+- [ ] Picker loads on button click (not on tab open)
+- [ ] Consistent UX with Box tab
+- [ ] No performance regressions
 
-#### 5.3 Shared Components ⬜
-
-**Create reusable components:**
-- `ResultsTable.svelte` (unified single/batch display)
-- `FileUpload.svelte`
-- `StatusBadge.svelte`
-- `ValidationDisplay.svelte`
-
-**Benefits:**
-- Eliminates remaining duplication
-- LLMs can work on components independently
-- Easier to test in isolation
-
-#### 5.4 Component Testing with Svelte Testing Library ⬜
-
-**Priority:** Test components BEFORE converting each tab
-
-**Install Dependencies:**
-```bash
-npm install --save-dev @testing-library/svelte @testing-library/user-event @testing-library/jest-dom
-```
-
-**Configure Vitest for Svelte:**
-Update `vitest.config.js`:
-```javascript
-import { defineConfig } from 'vitest/config';
-import { svelte } from '@sveltejs/vite-plugin-svelte';
-
-export default defineConfig({
-  plugins: [svelte({ hot: !process.env.VITEST })],
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: ['./tests/setup.ts']
-  }
-});
-```
-
-Create `tests/setup.ts`:
-```typescript
-import '@testing-library/jest-dom';
-```
-
-**Testing Strategy: Test-First Component Migration**
-
-For each tab conversion, follow this pattern:
-
-1. **Write component tests first** (before converting)
-2. Convert tab to Svelte
-3. Run tests to verify behavior matches
-4. Refactor with confidence
-
-**Example: LocalFileTab Component Tests**
-```typescript
-// tests/components/LocalFileTab.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
-import LocalFileTab from '../../src/components/LocalFileTab.svelte';
-
-describe('LocalFileTab', () => {
-  let mockFileHandler: any;
-
-  beforeEach(() => {
-    mockFileHandler = {
-      process: vi.fn().mockResolvedValue({
-        filename: 'test.wav',
-        status: 'pass',
-        sampleRate: 48000,
-        bitDepth: 16,
-        channels: 2
-      })
-    };
-  });
-
-  describe('File Upload', () => {
-    it('should render file upload input', () => {
-      render(LocalFileTab, { props: { fileHandler: mockFileHandler } });
-      const input = screen.getByLabelText(/upload.*file/i);
-      expect(input).toBeInTheDocument();
-      expect(input).toHaveAttribute('type', 'file');
-    });
-
-    it('should accept audio file formats', () => {
-      render(LocalFileTab, { props: { fileHandler: mockFileHandler } });
-      const input = screen.getByLabelText(/upload.*file/i) as HTMLInputElement;
-      expect(input.accept).toContain('audio/');
-    });
-
-    it('should process file when selected', async () => {
-      const user = userEvent.setup();
-      render(LocalFileTab, { props: { fileHandler: mockFileHandler } });
-
-      const file = new File(['audio data'], 'test.wav', { type: 'audio/wav' });
-      const input = screen.getByLabelText(/upload.*file/i) as HTMLInputElement;
-
-      await user.upload(input, file);
-
-      await waitFor(() => {
-        expect(mockFileHandler.process).toHaveBeenCalledWith(file, expect.any(Object));
-      });
-    });
-  });
-
-  describe('Results Display', () => {
-    it('should display results after processing', async () => {
-      const user = userEvent.setup();
-      render(LocalFileTab, { props: { fileHandler: mockFileHandler } });
-
-      const file = new File(['audio data'], 'test.wav', { type: 'audio/wav' });
-      const input = screen.getByLabelText(/upload.*file/i) as HTMLInputElement;
-
-      await user.upload(input, file);
-
-      await waitFor(() => {
-        expect(screen.getByText('test.wav')).toBeInTheDocument();
-        expect(screen.getByText(/48000.*hz/i)).toBeInTheDocument();
-        expect(screen.getByText(/16.*bit/i)).toBeInTheDocument();
-      });
-    });
-
-    it('should display status badge', async () => {
-      const user = userEvent.setup();
-      render(LocalFileTab, { props: { fileHandler: mockFileHandler } });
-
-      const file = new File(['audio data'], 'test.wav', { type: 'audio/wav' });
-      const input = screen.getByLabelText(/upload.*file/i) as HTMLInputElement;
-
-      await user.upload(input, file);
-
-      await waitFor(() => {
-        const badge = screen.getByText(/pass/i);
-        expect(badge).toHaveClass('badge-success');
-      });
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('should display error message on failure', async () => {
-      mockFileHandler.process.mockRejectedValue(new Error('Failed to decode audio'));
-
-      const user = userEvent.setup();
-      render(LocalFileTab, { props: { fileHandler: mockFileHandler } });
-
-      const file = new File(['bad data'], 'bad.wav', { type: 'audio/wav' });
-      const input = screen.getByLabelText(/upload.*file/i) as HTMLInputElement;
-
-      await user.upload(input, file);
-
-      await waitFor(() => {
-        expect(screen.getByText(/failed to decode audio/i)).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('Loading States', () => {
-    it('should show loading indicator while processing', async () => {
-      mockFileHandler.process.mockImplementation(
-        () => new Promise(resolve => setTimeout(() => resolve({}), 100))
-      );
-
-      const user = userEvent.setup();
-      render(LocalFileTab, { props: { fileHandler: mockFileHandler } });
-
-      const file = new File(['audio data'], 'test.wav', { type: 'audio/wav' });
-      const input = screen.getByLabelText(/upload.*file/i) as HTMLInputElement;
-
-      await user.upload(input, file);
-
-      expect(screen.getByText(/processing/i)).toBeInTheDocument();
-
-      await waitFor(() => {
-        expect(screen.queryByText(/processing/i)).not.toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('Metadata-Only Mode', () => {
-    it('should toggle metadata-only mode', async () => {
-      const user = userEvent.setup();
-      render(LocalFileTab, { props: { fileHandler: mockFileHandler } });
-
-      const checkbox = screen.getByLabelText(/metadata.*only/i) as HTMLInputElement;
-      expect(checkbox.checked).toBe(false);
-
-      await user.click(checkbox);
-      expect(checkbox.checked).toBe(true);
-    });
-
-    it('should pass metadata-only option to handler', async () => {
-      const user = userEvent.setup();
-      render(LocalFileTab, { props: { fileHandler: mockFileHandler } });
-
-      const checkbox = screen.getByLabelText(/metadata.*only/i);
-      await user.click(checkbox);
-
-      const file = new File(['audio data'], 'test.wav', { type: 'audio/wav' });
-      const input = screen.getByLabelText(/upload.*file/i) as HTMLInputElement;
-      await user.upload(input, file);
-
-      await waitFor(() => {
-        expect(mockFileHandler.process).toHaveBeenCalledWith(
-          file,
-          expect.objectContaining({ metadataOnly: true })
-        );
-      });
-    });
-  });
-});
-```
-
-**Example: ResultsTable Component Tests**
-```typescript
-// tests/components/ResultsTable.test.ts
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
-import ResultsTable from '../../src/components/ResultsTable.svelte';
-
-describe('ResultsTable', () => {
-  const mockResults = [
-    {
-      filename: 'test1.wav',
-      status: 'pass',
-      sampleRate: 48000,
-      bitDepth: 16,
-      channels: 2,
-      duration: 120
-    },
-    {
-      filename: 'test2.wav',
-      status: 'fail',
-      sampleRate: 44100,
-      bitDepth: 24,
-      channels: 1,
-      duration: 60
-    }
-  ];
-
-  describe('Single File Mode', () => {
-    it('should render single file results', () => {
-      render(ResultsTable, {
-        props: {
-          results: [mockResults[0]],
-          isSingleFile: true
-        }
-      });
-
-      expect(screen.getByText('test1.wav')).toBeInTheDocument();
-      expect(screen.getByText(/48000/)).toBeInTheDocument();
-      expect(screen.getByText(/16.*bit/i)).toBeInTheDocument();
-    });
-
-    it('should show audio player for single file', () => {
-      render(ResultsTable, {
-        props: {
-          results: [mockResults[0]],
-          isSingleFile: true
-        }
-      });
-
-      const audioPlayer = screen.getByRole('audio');
-      expect(audioPlayer).toBeInTheDocument();
-    });
-  });
-
-  describe('Batch Mode', () => {
-    it('should render all batch results', () => {
-      render(ResultsTable, {
-        props: {
-          results: mockResults,
-          isSingleFile: false
-        }
-      });
-
-      expect(screen.getByText('test1.wav')).toBeInTheDocument();
-      expect(screen.getByText('test2.wav')).toBeInTheDocument();
-    });
-
-    it('should display summary statistics', () => {
-      render(ResultsTable, {
-        props: {
-          results: mockResults,
-          isSingleFile: false
-        }
-      });
-
-      expect(screen.getByText(/2.*files/i)).toBeInTheDocument();
-      expect(screen.getByText(/1.*passed/i)).toBeInTheDocument();
-      expect(screen.getByText(/1.*failed/i)).toBeInTheDocument();
-    });
-
-    it('should not show audio player in batch mode', () => {
-      render(ResultsTable, {
-        props: {
-          results: mockResults,
-          isSingleFile: false
-        }
-      });
-
-      expect(screen.queryByRole('audio')).not.toBeInTheDocument();
-    });
-  });
-
-  describe('Metadata-Only Mode', () => {
-    it('should hide audio analysis columns when metadata-only', () => {
-      render(ResultsTable, {
-        props: {
-          results: mockResults,
-          metadataOnly: true
-        }
-      });
-
-      expect(screen.queryByText(/noise floor/i)).not.toBeInTheDocument();
-      expect(screen.queryByText(/peak level/i)).not.toBeInTheDocument();
-    });
-
-    it('should show all columns when not metadata-only', () => {
-      const resultsWithAnalysis = mockResults.map(r => ({
-        ...r,
-        noiseFloor: -60,
-        peakLevel: -6
-      }));
-
-      render(ResultsTable, {
-        props: {
-          results: resultsWithAnalysis,
-          metadataOnly: false
-        }
-      });
-
-      expect(screen.getByText(/noise floor/i)).toBeInTheDocument();
-      expect(screen.getByText(/peak level/i)).toBeInTheDocument();
-    });
-  });
-
-  describe('Status Badges', () => {
-    it('should render pass badge with correct styling', () => {
-      render(ResultsTable, {
-        props: {
-          results: [mockResults[0]]
-        }
-      });
-
-      const badge = screen.getByText(/pass/i);
-      expect(badge).toHaveClass('badge-success');
-    });
-
-    it('should render fail badge with correct styling', () => {
-      render(ResultsTable, {
-        props: {
-          results: [mockResults[1]]
-        }
-      });
-
-      const badge = screen.getByText(/fail/i);
-      expect(badge).toHaveClass('badge-danger');
-    });
-  });
-});
-```
-
-**Testing Best Practices:**
-
-1. **Use semantic queries:**
-   - Prefer `screen.getByRole()`, `screen.getByLabelText()`
-   - Avoid `getByTestId()` unless necessary
-
-2. **Test user behavior, not implementation:**
-   - Test what users see and do
-   - Don't test internal component state
-
-3. **Use user-event for interactions:**
-   - More realistic than fireEvent
-   - Handles complex interactions better
-
-4. **Async testing:**
-   - Always use `waitFor()` for async operations
-   - Don't rely on fixed timeouts
-
-5. **Mock external dependencies:**
-   - File handlers, auth services, etc.
-   - Keep component tests isolated
-
-**Coverage Goals:**
-- Each Svelte component: 90%+ coverage
-- User interactions: 100% coverage
-- Error states: 100% coverage
-- Loading states: 100% coverage
-
-**Files to create:**
-- `tests/components/LocalFileTab.test.ts`
-- `tests/components/GoogleDriveTab.test.ts`
-- `tests/components/BoxTab.test.ts`
-- `tests/components/SettingsTab.test.ts`
-- `tests/components/ResultsTable.test.ts`
-- `tests/components/FileUpload.test.ts`
-- `tests/components/ValidationDisplay.test.ts`
-- `tests/components/StatusBadge.test.ts`
-
-### Target Architecture
-
-**After Svelte Migration:**
-```
-packages/web/src/
-├── main.js                  (~200 lines)  ← Just app initialization
-├── components/              ← NEW
-│   ├── App.svelte
-│   ├── LocalFileTab.svelte
-│   ├── GoogleDriveTab.svelte
-│   ├── BoxTab.svelte
-│   ├── SettingsTab.svelte
-│   ├── ResultsTable.svelte  ← Unified display!
-│   ├── FileUpload.svelte
-│   └── ValidationDisplay.svelte
-├── handlers/
-│   ├── local-file-handler.ts
-│   ├── google-drive-handler.ts
-│   └── box-file-handler.ts
-├── validation/
-│   ├── filename-validator.ts
-│   └── validation-display.ts
-├── settings-manager.ts
-├── google-auth.js
-└── box-auth.js
-```
-
-### Success Criteria
-
-- [ ] Svelte Testing Library configured and working
-- [ ] **All components tested BEFORE conversion (test-first approach)**
-- [ ] All tabs converted to Svelte components
-- [ ] Shared ResultsTable component eliminates duplication
-- [ ] main.js reduced to ~200 lines (app initialization only)
-- [ ] **Component test coverage: 90%+ for each component**
-- [ ] **User interaction coverage: 100%**
-- [ ] **Error and loading state coverage: 100%**
-- [ ] All tests passing (unit + integration + component)
-- [ ] Bundle size increase <15KB gzipped
-- [ ] No regressions in functionality
-- [ ] Better component boundaries for future LLM development
-
-### GitHub Issues
-
-- [ ] Issue #TBD: Set up Svelte and vite plugin
-- [ ] Issue #TBD: Configure Svelte Testing Library
-- [ ] Issue #TBD: Write LocalFileTab component tests (test-first)
-- [ ] Issue #TBD: Convert Local File tab to Svelte
-- [ ] Issue #TBD: Write GoogleDriveTab component tests (test-first)
-- [ ] Issue #TBD: Convert Google Drive tab to Svelte
-- [ ] Issue #TBD: Write BoxTab component tests (test-first)
-- [ ] Issue #TBD: Convert Box tab to Svelte
-- [ ] Issue #TBD: Write SettingsTab component tests (test-first)
-- [ ] Issue #TBD: Convert Settings tab to Svelte
-- [ ] Issue #TBD: Create shared ResultsTable component with tests
-- [ ] Issue #TBD: Create reusable UI components (FileUpload, StatusBadge, etc.) with tests
+**Commit:** `refactor: Phase 5.8.2 - Lazy-load Google Drive Picker`
 
 ---
 
-## Detailed Refactoring Plan
+#### 5.9 Batch/Folder Processing (2-3 days) ⬜
 
-### Code Sections to Refactor
+**Goal:** Implement batch processing for multiple files and folders across all tabs
 
-#### main.js Section Breakdown
+**Why This is Critical:**
+The original plan deferred batch processing as "optional," but it's a core feature that users need:
+- Process entire folders of audio files at once
+- Efficient validation of large batches (especially with filename-only mode)
+- Essential for production workflows (e.g., validating 100+ files for Bilingual preset)
+- Already supported by the core library (`BatchProcessor` class exists)
 
-| Lines | Section | Target | Priority |
-|-------|---------|--------|----------|
-| 80-170 | `initializeElements()` | Extract to UIController | Medium |
-| 171-274 | `attachEventListeners()` | Extract to UIController | Medium |
-| 275-337 | Settings: load/save | Extract to SettingsManager | High |
-| 338-408 | Auth status management | Extract to AuthManager | Medium |
-| 409-521 | Criteria management | Extract to CriteriaManager | High |
-| 522-753 | Preset & validation settings | Extract to SettingsManager | High |
-| 900-1000 | `handleFileSelect()` | Extract to LocalFileHandler | High |
-| 1085-1220 | `handleGoogleDriveUrl()` | Extract to GoogleDriveHandler | High |
-| 1222-1270 | `validateFilename()` | Extract to FilenameValidator | High |
-| 1729-1900 | `handleBoxUrl()` | Extract to BoxHandler | High |
-| 2086-2210 | `validateAndDisplayResults()` | Refactor to unified display | **Critical** |
-| 2798-3000 | `showBatchResults()` | Refactor to unified display | **Critical** |
+**Current State:**
+- All tabs (Local Files, Google Drive, Box) only support single file processing
+- `ResultsTable` component has batch mode support but it's unused
+- Core library has `BatchProcessor` but it's not integrated into the Svelte app
+
+**What Needs to Be Built:**
+
+### 5.9.1 Local Files Tab - Multi-File Selection
+
+**Implementation:**
+
+1. **Update LocalFileTab.svelte**
+   ```typescript
+   // Add multi-file input
+   <input
+     type="file"
+     accept="audio/*"
+     multiple
+     on:change={handleFileSelect}
+   />
+   ```
+
+2. **Batch Processing Logic**
+   ```typescript
+   async function handleFileSelect(event: Event) {
+     const input = event.target as HTMLInputElement;
+     const files = Array.from(input.files || []);
+
+     if (files.length === 0) return;
+
+     if (files.length === 1) {
+       // Single file - existing logic
+       await processSingleFile(files[0]);
+     } else {
+       // Multiple files - batch processing
+       await processBatchFiles(files);
+     }
+   }
+
+   async function processBatchFiles(files: File[]) {
+     processing = true;
+     error = '';
+     batchResults = [];
+
+     for (let i = 0; i < files.length; i++) {
+       const file = files[i];
+       updateProgress(i + 1, files.length);
+
+       try {
+         const result = await processFile(file);
+         batchResults.push(result);
+       } catch (err) {
+         batchResults.push({
+           filename: file.name,
+           status: 'fail',
+           error: err.message
+         });
+       }
+     }
+
+     processing = false;
+   }
+   ```
+
+3. **Progress Tracking UI**
+   ```svelte
+   {#if processing && totalFiles > 1}
+     <div class="batch-progress">
+       <div class="progress-bar">
+         <div class="progress-fill" style="width: {(processedFiles / totalFiles) * 100}%"></div>
+       </div>
+       <span>Processing {processedFiles} of {totalFiles} files...</span>
+     </div>
+   {/if}
+   ```
+
+4. **Display Batch Results**
+   ```svelte
+   {#if batchResults.length > 0}
+     <ResultsTable
+       results={batchResults}
+       mode="batch"
+       metadataOnly={$analysisMode === 'filename-only'}
+     />
+   {/if}
+   ```
+
+### 5.9.1.1 Local Files - Experimental Display support
+refer to documentation in   docs/PHASE_5.9.1.1_EXPERIMENTAL_DISPLAY.md
+
+
+### 5.9.2 Google Drive Tab - Folder Support
+
+**Implementation:**
+
+1. **Update GoogleDriveAPI.ts**
+   ```typescript
+   async listFilesInFolder(folderId: string): Promise<FileMetadata[]> {
+     // Use Drive API v3 to list all files in folder
+     // Filter for audio files only
+     const response = await gapi.client.drive.files.list({
+       q: `'${folderId}' in parents and (mimeType contains 'audio/' or fileExtension='wav' or fileExtension='mp3' or fileExtension='flac')`,
+       fields: 'files(id, name, mimeType, size)',
+       pageSize: 1000
+     });
+     return response.result.files;
+   }
+
+   async downloadFolder(folderId: string): Promise<File[]> {
+     const files = await this.listFilesInFolder(folderId);
+     const downloadedFiles: File[] = [];
+
+     for (const fileMetadata of files) {
+       const file = await this.downloadFile(fileMetadata.id, fileMetadata.name);
+       downloadedFiles.push(file);
+     }
+
+     return downloadedFiles;
+   }
+   ```
+
+2. **Update GoogleDriveTab.svelte**
+   ```typescript
+   async function handleUrlSubmit() {
+     const url = fileUrl.trim();
+     if (!url) return;
+
+     // Detect if URL is a folder
+     if (url.includes('/folders/') || url.includes('?id=') && !url.includes('/file/')) {
+       // Folder URL
+       await processFolderUrl(url);
+     } else {
+       // File URL
+       await processFileUrl(url);
+     }
+   }
+
+   async function processFolderUrl(url: string) {
+     processing = true;
+     error = '';
+     batchResults = [];
+
+     try {
+       const folderId = driveAPI.parseFolderUrl(url);
+       const files = await driveAPI.listFilesInFolder(folderId);
+
+       totalFiles = files.length;
+       processedFiles = 0;
+
+       for (const fileMetadata of files) {
+         processedFiles++;
+
+         let file: File;
+         if ($analysisMode === 'filename-only') {
+           // Metadata only
+           file = new File([], fileMetadata.name);
+         } else {
+           // Download actual file
+           file = await driveAPI.downloadFile(fileMetadata.id, fileMetadata.name);
+         }
+
+         const result = await processFile(file);
+         batchResults.push(result);
+       }
+     } catch (err) {
+       error = err.message;
+     } finally {
+       processing = false;
+     }
+   }
+   ```
+
+3. **Google Picker Multi-Select**
+   ```typescript
+   async function handleBrowseDrive() {
+     if (!driveAPI) return;
+
+     try {
+       const pickerResult = await driveAPI.showPicker({
+         multiSelect: true,  // Enable multi-select
+         includeFolders: true // Allow folder selection
+       });
+
+       if (pickerResult.docs && pickerResult.docs.length > 0) {
+         const docs = pickerResult.docs;
+
+         // Check if any folders selected
+         const folders = docs.filter(doc => doc.mimeType === 'application/vnd.google-apps.folder');
+         const files = docs.filter(doc => doc.mimeType !== 'application/vnd.google-apps.folder');
+
+         if (folders.length > 0) {
+           // Process folders
+           for (const folder of folders) {
+             await processFolderId(folder.id);
+           }
+         }
+
+         if (files.length > 0) {
+           // Process individual files
+           await processBatchFiles(files);
+         }
+       }
+     } catch (err) {
+       error = err.message;
+     }
+   }
+   ```
+
+### 5.9.3 Box Tab - Folder Support
+
+**Implementation:**
+
+1. **Update BoxAPI.ts**
+   ```typescript
+   async listFilesInFolder(folderId: string): Promise<FileMetadata[]> {
+     const response = await fetch(
+       `https://api.box.com/2.0/folders/${folderId}/items?fields=id,name,type,size`,
+       {
+         headers: {
+           'Authorization': `Bearer ${this.auth.getAccessToken()}`
+         }
+       }
+     );
+
+     const data = await response.json();
+     // Filter for audio files only
+     return data.entries.filter(item =>
+       item.type === 'file' && this.isAudioFile(item.name)
+     );
+   }
+
+   parseFolderUrl(url: string): string {
+     // Parse Box folder URLs:
+     // https://app.box.com/folder/123456789
+     const match = url.match(/\/folder\/(\d+)/);
+     if (match) return match[1];
+     throw new Error('Invalid Box folder URL');
+   }
+   ```
+
+2. **Update BoxTab.svelte**
+   ```typescript
+   async function handleUrlSubmit() {
+     const url = fileUrl.trim();
+     if (!url) return;
+
+     // Detect if URL is a folder
+     if (url.includes('/folder/')) {
+       await processFolderUrl(url);
+     } else {
+       await processFileUrl(url);
+     }
+   }
+
+   async function processFolderUrl(url: string) {
+     processing = true;
+     error = '';
+     batchResults = [];
+
+     try {
+       const folderId = boxAPI.parseFolderUrl(url);
+       const files = await boxAPI.listFilesInFolder(folderId);
+
+       totalFiles = files.length;
+       processedFiles = 0;
+
+       for (const fileMetadata of files) {
+         processedFiles++;
+
+         let file: File;
+         if ($analysisMode === 'filename-only') {
+           // Metadata only
+           file = new File([], fileMetadata.name);
+         } else {
+           // Download actual file
+           file = await boxAPI.downloadFile(fileMetadata.id, fileMetadata.name);
+         }
+
+         const result = await processFile(file);
+         batchResults.push(result);
+       }
+     } catch (err) {
+       error = err.message;
+     } finally {
+       processing = false;
+     }
+   }
+   ```
+
+### 5.9.4 Shared Batch Processing Store
+
+**Create `src/stores/batchProcessing.ts`:**
+
+```typescript
+import { writable } from 'svelte/store';
+
+export interface BatchProgress {
+  total: number;
+  processed: number;
+  current: string;
+  startTime: number;
+}
+
+function createBatchStore() {
+  const { subscribe, set, update } = writable<BatchProgress | null>(null);
+
+  return {
+    subscribe,
+    start: (total: number) => {
+      set({
+        total,
+        processed: 0,
+        current: '',
+        startTime: Date.now()
+      });
+    },
+    updateProgress: (processed: number, currentFile: string) => {
+      update(state => state ? {
+        ...state,
+        processed,
+        current: currentFile
+      } : null);
+    },
+    complete: () => set(null)
+  };
+}
+
+export const batchProgress = createBatchStore();
+```
+
+### 5.9.5 Batch Results Summary Component
+
+**Create `src/components/BatchSummary.svelte`:**
+
+```svelte
+<script lang="ts">
+  export let results: AudioResults[];
+
+  $: summary = {
+    total: results.length,
+    pass: results.filter(r => r.status === 'pass').length,
+    warning: results.filter(r => r.status === 'warning').length,
+    fail: results.filter(r => r.status === 'fail').length,
+    totalDuration: results.reduce((sum, r) => sum + (r.duration || 0), 0)
+  };
+</script>
+
+<div class="batch-summary">
+  <h3>Batch Summary</h3>
+  <div class="summary-stats">
+    <div class="stat">
+      <span class="stat-label">Total Files:</span>
+      <span class="stat-value">{summary.total}</span>
+    </div>
+    <div class="stat pass">
+      <span class="stat-label">✓ Pass:</span>
+      <span class="stat-value">{summary.pass}</span>
+    </div>
+    <div class="stat warning">
+      <span class="stat-label">⚠ Warning:</span>
+      <span class="stat-value">{summary.warning}</span>
+    </div>
+    <div class="stat fail">
+      <span class="stat-label">✗ Fail:</span>
+      <span class="stat-value">{summary.fail}</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Total Duration:</span>
+      <span class="stat-value">{formatDuration(summary.totalDuration)}</span>
+    </div>
+  </div>
+</div>
+```
+
+**Implementation Plan:**
+
+1. **Phase 5.9.1**: Local Files multi-select (0.5 day)
+   - Add multi-file input
+   - Implement batch processing loop
+   - Add progress indicator
+
+2. **Phase 5.9.2**: Google Drive folder support (1 day)
+   - Add folder listing API method
+   - Parse folder URLs
+   - Update picker for multi-select
+   - Batch processing integration
+
+3. **Phase 5.9.3**: Box folder support (1 day)
+   - Add folder listing API method
+   - Parse folder URLs
+   - Batch processing integration
+
+4. **Phase 5.9.4**: Shared batch UI (0.5 day)
+   - Create batch progress store
+   - Create BatchSummary component
+   - Polish batch results display
+
+**Success Criteria:**
+- [ ] Local Files: Can select multiple files and process them
+- [ ] Google Drive: Can paste folder URL and process all audio files
+- [ ] Google Drive: Picker supports multi-select and folder selection
+- [ ] Box: Can paste folder URL and process all audio files
+- [ ] Progress indicator shows during batch processing
+- [ ] BatchSummary component displays aggregate stats
+- [ ] Filename-only mode works efficiently for batch processing (no downloads)
+- [ ] All 698+ tests still passing
+- [ ] Beta deployment tested with real folders
+
+**Commit:** `feat: Phase 5.9 - Batch/folder processing for all tabs`
+
+---
+
+#### 5.11 Three Hour Configuration (1-2 days) ⬜
+
+**Goal:** Add scripts folder and speaker ID configuration for Three Hour preset filename validation
+
+**Prerequisites:** Phase 5.7 (Google Drive Integration) must be complete
+
+**Why This is a Separate Phase:**
+Three Hour filename validation requires additional inputs that are:
+- **Tab-specific**: Only available on Google Drive tab (not Local Files or Box)
+- **User-configured**: Scripts folder URL + speaker ID must be provided
+- **Persistent**: Need to store configuration across sessions
+- **Requires Drive API**: Must fetch script list from Drive folder
+
+**What Needs to Be Built:**
+
+1. **Three Hour Settings Store** (`src/stores/threeHourSettings.ts`)
+   ```typescript
+   export const threeHourSettings = writable({
+     scriptsFolderUrl: '',
+     speakerId: ''
+   });
+   // Auto-persist to localStorage
+   ```
+
+2. **Google Drive Tab - Three Hour Configuration UI**
+
+   When Three Hour preset is selected AND user chooses analysis mode with filename validation:
+
+   ```
+   ┌─────────────────────────────────────────────┐
+   │ Three Hour Configuration:                   │
+   │                                             │
+   │ Scripts Folder URL:                         │
+   │ [https://drive.google.com/drive/folders/...]│
+   │                                             │
+   │ Speaker ID:                                 │
+   │ [SP001                                    ] │
+   │                                             │
+   │ ℹ️ These settings are saved automatically   │
+   └─────────────────────────────────────────────┘
+   ```
+
+3. **Validation Integration**
+   - Fetch script list from Google Drive scripts folder (using API from Phase 5.7)
+   - Pass to FilenameValidator.validateThreeHour()
+   - Display validation results in filename cell
+   - Works with all three analysis modes
+
+4. **Error Handling**
+   - Invalid/inaccessible scripts folder URL
+   - Empty speaker ID
+   - Network errors fetching scripts
+   - Graceful degradation if config missing
+
+**Tab-Specific Behavior:**
+
+| Tab | Three Hour Preset Behavior |
+|-----|----------------------------|
+| **Google Drive** | Show config inputs when filename validation mode selected |
+| **Local Files** | Show note: "Three Hour filename validation requires Google Drive tab" |
+| **Box** | Show note: "Three Hour filename validation requires Google Drive tab" |
+
+**Implementation Tasks:**
+
+1. Create `threeHourSettings` store with localStorage persistence
+2. Add configuration UI to GoogleDriveTab (conditional on preset + analysis mode)
+3. Fetch script list from Drive folder when URL provided
+4. Integrate with FilenameValidator.validateThreeHour()
+5. Add helpful error messages for common config issues
+6. Update Settings tab docs to mention Google Drive configuration
+7. Manual testing: Configure Three Hour on Drive tab, validate files
+
+**Success Criteria:**
+- [ ] Three Hour config inputs appear on Google Drive tab
+- [ ] Settings persist across sessions
+- [ ] Script folder URL validates and fetches script list
+- [ ] Filename validation works with configured settings
+- [ ] Clear error messages for missing/invalid config
+- [ ] Other tabs show appropriate messaging
+
+**Commit:** `feat: Phase 5.9 - Three Hour configuration inputs on Google Drive tab`
+
+---
+
+#### 5.12 Settings Tab Migration (1-2 days) ⬜
+
+**Goal:** Finalize Settings tab Svelte conversion and polish
+
+**Implementation Tasks:**
+
+1. **Write SettingsTab tests first**
+
+```typescript
+// tests/components/SettingsTab.test.ts
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/svelte';
+import userEvent from '@testing-library/user-event';
+import { get } from 'svelte/store';
+import SettingsTab from '../../src/components/SettingsTab.svelte';
+import { settingsManager } from '../../src/stores';
+
+describe('SettingsTab', () => {
+  beforeEach(() => {
+    // Reset settings to default
+    settingsManager.set(new SettingsManager());
+  });
+
+  describe('Preset Selection', () => {
+    it('should display all preset options', () => {
+      render(SettingsTab);
+
+      expect(screen.getByText(/auditions/i)).toBeInTheDocument();
+      expect(screen.getByText(/character recordings/i)).toBeInTheDocument();
+      expect(screen.getByText(/three hour/i)).toBeInTheDocument();
+      expect(screen.getByText(/bilingual/i)).toBeInTheDocument();
+      expect(screen.getByText(/custom/i)).toBeInTheDocument();
+    });
+
+    it('should update store when preset selected', async () => {
+      const user = userEvent.setup();
+      render(SettingsTab);
+
+      const select = screen.getByLabelText(/preset/i);
+      await user.selectOptions(select, 'auditions');
+
+      await waitFor(() => {
+        const settings = get(settingsManager);
+        expect(settings.currentPreset).toBe('auditions');
+      });
+    });
+
+    it('should load preset criteria when selected', async () => {
+      const user = userEvent.setup();
+      render(SettingsTab);
+
+      const select = screen.getByLabelText(/preset/i);
+      await user.selectOptions(select, 'three-hour');
+
+      await waitFor(() => {
+        // Should show Three Hour specific options
+        expect(screen.getByLabelText(/speaker id/i)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Criteria Customization', () => {
+    it('should show criteria inputs for custom preset', async () => {
+      const user = userEvent.setup();
+      render(SettingsTab);
+
+      const select = screen.getByLabelText(/preset/i);
+      await user.selectOptions(select, 'custom');
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/sample rate/i)).toBeInTheDocument();
+        expect(screen.getByLabelText(/bit depth/i)).toBeInTheDocument();
+        expect(screen.getByLabelText(/channels/i)).toBeInTheDocument();
+      });
+    });
+
+    it('should update criteria when inputs change', async () => {
+      const user = userEvent.setup();
+      render(SettingsTab);
+
+      const select = screen.getByLabelText(/preset/i);
+      await user.selectOptions(select, 'custom');
+
+      const sampleRateInput = screen.getByLabelText(/sample rate/i);
+      await user.clear(sampleRateInput);
+      await user.type(sampleRateInput, '96000');
+
+      await waitFor(() => {
+        const settings = get(settingsManager);
+        expect(settings.criteria.sampleRate).toBe(96000);
+      });
+    });
+  });
+
+  describe('Three Hour Settings', () => {
+    beforeEach(async () => {
+      const user = userEvent.setup();
+      render(SettingsTab);
+      const select = screen.getByLabelText(/preset/i);
+      await user.selectOptions(select, 'three-hour');
+    });
+
+    it('should show speaker ID input', () => {
+      expect(screen.getByLabelText(/speaker id/i)).toBeInTheDocument();
+    });
+
+    it('should show scripts folder URL input', () => {
+      expect(screen.getByLabelText(/scripts folder/i)).toBeInTheDocument();
+    });
+
+    it('should update validation settings', async () => {
+      const user = userEvent.setup();
+
+      const speakerInput = screen.getByLabelText(/speaker id/i);
+      await user.type(speakerInput, 'SPEAKER123');
+
+      const folderInput = screen.getByLabelText(/scripts folder/i);
+      await user.type(folderInput, 'https://drive.google.com/drive/folders/abc');
+
+      await waitFor(() => {
+        const settings = get(settingsManager);
+        expect(settings.threeHourSettings.speakerId).toBe('SPEAKER123');
+        expect(settings.threeHourSettings.scriptsFolderUrl).toContain('abc');
+      });
+    });
+  });
+
+  describe('Settings Persistence', () => {
+    it('should load saved settings on mount', () => {
+      // Pre-save settings
+      localStorage.setItem('audioAnalyzerSettings', JSON.stringify({
+        currentPreset: 'auditions',
+        criteria: { sampleRate: 48000 }
+      }));
+
+      render(SettingsTab);
+
+      const select = screen.getByLabelText(/preset/i) as HTMLSelectElement;
+      expect(select.value).toBe('auditions');
+    });
+
+    it('should save settings when changed', async () => {
+      const user = userEvent.setup();
+      render(SettingsTab);
+
+      const select = screen.getByLabelText(/preset/i);
+      await user.selectOptions(select, 'three-hour');
+
+      await waitFor(() => {
+        const saved = localStorage.getItem('audioAnalyzerSettings');
+        expect(saved).toBeTruthy();
+        const parsed = JSON.parse(saved!);
+        expect(parsed.currentPreset).toBe('three-hour');
+      });
+    });
+  });
+
+  describe('Advanced Settings', () => {
+    it('should toggle advanced options', async () => {
+      const user = userEvent.setup();
+      render(SettingsTab);
+
+      const advancedToggle = screen.getByText(/advanced/i);
+      await user.click(advancedToggle);
+
+      expect(screen.getByLabelText(/noise floor model/i)).toBeInTheDocument();
+    });
+
+    it('should update advanced settings', async () => {
+      const user = userEvent.setup();
+      render(SettingsTab);
+
+      const advancedToggle = screen.getByText(/advanced/i);
+      await user.click(advancedToggle);
+
+      const modelSelect = screen.getByLabelText(/noise floor model/i);
+      await user.selectOptions(modelSelect, 'histogram');
+
+      await waitFor(() => {
+        const settings = get(settingsManager);
+        expect(settings.advancedSettings.noiseFloorModel).toBe('histogram');
+      });
+    });
+  });
+});
+```
+
+2. **Create SettingsTab.svelte component**
+
+```svelte
+<!-- src/components/SettingsTab.svelte -->
+<script lang="ts">
+  import { settingsManager } from '../stores';
+
+  let showAdvanced = false;
+
+  $: currentPreset = $settingsManager.currentPreset;
+  $: criteria = $settingsManager.criteria;
+  $: threeHourSettings = $settingsManager.threeHourSettings;
+  $: advancedSettings = $settingsManager.advancedSettings;
+
+  function handlePresetChange(event: Event) {
+    const target = event.target as HTMLSelectElement;
+    settingsManager.update(s => {
+      s.setPreset(target.value);
+      return s;
+    });
+  }
+
+  function updateCriteria(field: string, value: any) {
+    settingsManager.update(s => {
+      s.criteria[field] = value;
+      s.save();
+      return s;
+    });
+  }
+
+  function updateThreeHourSettings(field: string, value: string) {
+    settingsManager.update(s => {
+      s.threeHourSettings[field] = value;
+      s.save();
+      return s;
+    });
+  }
+
+  function updateAdvancedSettings(field: string, value: any) {
+    settingsManager.update(s => {
+      s.advancedSettings[field] = value;
+      s.save();
+      return s;
+    });
+  }
+</script>
+
+<div class="settings-tab">
+  <h2>Settings</h2>
+
+  <section class="preset-section">
+    <label for="preset-select">Validation Preset</label>
+    <select
+      id="preset-select"
+      bind:value={currentPreset}
+      on:change={handlePresetChange}
+    >
+      <option value="none">None (Metadata Only)</option>
+      <option value="auditions">Auditions</option>
+      <option value="character">Character Recordings</option>
+      <option value="p2b2-mono">P2B2 Pairs (Mono)</option>
+      <option value="p2b2-stereo">P2B2 Pairs (Stereo)</option>
+      <option value="p2b2-mixed">P2B2 Pairs (Mixed)</option>
+      <option value="three-hour">Three Hour</option>
+      <option value="bilingual">Bilingual Conversational</option>
+      <option value="custom">Custom</option>
+    </select>
+
+    <p class="preset-description">
+      {#if currentPreset === 'none'}
+        No validation criteria applied
+      {:else if currentPreset === 'auditions'}
+        48kHz, 16-bit, Mono, WAV format
+      {:else if currentPreset === 'character'}
+        48kHz, 16-bit, Mono, WAV format with character validation
+      {:else if currentPreset === 'three-hour'}
+        48kHz, 16-bit, Mono, 3+ hour duration with script matching
+      {:else if currentPreset === 'bilingual'}
+        48kHz, 16-bit, Stereo conversational with filename pattern validation
+      {:else if currentPreset === 'custom'}
+        Define your own validation criteria
+      {/if}
+    </p>
+  </section>
+
+  {#if currentPreset === 'custom'}
+    <section class="criteria-section">
+      <h3>Custom Criteria</h3>
+
+      <label for="sample-rate">Sample Rate (Hz)</label>
+      <input
+        id="sample-rate"
+        type="number"
+        value={criteria.sampleRate}
+        on:change={(e) => updateCriteria('sampleRate', parseInt(e.currentTarget.value))}
+      />
+
+      <label for="bit-depth">Bit Depth</label>
+      <input
+        id="bit-depth"
+        type="number"
+        value={criteria.bitDepth}
+        on:change={(e) => updateCriteria('bitDepth', parseInt(e.currentTarget.value))}
+      />
+
+      <label for="channels">Channels</label>
+      <select
+        id="channels"
+        value={criteria.channels}
+        on:change={(e) => updateCriteria('channels', parseInt(e.currentTarget.value))}
+      >
+        <option value={1}>Mono (1)</option>
+        <option value={2}>Stereo (2)</option>
+      </select>
+
+      <label for="file-type">File Type</label>
+      <input
+        id="file-type"
+        type="text"
+        value={criteria.fileType}
+        on:change={(e) => updateCriteria('fileType', e.currentTarget.value)}
+      />
+
+      <label for="min-duration">Minimum Duration (seconds)</label>
+      <input
+        id="min-duration"
+        type="number"
+        value={criteria.minDuration}
+        on:change={(e) => updateCriteria('minDuration', parseInt(e.currentTarget.value))}
+      />
+    </section>
+  {/if}
+
+  {#if currentPreset === 'three-hour'}
+    <section class="three-hour-section">
+      <h3>Three Hour Settings</h3>
+
+      <label for="speaker-id">Speaker ID</label>
+      <input
+        id="speaker-id"
+        type="text"
+        placeholder="e.g., SPEAKER001"
+        value={threeHourSettings.speakerId || ''}
+        on:input={(e) => updateThreeHourSettings('speakerId', e.currentTarget.value)}
+      />
+
+      <label for="scripts-folder">Scripts Folder URL (Google Drive)</label>
+      <input
+        id="scripts-folder"
+        type="text"
+        placeholder="https://drive.google.com/drive/folders/..."
+        value={threeHourSettings.scriptsFolderUrl || ''}
+        on:input={(e) => updateThreeHourSettings('scriptsFolderUrl', e.currentTarget.value)}
+      />
+    </section>
+  {/if}
+
+  <section class="advanced-section">
+    <button on:click={() => showAdvanced = !showAdvanced} class="toggle-advanced">
+      {showAdvanced ? '▼' : '►'} Advanced Settings
+    </button>
+
+    {#if showAdvanced}
+      <div class="advanced-content">
+        <label for="noise-floor-model">Noise Floor Model</label>
+        <select
+          id="noise-floor-model"
+          value={advancedSettings.noiseFloorModel}
+          on:change={(e) => updateAdvancedSettings('noiseFloorModel', e.currentTarget.value)}
+        >
+          <option value="histogram">Histogram (Recommended)</option>
+          <option value="old">Old Model (Bottom 20% RMS)</option>
+        </select>
+
+        <label>
+          <input
+            type="checkbox"
+            checked={advancedSettings.enableReverbEstimation}
+            on:change={(e) => updateAdvancedSettings('enableReverbEstimation', e.currentTarget.checked)}
+          />
+          Enable Reverb (RT60) Estimation
+        </label>
+
+        <label>
+          <input
+            type="checkbox"
+            checked={advancedSettings.enableMicBleedDetection}
+            on:change={(e) => updateAdvancedSettings('enableMicBleedDetection', e.currentTarget.checked)}
+          />
+          Enable Mic Bleed Detection
+        </label>
+      </div>
+    {/if}
+  </section>
+</div>
+
+<style>
+  .settings-tab {
+    padding: 1rem;
+    max-width: 600px;
+  }
+
+  section {
+    margin: 2rem 0;
+  }
+
+  h2 {
+    margin-bottom: 1rem;
+  }
+
+  h3 {
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+  }
+
+  label {
+    display: block;
+    margin: 1rem 0 0.25rem;
+    font-weight: 500;
+  }
+
+  input[type="text"],
+  input[type="number"],
+  select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1rem;
+  }
+
+  .preset-description {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: var(--info-bg);
+    border-radius: 4px;
+    font-size: 0.9rem;
+  }
+
+  .toggle-advanced {
+    background: none;
+    border: none;
+    padding: 0.5rem 0;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+  }
+
+  .advanced-content {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+  }
+
+  label input[type="checkbox"] {
+    width: auto;
+    margin-right: 0.5rem;
+  }
+</style>
+```
+
+3. **Update App.svelte**
+```svelte
+{#if $currentTab === 'settings'}
+  <SettingsTab />
+{/if}
+```
+
+4. **Manual testing checklist**
+
+**Preset selection:**
+- [ ] All presets appear in dropdown
+- [ ] Selecting preset updates UI immediately
+- [ ] Preset descriptions accurate
+- [ ] Settings persist across page refresh
+
+**Custom criteria:**
+- [ ] All criteria fields editable
+- [ ] Values save correctly
+- [ ] Invalid values handled gracefully
+
+**Three Hour settings:**
+- [ ] Speaker ID input works
+- [ ] Scripts folder URL input works
+- [ ] Values persist
+
+**Advanced settings:**
+- [ ] Toggle expands/collapses
+- [ ] Noise floor model selection works
+- [ ] Checkboxes toggle correctly
+- [ ] Settings save
+
+**Visual verification:**
+- [ ] Layout clean and organized
+- [ ] Form inputs styled correctly
+- [ ] No console errors
+- [ ] Mobile responsive
+
+**Success Criteria:**
+- [ ] All SettingsTab tests passing (90%+ coverage)
+- [ ] Manual test checklist complete
+- [ ] All settings work identically
+- [ ] Settings persist correctly
+- [ ] No regressions
+
+**Commit:** `feat: migrate Settings tab to Svelte`
+
+---
+
+#### 5.12 Experimental Audio Analysis Display (1-2 days) ⬜
+
+**Goal:** Display all experimental audio analysis features (reverb, noise floor, stereo separation, mic bleed, silence analysis) in the UI
+
+**Why This is Missing:**
+The core library (`level-analyzer.js`) has extensive experimental analysis features that are fully implemented but NOT displayed in the Svelte UI:
+- Reverb Estimation (RT60) - Room acoustics analysis
+- Noise Floor (histogram & RMS methods) - Background noise level
+- Normalization Status - Peak level vs target (-6 dB)
+- Silence Analysis - Leading, trailing, and longest silence gaps
+- Stereo Separation - Detects mono-as-stereo, conversational stereo, etc.
+- Mic Bleed Detection - Cross-channel leakage in conversational stereo
+
+These are calculated by `LevelAnalyzer.analyzeAudioBuffer()` but the `ResultsTable` component doesn't show them.
+
+**Current State:**
+- `analysisMode` controls what gets analyzed (full/audio-only/filename-only)
+- Full and audio-only modes already run `LevelAnalyzer.analyzeAudioBuffer()`
+- Results object contains: `peakDb`, `noiseFloorDb`, `noiseFloorDbHistogram`, `normalizationStatus`, `reverbInfo`, `leadingSilence`, `trailingSilence`, `longestSilence`
+- Stereo files also get: `stereoSeparation`, `micBleed` (if conversational stereo detected)
+- **None of this data is displayed in ResultsTable**
+
+**Implementation Strategy:**
+
+### 5.12.1 Add Experimental Columns to ResultsTable
+
+**Update `ResultsTable.svelte`:**
+
+1. **Add new columns to table header**
+   ```svelte
+   <!-- After Duration column -->
+   <th>Peak Level</th>
+   <th>Noise Floor</th>
+   <th>Normalization</th>
+   <th>Reverb (RT60)</th>
+   <th>Leading Silence</th>
+   <th>Trailing Silence</th>
+   <th>Longest Silence</th>
+   <!-- For stereo files only -->
+   {#if result.stereoSeparation}
+     <th>Stereo Type</th>
+     <th>Mic Bleed</th>
+   {/if}
+   ```
+
+2. **Add data cells**
+   ```svelte
+   <!-- Peak Level -->
+   <td class="numeric">
+     {result.peakDb ? `${result.peakDb.toFixed(2)} dB` : 'N/A'}
+   </td>
+
+   <!-- Noise Floor -->
+   <td class="numeric">
+     {result.noiseFloorDbHistogram ? `${result.noiseFloorDbHistogram.toFixed(2)} dB` : 'N/A'}
+   </td>
+
+   <!-- Normalization -->
+   <td class="status">
+     {#if result.normalizationStatus}
+       <span class="badge {result.normalizationStatus.status}">
+         {result.normalizationStatus.message}
+       </span>
+     {:else}
+       N/A
+     {/if}
+   </td>
+
+   <!-- Reverb -->
+   <td class="reverb-info">
+     {#if result.reverbInfo}
+       <span class="reverb-label {result.reverbInfo.label.toLowerCase().replace(' ', '-')}">
+         {result.reverbInfo.time.toFixed(2)}s - {result.reverbInfo.label}
+       </span>
+       <span class="reverb-description">{result.reverbInfo.description}</span>
+     {:else}
+       N/A
+     {/if}
+   </td>
+
+   <!-- Silence columns -->
+   <td class="numeric">{result.leadingSilence ? `${result.leadingSilence.toFixed(2)}s` : 'N/A'}</td>
+   <td class="numeric">{result.trailingSilence ? `${result.trailingSilence.toFixed(2)}s` : 'N/A'}</td>
+   <td class="numeric">{result.longestSilence ? `${result.longestSilence.toFixed(2)}s` : 'N/A'}</td>
+
+   <!-- Stereo columns (conditional) -->
+   {#if result.stereoSeparation}
+     <td class="stereo-type">
+       {result.stereoSeparation.stereoType}
+       <span class="confidence">({(result.stereoSeparation.stereoConfidence * 100).toFixed(0)}%)</span>
+     </td>
+   {/if}
+
+   {#if result.micBleed}
+     <td class="mic-bleed">
+       <div>Median: {result.micBleed.new.medianSeparation.toFixed(1)} dB</div>
+       <div>P10: {result.micBleed.new.p10Separation.toFixed(1)} dB</div>
+       <div class="bleed-warning {result.micBleed.new.percentageConfirmedBleed > 5 ? 'high' : 'low'}">
+         {result.micBleed.new.percentageConfirmedBleed.toFixed(1)}% confirmed bleed
+       </div>
+     </td>
+   {/if}
+   ```
+
+3. **Column visibility toggle**
+   - Add "Show Experimental Columns" checkbox above table
+   - Hide/show experimental columns based on toggle
+   - Save preference to localStorage
+
+4. **Styling**
+   ```css
+   .reverb-label.excellent { color: var(--success); }
+   .reverb-label.good { color: var(--info); }
+   .reverb-label.fair { color: var(--warning); }
+   .reverb-label.poor { color: var(--danger); }
+
+   .bleed-warning.high { color: var(--danger); font-weight: 600; }
+   .bleed-warning.low { color: var(--success); }
+
+   .experimental-columns {
+     background: rgba(59, 130, 246, 0.05);
+   }
+   ```
+
+### 5.12.2 Add Stereo/Mic Bleed Analysis
+
+**Update tab components (LocalFileTab, GoogleDriveTab, BoxTab):**
+
+```typescript
+// After basic + advanced analysis
+if (audioBuffer.numberOfChannels === 2) {
+  // Stereo separation analysis
+  const stereoSeparation = levelAnalyzer.analyzeStereoSeparation(audioBuffer);
+
+  // Mic bleed analysis (only for conversational stereo)
+  if (stereoSeparation.stereoType === 'Conversational Stereo') {
+    const micBleed = levelAnalyzer.analyzeMicBleed(audioBuffer);
+    results.micBleed = micBleed;
+  }
+
+  results.stereoSeparation = stereoSeparation;
+}
+```
+
+### 5.12.3 Experimental Analysis for Batch Mode
+
+**Add toggle for batch processing:**
+
+```svelte
+<!-- In batch mode before processing -->
+{#if batchMode}
+  <div class="experimental-toggle">
+    <label>
+      <input type="checkbox" bind:checked={includeExperimental} />
+      Include experimental analysis (slower)
+    </label>
+    <p class="help-text">
+      Adds reverb, noise floor, silence, and stereo analysis.
+      Increases processing time significantly.
+    </p>
+  </div>
+{/if}
+```
+
+**Implementation approach (from BATCH_EXPERIMENTAL_OPTIONS.md):**
+- **Option C: Post-Batch Analysis (Recommended)**
+- Show results quickly without experimental data
+- Add "Run Experimental Analysis on All Files" button below results
+- Process sequentially when button clicked
+- Update rows progressively with experimental data
+
+### 5.12.4 Expandable Row Details (Optional Enhancement)
+
+For complex data (mic bleed details, reverb decay curves), add expandable rows:
+
+```svelte
+<tr class="detail-row" class:expanded={expandedRows.includes(result.filename)}>
+  <td colspan="100%">
+    <div class="detail-panel">
+      <!-- Mic Bleed Details -->
+      {#if result.micBleed}
+        <section>
+          <h4>Mic Bleed Analysis</h4>
+          <div class="bleed-metrics">
+            <div>Median Separation: {result.micBleed.new.medianSeparation.toFixed(1)} dB</div>
+            <div>Worst 10% Separation: {result.micBleed.new.p10Separation.toFixed(1)} dB</div>
+            <div>Poor Separation Blocks: {result.micBleed.new.percentagePoorSeparation.toFixed(1)}%</div>
+            <div>Confirmed Bleed: {result.micBleed.new.percentageConfirmedBleed.toFixed(1)}%</div>
+          </div>
+          {#if result.micBleed.new.worstBlocks.length > 0}
+            <h5>Worst Bleed Instances:</h5>
+            <ul>
+              {#each result.micBleed.new.worstBlocks as block}
+                <li>
+                  {block.timestamp.toFixed(2)}s - {block.separation.toFixed(1)} dB separation
+                  (correlation: {(block.correlation * 100).toFixed(0)}%)
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </section>
+      {/if}
+
+      <!-- Reverb Details -->
+      {#if result.reverbInfo}
+        <section>
+          <h4>Reverb Analysis</h4>
+          <p><strong>{result.reverbInfo.label}:</strong> {result.reverbInfo.description}</p>
+          <p>RT60: {result.reverbInfo.time.toFixed(3)} seconds</p>
+        </section>
+      {/if}
+    </div>
+  </td>
+</tr>
+```
+
+**Implementation Plan:**
+
+1. **Phase 5.12.1**: Add experimental columns to ResultsTable (0.5 day)
+   - Add column headers
+   - Display experimental data
+   - Column visibility toggle
+
+2. **Phase 5.12.2**: Add stereo/mic bleed analysis to tabs (0.5 day)
+   - Integrate analyzeStereoSeparation()
+   - Integrate analyzeMicBleed()
+   - Update all three tabs
+
+3. **Phase 5.12.3**: Post-batch experimental analysis (0.5 day)
+   - Add "Run Experimental on All" button
+   - Sequential processing with progress
+   - Update rows progressively
+
+4. **Phase 5.12.4**: Expandable row details (optional, 0.5 day)
+   - Click to expand rows
+   - Show detailed mic bleed metrics
+   - Show reverb interpretation
+
+**Success Criteria:**
+- [ ] ResultsTable shows all experimental columns
+- [ ] Column visibility toggle works
+- [ ] Stereo separation displayed for stereo files
+- [ ] Mic bleed analysis shown for conversational stereo
+- [ ] Batch mode offers post-batch experimental analysis
+- [ ] Progress indicator during batch experimental processing
+- [ ] All experimental data properly formatted and readable
+- [ ] Expandable rows show detailed metrics (optional)
+- [ ] All 698+ tests still passing
+- [ ] Beta deployment tested with various audio files
+
+**Documentation:**
+- Update README with experimental features
+- Document mic bleed metrics interpretation
+- Document reverb/RT60 interpretation
+- Add examples of each stereo type
+
+**Commit:** `feat: Phase 5.12 - Display experimental audio analysis features`
+
+---
+
+#### 5.13 Cleanup & Final Integration (1 day) ⬜
+
+**Goal:** Remove old code, finalize integration, and verify everything works
+
+**Implementation Tasks:**
+
+1. **Remove old tab code from main.js**
+   - Delete old `handleFileSelect()` function
+   - Delete old `handleGoogleDriveUrl()` function
+   - Delete old `handleBoxUrl()` function
+   - Delete old results display functions
+   - Delete old tab switching logic
+   - Keep only app initialization code
+
+2. **Verify main.js is ~200 lines**
+   - Should contain:
+     - Imports
+     - Svelte app initialization
+     - Auth initialization (pass to Svelte components)
+     - Settings initialization
+     - Basic error boundary
+   - Should NOT contain:
+     - Tab logic
+     - File handling
+     - Results display
+     - Validation logic
+
+3. **Remove unused UIController code**
+   - If UIController is empty/unused, delete the file
+   - If parts are still needed, extract to utilities
+
+4. **Update imports and dependencies**
+   - Remove unused imports from main.js
+   - Verify all Svelte components import correctly
+   - Check for circular dependencies
+
+5. **Run full test suite**
+```bash
+npm run test:run
+npm run typecheck
+```
+
+6. **Bundle size verification**
+```bash
+npm run build
+# Check dist/ size
+# Should be <15KB increase over baseline
+```
+
+7. **Full regression testing checklist**
+
+**Local File Tab:**
+- [ ] Single file upload works
+- [ ] Metadata-only mode works
+- [ ] Results display correctly
+- [ ] Error handling works
+- [ ] All presets work
+
+**Google Drive Tab:**
+- [ ] OAuth flow works
+- [ ] Single file URL works
+- [ ] Folder URL works (batch)
+- [ ] Progress indicator works
+- [ ] Results display correctly
+- [ ] Error handling works
+
+**Box Tab:**
+- [ ] OAuth flow works
+- [ ] Shared link works
+- [ ] Folder URL works (batch)
+- [ ] Results display correctly
+- [ ] Error handling works
+
+**Settings Tab:**
+- [ ] All presets selectable
+- [ ] Custom criteria editable
+- [ ] Three Hour settings work
+- [ ] Advanced settings work
+- [ ] Settings persist
+
+**Tab Navigation:**
+- [ ] All tabs switchable
+- [ ] Tab state persists when switching
+- [ ] No memory leaks when switching
+
+**Cross-cutting:**
+- [ ] All 635 tests passing
+- [ ] TypeScript compiles with no errors
+- [ ] No console errors
+- [ ] Bundle size acceptable (<15KB increase)
+- [ ] Performance unchanged
+- [ ] Mobile responsive
+- [ ] Accessibility maintained
+
+8. **Deploy to beta**
+```bash
+cd packages/web
+npm run build
+npm run deploy:beta
+```
+
+9. **Beta verification**
+   - Test at https://audio-analyzer.tinytech.site/beta/
+   - Run through full regression checklist
+   - Check for any production-only issues
+   - Verify all functionality works
+
+10. **Documentation**
+    - Update README if needed
+    - Document new component architecture
+    - Update developer guide
+
+11. **Final commit and merge**
+```bash
+git add .
+git commit -m "refactor: complete Phase 5 Svelte migration
+
+- Migrated all tabs to Svelte components
+- Created shared component library (ResultsTable, FileUpload, etc.)
+- Reduced main.js from 3,159 lines to ~200 lines
+- Maintained 75%+ test coverage with component tests
+- All 635+ tests passing
+- Zero regressions
+- Bundle size increase: <15KB
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+
+git push origin main  # Triggers automatic production deployment
+```
+
+**Success Criteria:**
+- [ ] main.js reduced to ~200 lines (94% reduction)
+- [ ] All tabs migrated to Svelte
+- [ ] All 635+ tests passing
+- [ ] Component test coverage 90%+
+- [ ] Bundle size increase <15KB
+- [ ] Zero regressions
+- [ ] Beta deployment successful
+- [ ] Production deployment successful
+
+**Phase 5 Complete! 🎉**
+
+---
+
+### Phase 5 Summary
+
+**Total Timeline:** 10-15 days
+
+| Phase | Duration | Status |
+|-------|----------|--------|
+| 5.1 Setup & Infrastructure | 1 day | ✅ |
+| 5.2a Infrastructure & Bridge Pattern | 2 days | ✅ |
+| 5.2b App Shell & Tab Navigation | 2-3 days | ✅ |
+| 5.3 Shared Components Foundation | 2-3 days | ✅ |
+| 5.4 Tab Migration - All Four Tabs | 2-3 days | ✅ |
+| 5.5 Settings & Criteria Integration | 1-2 days | ✅ |
+| 5.6 UI Polish & Analysis Mode | 1-2 days | ✅ |
+| 5.7 Google Drive Integration | 2-3 days | ✅ |
+| 5.8 Box Tab Migration | 2-3 days | ✅ |
+| 5.8.1 Filename-Only Mode Optimizations | 0.5 day | ✅ |
+| 5.8.2 Google Drive Picker Lazy-Loading | 0.5 day | ⬜ |
+| 5.9 Batch/Folder Processing | 2-3 days | ⬜ |
+| 5.10 Three Hour Configuration | 1-2 days | ⬜ |
+| 5.11 Settings Tab Migration | 1-2 days | ⬜ |
+| 5.12 Experimental Audio Analysis Display | 1-2 days | ⬜ |
+| 5.13 Cleanup & Final Integration | 1 day | ⬜ |
+
+**Key Outcomes:**
+- ✅ Svelte component architecture
+- ✅ main.js reduced from 3,159 lines to ~200 lines (94% reduction)
+- ✅ Shared component library eliminates duplication
+- ✅ Component test coverage 90%+
+- ✅ All 635+ tests passing
+- ✅ Better boundaries for future LLM development
+- ✅ Zero regressions
+- ✅ Production ready
 
 ---
 
@@ -2322,48 +1851,6 @@ packages/web/src/
 
 ---
 
-## GitHub Issues
-
-This section tracks GitHub issues created for this project.
-
-### Phase 1: Test Infrastructure
-- [ ] #TBD: Set up Vitest and testing infrastructure
-
-### Phase 2: Core Tests
-- [ ] #TBD: Add Bilingual filename validation tests
-- [ ] #TBD: Add Three Hour filename validation tests
-- [ ] #TBD: Add criteria validation tests
-- [ ] #TBD: Add result formatting tests
-- [ ] #TBD: Add preset configuration tests
-
-### Phase 3: Integration Tests
-- [ ] #TBD: Add file processing integration tests
-- [ ] #TBD: Add batch processing integration tests
-- [ ] #TBD: Add auth management tests
-- [ ] #TBD: Add display rendering tests
-
-### Phase 4: Refactoring with TypeScript
-- [ ] #TBD: Set up TypeScript infrastructure
-- [ ] #TBD: Unify single/batch display logic
-- [ ] #TBD: Extract file handler classes with TypeScript
-- [ ] #TBD: Create settings management module with TypeScript
-- [ ] #TBD: Extract validation module with TypeScript
-- [ ] #TBD: Separate UI controller with TypeScript
-- [ ] #TBD: Add UI component testing
-
-### Phase 5: Svelte Migration
-- [ ] #TBD: Set up Svelte and vite plugin
-- [ ] #TBD: Configure Svelte Testing Library
-- [ ] #TBD: Write LocalFileTab component tests (test-first)
-- [ ] #TBD: Convert Local File tab to Svelte
-- [ ] #TBD: Write GoogleDriveTab component tests (test-first)
-- [ ] #TBD: Convert Google Drive tab to Svelte
-- [ ] #TBD: Write BoxTab component tests (test-first)
-- [ ] #TBD: Convert Box tab to Svelte
-- [ ] #TBD: Write SettingsTab component tests (test-first)
-- [ ] #TBD: Convert Settings tab to Svelte
-- [ ] #TBD: Create shared ResultsTable component with tests
-- [ ] #TBD: Create reusable UI components with tests
 
 ---
 
@@ -2413,35 +1900,48 @@ This section tracks GitHub issues created for this project.
 - [x] **Phase 4 Complete** ✅ (main.js reduced from 3,159 → 2,542 lines + all new modules in TypeScript + comprehensive testing)
 
 #### Phase 5: Svelte Migration (3-5 days LLM / 2 weeks calendar)
-- [ ] Set up Svelte + vite plugin
-- [ ] Configure Svelte Testing Library
-- [ ] Write LocalFileTab component tests (test-first)
-- [ ] Convert Local File tab to Svelte
-- [ ] Write GoogleDriveTab component tests (test-first)
-- [ ] Convert Google Drive tab to Svelte
-- [ ] Write BoxTab component tests (test-first)
-- [ ] Convert Box tab to Svelte
-- [ ] Write SettingsTab component tests (test-first)
-- [ ] Convert Settings tab to Svelte
-- [ ] Create shared ResultsTable component with tests
-- [ ] Create reusable UI components with tests
+- [x] 5.1: Setup & Infrastructure (Svelte + Vite 7 upgrade)
+- [x] 5.2a: Infrastructure & Bridge Pattern (AppBridge, AuthService, ServiceCoordinator)
+- [x] 5.2b: App Shell & Tab Navigation (Svelte components + tab system)
+- [x] 5.3: Shared Components Foundation (ResultsTable, AudioPlayer, ErrorMessage, etc.)
+- [x] 5.4: Tab Migration - All Four Tabs (LocalFileTab, GoogleDriveTab, BoxTab, SettingsTab)
+- [x] 5.5: Settings & Criteria Integration (inline validation, green highlighting)
+- [x] 5.6: UI Polish & Analysis Mode (three-mode selection system)
+- [x] 5.7: Google Drive Integration (URL processing + Google Picker)
+- [x] 5.8: Box Tab Migration (OAuth improvements + file processing)
+- [x] 5.8.1: Filename-Only Mode Optimizations (metadata-only fetching, UI improvements)
+- [ ] 5.8.2: Google Drive Picker Lazy-Loading
+- [ ] 5.9: Batch/Folder Processing (multi-file/folder support for all tabs)
+- [ ] 5.10: Three Hour Configuration (scripts folder + speaker ID)
+- [ ] 5.11: Settings Tab Migration (finalization)
+- [ ] 5.12: Experimental Audio Analysis Display (reverb, noise floor, stereo, mic bleed)
+- [ ] 5.13: Cleanup & Final Integration
 - [ ] Verify all component tests passing (90%+ coverage per component)
-- [ ] Verify bundle size impact (<15KB increase)
 - [ ] Verify no regressions
 - [ ] **Phase 5 Complete** ✅ (main.js ~200 lines + Svelte components + comprehensive component tests)
 
 ### Completion Dates
 
-- **Phase 1 Started:** October 10, 2025
-- **Phase 1 Completed:** October 10, 2025
-- **Phase 2 Started:** October 10, 2025
-- **Phase 2 Completed:** October 10, 2025 (Test specifications)
-- **Phase 3 Started:** October 10, 2025
-- **Phase 3 Completed:** October 10, 2025 (Test specifications)
+- **Phase 1 Started:** October 9, 2025
+- **Phase 1 Completed:** October 9, 2025
+- **Phase 2 Started:** October 9, 2025
+- **Phase 2 Completed:** October 9, 2025 (Test specifications)
+- **Phase 3 Started:** October 9, 2025
+- **Phase 3 Completed:** October 9, 2025 (Test specifications)
 - **Phase 4 Started:** October 10, 2025
 - **Phase 4 Completed:** October 10, 2025
-- **Phase 5 Started:** _____
-- **Phase 5 Completed:** _____
+- **Phase 5 Started:** October 10, 2025
+- **Phase 5.1 Completed:** October 10, 2025 (Setup & Infrastructure)
+- **Phase 5.2a Completed:** October 10, 2025 (Infrastructure & Bridge Pattern)
+- **Phase 5.2b Completed:** October 10, 2025 (App Shell & Tab Navigation)
+- **Phase 5.3 Completed:** October 10, 2025 (Shared Components Foundation)
+- **Phase 5.4 Completed:** October 10, 2025 (Tab Migration - All Four Tabs)
+- **Phase 5.5 Completed:** October 10, 2025 (Settings & Criteria Integration)
+- **Phase 5.6 Completed:** October 10, 2025 (UI Polish & Analysis Mode)
+- **Phase 5.7 Completed:** October 11, 2025 (Google Drive Integration)
+- **Phase 5.8 Completed:** October 11, 2025 (Box Tab Migration)
+- **Phase 5.8.1 Completed:** October 11, 2025 (Filename-Only Mode Optimizations)
+- **Phase 5 Completed:** _____ (In Progress - 5.8.1 complete, 5.8.2+ remaining)
 
 ### Total Timeline
 
@@ -2450,70 +1950,6 @@ This section tracks GitHub issues created for this project.
 **Bottleneck:** Human review, testing, and decision-making
 
 ---
-
-## Notes & Decisions
-
-### Key Decisions
-
-**Decision 1:** Testing framework choice - Vitest
-**Rationale:** Native Vite integration, fast, modern API, great DX
-**Date:** October 9, 2025
-
-**Decision 2:** Testing before refactoring
-**Rationale:** Safety net prevents regressions, documents behavior
-**Date:** October 9, 2025
-
-**Decision 3:** LLM-first development approach
-**Rationale:** Project will be primarily developed by LLMs with human review
-**Date:** October 9, 2025
-
-**Decision 4:** Add TypeScript during refactoring (Phase 4)
-**Rationale:** Types help LLMs generate correct code, catch errors early
-**Date:** October 9, 2025
-
-**Decision 5:** Migrate to Svelte (Phase 5)
-**Rationale:** Component boundaries help LLM development, minimal bundle impact
-**Date:** October 9, 2025
-
-**Decision 6:** Create all new files as TypeScript from the outset (Phase 4 refinement)
-**Rationale:** Eliminates separate JS→TS conversion step, provides immediate type safety during refactoring, cleaner git history
-**Date:** October 9, 2025
-
-**Decision 7:** Add granular UI component testing (Phase 4.7)
-**Rationale:** Integration tests alone can miss rendering bugs; component-level tests provide faster, more focused testing and better documentation
-**Date:** October 9, 2025
-
-**Decision 8:** Test-first Svelte component migration (Phase 5.4)
-**Rationale:** Writing component tests before conversion ensures behavior parity and enables confident refactoring; establishes testing culture for LLM development
-**Date:** October 9, 2025
-
-**Decision 9:** Phase-based branching strategy
-**Rationale:** Clear scope per branch, manageable PR sizes, can deploy incrementally to beta, easier to track progress and pause/resume work
-**Date:** October 10, 2025
-
-### Lessons Learned
-
-**Lesson 1:** Test Specifications vs Implementation (October 10, 2025)
-- **Issue:** Phases 2-3 were marked "complete" with only test specifications written, not actual implementations
-- **Discovery:** Phase 4 prerequisites require "70%+ coverage" and "all tests passing" - impossible with just specs
-- **Resolution:** Added Phase 4.0 step to implement display-related tests before refactoring
-- **Takeaway:** "Complete" should mean implemented and passing, not just planned
-
-**Lesson 2:** Manual Testing Catches Context Issues Automated Tests Miss (October 10, 2025)
-- **Issue:** Batch processing crashed with `TypeError: Cannot read properties of undefined (reading 'formatDuration')`
-- **Discovery:** Manual testing after Phase 4.4 deployment revealed the bug in production-like conditions
-- **Root Cause:** In `CriteriaValidator.formatDisplayText()` (static method), used `this.formatDuration()` instead of `CriteriaValidator.formatDuration()`. When passed as a detached function reference to `renderResultRow()`, it lost class context.
-- **Why Tests Didn't Catch It:** Existing tests called `CriteriaValidator.formatDisplayText()` directly, maintaining context. They didn't test the detached reference scenario used in batch processing.
-- **Resolution:**
-  - Fixed core library to use explicit class reference: `CriteriaValidator.formatDuration()`
-  - Added 2 regression tests specifically testing detached function references
-  - Tests now verify the method works when passed as a parameter
-- **Takeaway:** Always do manual testing after significant refactoring, especially for:
-  - Batch operations vs single operations
-  - Different code paths (local/Google Drive/Box)
-  - Function references passed as parameters (lose context)
-  - Edge cases automated tests might not cover
-
 ### Blockers & Risks
 
 _(To be tracked as issues arise)_

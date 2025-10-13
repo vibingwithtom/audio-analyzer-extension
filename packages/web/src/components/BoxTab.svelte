@@ -1,0 +1,971 @@
+<script lang="ts">
+  import { onDestroy } from 'svelte';
+  import { authState, authService } from '../stores/auth';
+  import { AppBridge } from '../bridge/app-bridge';
+  import ResultsDisplay from './ResultsDisplay.svelte';
+  import { analyzeAudioFile } from '../services/audio-analysis-service';
+  import { currentCriteria, currentPresetId, availablePresets, hasValidPresetConfig } from '../stores/settings';
+  import { currentTab } from '../stores/tabs';
+  import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
+  import { BoxAPI } from '../services/box-api';
+  import type { AudioResults, ValidationResults } from '../types';
+
+  const bridge = AppBridge.getInstance();
+  let boxAPI: BoxAPI | null = null;
+
+  // Detect if we're in the middle of OAuth callback processing
+  // Only show processing state if: (1) OAuth params exist AND (2) not yet authenticated
+  $: isProcessingCallback = (() => {
+    if (typeof window === 'undefined') return false;
+    if ($authState.box.isAuthenticated) return false; // Already authenticated, don't show processing
+
+    const params = new URLSearchParams(window.location.search);
+    return params.has('code') && params.has('state');
+  })();
+
+  function goToSettings() {
+    currentTab.setTab('settings');
+  }
+
+  function handleSignIn() {
+    bridge.dispatch({ type: 'auth:box:signin:requested' });
+  }
+
+  function handleSignOut() {
+    bridge.dispatch({ type: 'auth:box:signout:requested' });
+  }
+
+  // Initialize Box API when authenticated
+  $: if ($authState.box.isAuthenticated && !boxAPI) {
+    const boxAuth = authService.getBoxAuthInstance();
+    boxAPI = new BoxAPI(boxAuth);
+  }
+
+  let processing = false;
+  let error = '';
+  let results: AudioResults | null = null;
+  let validation: ValidationResults | null = null;
+  let currentAudioUrl: string | null = null;
+  let currentFile: File | null = null;
+  let resultsStale = false;
+  let resultsMode: AnalysisMode | null = null;
+  let fileUrl = '';
+  let originalFileUrl: string | null = null; // Store URL for re-downloading
+
+  // Batch processing state
+  let batchProcessing = false;
+  let batchResults: AudioResults[] = [];
+  let totalFiles = 0;
+  let processedFiles = 0;
+  let batchCancelled = false;
+  let batchBoxFiles: any[] = []; // Store for batch reprocessing
+
+  // Cleanup blob URL when component is destroyed
+  function cleanup() {
+    if (currentAudioUrl) {
+      URL.revokeObjectURL(currentAudioUrl);
+      currentAudioUrl = null;
+    }
+  }
+
+  onDestroy(cleanup);
+
+  // Helper functions for smart staleness detection
+  function hasValidatedAudioProperties(result: AudioResults): boolean {
+    return result.validation?.sampleRate !== undefined || result.validation?.bitDepth !== undefined;
+  }
+
+  function hasFilenameValidation(result: AudioResults): boolean {
+    return result.validation?.filename !== undefined;
+  }
+
+  function hasExperimentalMetrics(result: AudioResults): boolean {
+    return result.peakDb !== undefined || result.reverbInfo !== undefined;
+  }
+
+  function areResultsStaleForMode(
+    results: AudioResults | AudioResults[],
+    newMode: AnalysisMode,
+    currentPreset: any
+  ): boolean {
+    const resultArray = Array.isArray(results) ? results : [results];
+    const firstResult = resultArray[0];
+
+    if (!firstResult) return true;
+
+    switch (newMode) {
+      case 'audio-only':
+        return !hasValidatedAudioProperties(firstResult);
+
+      case 'filename-only':
+        if (currentPreset?.supportsFilenameValidation) {
+          return !hasFilenameValidation(firstResult);
+        }
+        return false;
+
+      case 'full':
+        const needsFilename = currentPreset?.supportsFilenameValidation;
+        if (!hasValidatedAudioProperties(firstResult)) return true;
+        if (needsFilename && !hasFilenameValidation(firstResult)) return true;
+        return false;
+
+      case 'experimental':
+        return !hasExperimentalMetrics(firstResult);
+
+      default:
+        return false;
+    }
+  }
+
+  // Smart staleness detection - only mark stale if new mode needs data we don't have
+  $: {
+    if ((results || batchResults.length > 0) && resultsMode !== null) {
+      if ($analysisMode === resultsMode) {
+        resultsStale = false;
+      } else {
+        const currentPreset = availablePresets[$currentPresetId];
+        const currentResults = batchResults.length > 0 ? batchResults : results;
+        const isStale = areResultsStaleForMode(currentResults, $analysisMode, currentPreset);
+        resultsStale = isStale;
+      }
+    }
+  }
+
+  /**
+   * Analyze a file using the shared analysis service
+   */
+  async function analyzeFile(file: File): Promise<AudioResults> {
+    return await analyzeAudioFile(file, {
+      analysisMode: $analysisMode,
+      preset: $currentPresetId ? availablePresets[$currentPresetId] : null,
+      presetId: $currentPresetId,
+      criteria: $currentCriteria
+    });
+  }
+
+  /**
+   * Process a single file (with UI side effects)
+   * @param file - The file to process
+   */
+  async function processSingleFile(file: File) {
+    cleanup();
+
+    processing = true;
+    error = '';
+    results = null;
+    validation = null;
+    resultsStale = false;
+    resultsMode = null;
+    currentFile = file;
+
+    try {
+      // Analyze file (pure function)
+      const analysisResults = await analyzeFile(file);
+
+      // Create blob URL for audio playback (skip for empty files)
+      // Only create blob for full files, not partial downloads
+      if (file.size > 0 && !(file as any).actualSize) {
+        currentAudioUrl = URL.createObjectURL(file);
+        analysisResults.audioUrl = currentAudioUrl;
+      }
+
+      // Add external URL for Box files (allows viewing in Box)
+      if (originalFileUrl) {
+        analysisResults.externalUrl = originalFileUrl;
+      }
+
+      results = analysisResults;
+      validation = analysisResults.validation || null;
+      resultsMode = $analysisMode;
+
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Unknown error occurred';
+      results = null;
+    } finally {
+      processing = false;
+    }
+  }
+
+  async function handleUrlSubmit() {
+    if (!fileUrl.trim()) return;
+    if (!boxAPI) {
+      error = 'Box API not initialized. Please sign in again.';
+      return;
+    }
+
+    processing = true;
+    error = '';
+    results = null;
+    batchResults = []; // Clear previous batch results
+
+    try {
+      // Parse the URL to determine if it's a file or folder
+      const parsed = boxAPI.parseUrl(fileUrl);
+
+      if (parsed.type === 'folder') {
+        // Folder URL - list audio files and batch process
+        const filesToProcess = await boxAPI.listAudioFilesInFolder(parsed.id, parsed.sharedLink);
+
+        if (filesToProcess.length === 0) {
+          error = 'No audio files found in the folder';
+          processing = false;
+          return;
+        }
+
+        // Multiple files: use batch processing
+        processing = false;
+        await processBatchFiles(filesToProcess);
+      } else {
+        // File URL - single file processing
+        originalFileUrl = fileUrl;
+
+        if ($analysisMode === 'filename-only') {
+          // Filename-only mode: Just fetch metadata, don't download file
+          const metadata = await boxAPI.getFileMetadataFromUrl(fileUrl);
+
+          // Create a minimal File object for filename validation
+          const file = new File([], metadata.name, { type: 'application/octet-stream' });
+          await processSingleFile(file);
+        } else {
+          // Full or audio-only mode: Download the actual file
+          // Get metadata first to pass filename for optimization
+          const metadata = await boxAPI.getFileMetadataFromUrl(fileUrl);
+          const file = await boxAPI.downloadFileFromUrl(fileUrl, {
+            mode: $analysisMode,
+            filename: metadata.name
+          });
+          await processSingleFile(file);
+        }
+        processing = false;
+      }
+
+      fileUrl = ''; // Clear input on success
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Failed to process Box URL';
+      results = null;
+      processing = false;
+    }
+  }
+
+  /**
+   * Process multiple files in batch with parallel processing
+   * @param boxFiles - Array of Box file metadata to process
+   */
+  async function processBatchFiles(boxFiles: any[]) {
+    batchProcessing = true;
+    totalFiles = boxFiles.length;
+    processedFiles = 0;
+    batchResults = [];
+    batchCancelled = false;
+    batchBoxFiles = boxFiles; // Store for reprocessing
+    error = '';
+    resultsMode = $analysisMode;
+
+    const concurrency = 3; // Process 3 files at once
+    let index = 0;
+    const inProgress: Promise<void>[] = [];
+
+    try {
+      while (index < boxFiles.length || inProgress.length > 0) {
+        // Check if cancelled
+        if (batchCancelled) {
+          // Wait for in-progress downloads to complete
+          await Promise.allSettled(inProgress);
+          break;
+        }
+
+        // Start new downloads up to concurrency limit
+        while (inProgress.length < concurrency && index < boxFiles.length) {
+          const boxFile = boxFiles[index];
+          index++;
+
+          const promise = (async () => {
+            try {
+              // Check if filename-only mode - don't download the actual file
+              let file: File;
+              if ($analysisMode === 'filename-only') {
+                // Filename-only mode: Create minimal File object with metadata only
+                file = new File([], boxFile.name, { type: 'application/octet-stream' });
+              } else {
+                // Download file from Box for audio analysis
+                // Pass mode and filename for optimization (WAV files use partial download)
+                file = await boxAPI!.downloadFile(boxFile.id, undefined, {
+                  mode: $analysisMode,
+                  filename: boxFile.name
+                });
+              }
+
+              // Analyze file (pure function)
+              const result = await analyzeFile(file);
+
+              // Add external URL for Box files
+              result.externalUrl = `https://app.box.com/file/${boxFile.id}`;
+
+              // Add to results and increment processed count
+              batchResults = [...batchResults, result];
+              processedFiles = batchResults.length;
+            } catch (err) {
+              // Log error for debugging
+              console.error(`Error processing ${boxFile.name}:`, err);
+
+              // Add error result
+              const errorResult: AudioResults = {
+                filename: boxFile.name,
+                fileSize: boxFile.size || 0,
+                fileType: 'unknown',
+                channels: 0,
+                sampleRate: 0,
+                bitDepth: 0,
+                duration: 0,
+                status: 'error',
+                error: err instanceof Error ? err.message : 'Unknown error'
+              };
+              batchResults = [...batchResults, errorResult];
+              processedFiles = batchResults.length;
+            }
+          })();
+
+          inProgress.push(promise);
+        }
+
+        // Wait for at least one to complete
+        if (inProgress.length > 0) {
+          await Promise.race(inProgress);
+          // Remove completed promises
+          const stillInProgress = [];
+          for (const p of inProgress) {
+            const result = await Promise.race([p, Promise.resolve('still-running')]);
+            if (result === 'still-running') {
+              stillInProgress.push(p);
+            }
+          }
+          inProgress.length = 0;
+          inProgress.push(...stillInProgress);
+        }
+      }
+
+    } catch (err) {
+      if (!batchCancelled) {
+        error = err instanceof Error ? err.message : 'Batch processing failed';
+      }
+    } finally {
+      batchProcessing = false;
+    }
+  }
+
+  /**
+   * Cancel batch processing
+   */
+  function handleCancelBatch() {
+    batchCancelled = true;
+  }
+
+  async function handleReprocess() {
+    if (!boxAPI) {
+      error = 'Box API not initialized. Please sign in again.';
+      return;
+    }
+
+    // Check if this is batch reprocessing
+    if (batchResults.length > 0 && batchBoxFiles.length > 0) {
+      // Batch reprocessing - re-download and reprocess all files
+      await processBatchFiles(batchBoxFiles);
+      return;
+    }
+
+    // Single file reprocessing
+    // Check if we need to re-download (switching from filename-only to audio mode)
+    const needsRedownload = resultsMode === 'filename-only' && $analysisMode !== 'filename-only';
+
+    if (needsRedownload && originalFileUrl) {
+      processing = true;
+      error = '';
+      results = null;
+
+      try {
+        // Re-download from URL
+        const file = await boxAPI.downloadFileFromUrl(originalFileUrl, {
+          mode: $analysisMode,
+          filename: currentFile?.name || ''
+        });
+        await processSingleFile(file);
+      } catch (err) {
+        error = err instanceof Error ? err.message : 'Failed to reprocess file';
+        results = null;
+      } finally {
+        processing = false;
+      }
+    } else if (currentFile) {
+      // Normal reprocessing (just re-validate with different mode)
+      await processSingleFile(currentFile);
+    }
+  }
+</script>
+
+<style>
+  .box-tab {
+    padding: 1.5rem 0;
+  }
+
+  .auth-section {
+    margin-bottom: 1.5rem;
+    padding: 0.875rem 1rem;
+    background: linear-gradient(135deg, rgba(0, 114, 237, 0.05) 0%, rgba(0, 114, 237, 0.1) 100%);
+    border: 1px solid rgba(0, 114, 237, 0.2);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .auth-section.signed-out {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 1.25rem;
+  }
+
+  .auth-section h3 {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary, #666666);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .auth-section.signed-out h3 {
+    font-size: 1rem;
+    text-transform: none;
+    letter-spacing: normal;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary, #333333);
+  }
+
+  .auth-section.signed-out p {
+    margin: 0 0 0.75rem 0;
+    color: var(--text-secondary, #666666);
+    font-size: 0.875rem;
+  }
+
+  .user-email {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--text-primary, #333333);
+    flex: 1;
+  }
+
+  .current-preset {
+    margin-bottom: 1.5rem;
+    padding: 1.25rem;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(37, 99, 235, 0.1) 100%);
+    border: 1px solid rgba(37, 99, 235, 0.2);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .preset-label {
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: var(--text-secondary, #666666);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .preset-name {
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--primary, #2563eb);
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  .preset-name:hover {
+    text-decoration: underline;
+  }
+
+  .current-preset a {
+    margin-left: auto;
+    padding: 0.5rem 1rem;
+    background: var(--primary, #2563eb);
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+
+  .current-preset a:hover {
+    background: var(--primary-dark, #1d4ed8);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+  }
+
+  .no-preset-warning {
+    margin-bottom: 1.5rem;
+    padding: 1.25rem;
+    background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.15) 100%);
+    border: 1px solid rgba(255, 152, 0, 0.3);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .no-preset-warning span {
+    color: #000;
+    font-weight: 500;
+  }
+
+  .no-preset-warning a {
+    margin-left: auto;
+    padding: 0.5rem 1rem;
+    background: var(--warning, #ff9800);
+    color: #000;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+
+  .no-preset-warning a:hover {
+    background: #f57c00;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
+  }
+
+  .file-input-section {
+    margin: 1.5rem 0;
+    padding: 1.25rem;
+    background: var(--bg-secondary, #ffffff);
+    border: 1px solid var(--bg-tertiary, #e0e0e0);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .file-input-section h3 {
+    margin: 0 0 1rem 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary, #333333);
+  }
+
+  .file-input-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .url-input-group {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .url-input-group input {
+    flex: 1;
+    padding: 0.625rem 0.875rem;
+    border: 2px solid var(--bg-tertiary, #e0e0e0);
+    border-radius: 6px;
+    font-size: 0.875rem;
+  }
+
+  .url-input-group input:focus {
+    outline: none;
+    border-color: var(--primary, #2563eb);
+  }
+
+  .analysis-mode-section {
+    margin: 1.5rem 0;
+    padding: 1.25rem;
+    background: var(--bg-secondary, #ffffff);
+    border: 1px solid var(--bg-tertiary, #e0e0e0);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .analysis-mode-section h3 {
+    margin: 0 0 1rem 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary, #333333);
+  }
+
+  .radio-group {
+    display: flex;
+    flex-direction: row;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .radio-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.875rem;
+    border: 2px solid var(--bg-tertiary, #e0e0e0);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .radio-label:hover {
+    border-color: var(--primary, #2563eb);
+    background: rgba(37, 99, 235, 0.02);
+  }
+
+  .radio-label input[type="radio"] {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  .radio-label input[type="radio"]:checked + .radio-content {
+    color: var(--primary, #2563eb);
+  }
+
+  .radio-label:has(input[type="radio"]:checked) {
+    border-color: var(--primary, #2563eb);
+    background: rgba(37, 99, 235, 0.05);
+  }
+
+  .radio-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .radio-title {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--text-primary, #333333);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .radio-description {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #666666);
+    line-height: 1.2;
+  }
+
+  .error-message {
+    margin: 1.5rem 0;
+    padding: 1.25rem;
+    background: linear-gradient(135deg, rgba(244, 67, 54, 0.1) 0%, rgba(244, 67, 54, 0.15) 100%);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    color: var(--danger, #f44336);
+    border-radius: 8px;
+    font-weight: 500;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .processing-indicator {
+    margin: 1.5rem 0;
+    padding: 1.25rem;
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.05) 0%, rgba(76, 175, 80, 0.1) 100%);
+    border: 1px solid rgba(76, 175, 80, 0.2);
+    border-radius: 8px;
+    text-align: center;
+    color: var(--success, #4CAF50);
+    font-weight: 500;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .stale-results-overlay {
+    position: relative;
+  }
+
+  .stale-results-overlay::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.7);
+    pointer-events: none;
+    border-radius: 8px;
+  }
+
+  :global([data-theme="dark"]) .stale-results-overlay::after {
+    background: rgba(15, 23, 42, 0.7);
+  }
+
+  .stale-indicator {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.15) 100%);
+    border: 1px solid rgba(255, 152, 0, 0.3);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .stale-indicator-text {
+    color: var(--text-primary, #333333);
+    font-weight: 500;
+    font-size: 0.875rem;
+  }
+
+  .reprocess-button {
+    padding: 0.5rem 1rem;
+    background: var(--primary, #2563eb);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .reprocess-button:hover {
+    background: var(--primary-dark, #1d4ed8);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+  }
+
+  .reprocess-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  button {
+    padding: 0.5rem 1rem;
+    background: var(--primary, #2563eb);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+
+  button:hover {
+    background: var(--primary-dark, #1d4ed8);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+  }
+
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  button.secondary {
+    background: var(--bg-tertiary, #e0e0e0);
+    color: var(--text-primary, #333333);
+  }
+
+  button.secondary:hover {
+    background: #d0d0d0;
+  }
+
+  .three-hour-note {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: rgba(59, 130, 246, 0.1);
+    border-left: 3px solid var(--primary, #2563eb);
+    border-radius: 4px;
+    font-size: 0.875rem;
+    color: var(--text-primary, #333333);
+  }
+</style>
+
+<div class="box-tab">
+  {#if $authState.box.isAuthenticated}
+    <div class="auth-section">
+      <h3>Box:</h3>
+      <span class="user-email">✓ {$authState.box.userInfo?.login || $authState.box.userInfo?.name || 'Authenticated'}</span>
+      <button class="secondary" on:click={handleSignOut}>Sign Out</button>
+    </div>
+  {:else if isProcessingCallback}
+    <div class="auth-section signed-out">
+      <h3>Box Authentication</h3>
+      <p>Completing sign-in...</p>
+      <div class="processing-indicator">
+        <span>🔄 Please wait</span>
+      </div>
+    </div>
+  {:else}
+    <div class="auth-section signed-out">
+      <h3>Box Authentication</h3>
+      <p>Sign in to access your Box files</p>
+      <button on:click={handleSignIn}>Sign in with Box</button>
+    </div>
+  {/if}
+
+  {#if $authState.box.isAuthenticated}
+    <!-- Preset Display -->
+    {#if !$hasValidPresetConfig}
+      <div class="no-preset-warning">
+        <span>Please select a Preset or configure Custom criteria to analyze files.</span>
+        <a href="#" on:click|preventDefault={goToSettings}>Select Preset</a>
+      </div>
+    {:else if $currentPresetId}
+      <div class="current-preset">
+        <span class="preset-label">Current Preset:</span>
+        <span class="preset-name" on:click={goToSettings}>{availablePresets[$currentPresetId]?.name || $currentPresetId}</span>
+        <a href="#" on:click|preventDefault={goToSettings}>Change</a>
+      </div>
+    {/if}
+
+    <!-- File Input Section -->
+    <div class="file-input-section">
+      <h3>Select File:</h3>
+      <div class="file-input-wrapper">
+        <div class="url-input-group">
+          <input
+            type="text"
+            bind:value={fileUrl}
+            placeholder={$hasValidPresetConfig ? "Paste Box shared link URL (e.g., https://app.box.com/s/...)" : "Configure a preset in Settings to analyze files"}
+            disabled={processing || !$hasValidPresetConfig}
+            on:keydown={(e) => e.key === 'Enter' && !processing && fileUrl.trim() && $hasValidPresetConfig && handleUrlSubmit()}
+          />
+          <button on:click={handleUrlSubmit} disabled={processing || !fileUrl.trim() || !$hasValidPresetConfig}>
+            Analyze URL
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analysis Mode Selection -->
+    {#if $currentPresetId && availablePresets[$currentPresetId]?.supportsFilenameValidation && availablePresets[$currentPresetId]?.filenameValidationType !== 'script-match'}
+      <!-- Filename validation presets (non-Three Hour): Show all 4 options -->
+      <div class="analysis-mode-section">
+        <h3>Analysis Mode:</h3>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode-box"
+              value="audio-only"
+              checked={$analysisMode === 'audio-only'}
+              on:change={() => setAnalysisMode('audio-only')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Audio Only</span>
+              <span class="radio-description">Basic properties only</span>
+            </div>
+          </label>
+
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode-box"
+              value="filename-only"
+              checked={$analysisMode === 'filename-only'}
+              on:change={() => setAnalysisMode('filename-only')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Filename Only</span>
+              <span class="radio-description">Fastest - metadata only</span>
+            </div>
+          </label>
+
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode-box"
+              value="full"
+              checked={$analysisMode === 'full'}
+              on:change={() => setAnalysisMode('full')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Full Analysis</span>
+              <span class="radio-description">Basic properties + filename validation</span>
+            </div>
+          </label>
+
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode-box"
+              value="experimental"
+              checked={$analysisMode === 'experimental'}
+              on:change={() => setAnalysisMode('experimental')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Experimental Analysis</span>
+              <span class="radio-description">Peak level, noise floor, reverb, silence detection</span>
+            </div>
+          </label>
+        </div>
+      </div>
+    {:else if availablePresets[$currentPresetId]?.filenameValidationType === 'script-match'}
+      <!-- Three Hour preset: Show only Audio Analysis and Experimental -->
+      <div class="analysis-mode-section">
+        <h3>Analysis Mode:</h3>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode-box"
+              value="audio-only"
+              checked={$analysisMode === 'audio-only'}
+              on:change={() => setAnalysisMode('audio-only')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Audio Analysis</span>
+              <span class="radio-description">Basic properties (sample rate, bit depth, duration)</span>
+            </div>
+          </label>
+
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode-box"
+              value="experimental"
+              checked={$analysisMode === 'experimental'}
+              on:change={() => setAnalysisMode('experimental')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Experimental Analysis</span>
+              <span class="radio-description">Peak level, noise floor, reverb, silence detection</span>
+            </div>
+          </label>
+        </div>
+        <div class="three-hour-note">
+          ℹ️ <strong>Note:</strong> Three Hour filename validation requires Google Drive. Use the Google Drive tab for filename validation, or select Audio Analysis/Experimental here.
+        </div>
+      </div>
+    {/if}
+
+    <ResultsDisplay
+      results={batchResults.length > 0 ? batchResults : results}
+      isProcessing={processing || batchProcessing}
+      {error}
+      {resultsMode}
+      {resultsStale}
+      {processedFiles}
+      {totalFiles}
+      onReprocess={handleReprocess}
+      onCancel={handleCancelBatch}
+      cancelRequested={batchCancelled}
+    />
+  {/if}
+</div>

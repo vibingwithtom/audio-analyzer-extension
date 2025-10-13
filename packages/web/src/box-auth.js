@@ -86,6 +86,13 @@ class BoxAuth {
     const state = Math.random().toString(36).substring(2, 15);
     localStorage.setItem('box_oauth_state', state);
 
+    // Save current tab so we can restore it after OAuth redirect
+    // This is read from the tab store and will be restored in App.svelte
+    const currentTab = localStorage.getItem('current_tab');
+    if (currentTab) {
+      localStorage.setItem('box_oauth_return_tab', currentTab);
+    }
+
     // Build authorization URL for authorization code flow
     const authUrl = new URL(BOX_CONFIG.AUTHORIZATION_URL);
     authUrl.searchParams.append('client_id', BOX_CONFIG.CLIENT_ID);

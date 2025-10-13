@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Option 2: Two-Pass Workflow - Experimental Analysis Mockup</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f8f9fa;
+      padding: 2rem;
+      color: #333;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      color: #2563eb;
+    }
+
+    .mockup-label {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(37, 99, 235, 0.15) 100%);
+      border: 1px solid rgba(37, 99, 235, 0.3);
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 2rem;
+      font-weight: 500;
+    }
+
+    .step-buttons {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .step-button {
+      padding: 0.75rem 1.5rem;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .step-button:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+    }
+
+    .step-button.inactive {
+      background: #e0e0e0;
+      color: #666;
+    }
+
+    .batch-summary {
+      margin: 1.5rem 0;
+      padding: 1.5rem;
+      background: var(--bg-secondary, #ffffff);
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .batch-summary h2 {
+      margin: 0 0 1.25rem 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .batch-time {
+      font-size: 0.875rem;
+      color: #666;
+      margin-top: 0.5rem;
+    }
+
+    .summary-stats {
+      display: flex;
+      gap: 2rem;
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 80px;
+    }
+
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+      font-size: 0.875rem;
+      color: #666;
+      font-weight: 500;
+    }
+
+    .stat.pass .stat-value { color: #4CAF50; }
+    .stat.warning .stat-value { color: #ff9800; }
+    .stat.fail .stat-value { color: #f44336; }
+
+    .experimental-cta {
+      margin: 1.5rem 0;
+      padding: 1.5rem;
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(139, 92, 246, 0.1) 100%);
+      border: 2px solid rgba(139, 92, 246, 0.3);
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .experimental-cta h3 {
+      margin-bottom: 1rem;
+      color: #7c3aed;
+    }
+
+    .experimental-button {
+      padding: 1rem 2rem;
+      background: #7c3aed;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 1rem;
+      transition: all 0.2s;
+      box-shadow: 0 2px 4px rgba(124, 58, 237, 0.2);
+    }
+
+    .experimental-button:hover {
+      background: #6d28d9;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(124, 58, 237, 0.3);
+    }
+
+    .progress-section {
+      margin: 1.5rem 0;
+      padding: 1.5rem;
+      background: linear-gradient(135deg, rgba(76, 175, 80, 0.05) 0%, rgba(76, 175, 80, 0.1) 100%);
+      border: 1px solid rgba(76, 175, 80, 0.2);
+      border-radius: 8px;
+      display: none;
+    }
+
+    .progress-section.active {
+      display: block;
+    }
+
+    .progress-text {
+      text-align: center;
+      font-weight: 500;
+      color: #2e7d32;
+      margin-bottom: 1rem;
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 24px;
+      background: #e0e0e0;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #4CAF50 0%, #66BB6A 100%);
+      width: 47%;
+      transition: width 0.3s ease;
+    }
+
+    .cancel-button {
+      display: block;
+      margin: 0 auto;
+      padding: 0.5rem 1.25rem;
+      background: #f44336;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .cancel-button:hover {
+      background: #d32f2f;
+    }
+
+    .results-table {
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(37, 99, 235, 0.1) 100%);
+      padding: 0.875rem;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: #333;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    td {
+      padding: 0.875rem;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 0.875rem;
+    }
+
+    tr:hover {
+      background: rgba(37, 99, 235, 0.02);
+    }
+
+    .status-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      font-weight: 500;
+      font-size: 0.75rem;
+      display: inline-block;
+    }
+
+    .status-pass {
+      background: rgba(76, 175, 80, 0.1);
+      color: #2e7d32;
+    }
+
+    .status-warning {
+      background: rgba(255, 152, 0, 0.1);
+      color: #e65100;
+    }
+
+    .status-pending {
+      background: rgba(158, 158, 158, 0.1);
+      color: #616161;
+    }
+
+    .status-analyzing {
+      background: rgba(37, 99, 235, 0.1);
+      color: #1565c0;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .expanded-details {
+      display: none;
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.02) 0%, rgba(37, 99, 235, 0.05) 100%);
+      padding: 1.5rem;
+      border-top: 2px solid #e0e0e0;
+    }
+
+    .expanded-details.visible {
+      display: block;
+    }
+
+    .advanced-analysis-header {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #2563eb;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+
+    .metric-card {
+      background: white;
+      padding: 1rem;
+      border-radius: 6px;
+      border: 1px solid #e0e0e0;
+    }
+
+    .metric-label {
+      font-size: 0.75rem;
+      color: #666;
+      font-weight: 500;
+      margin-bottom: 0.5rem;
+    }
+
+    .metric-value {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .metric-value.success {
+      color: #4CAF50;
+    }
+
+    .metric-subtitle {
+      font-size: 0.75rem;
+      color: #666;
+      margin-top: 0.25rem;
+    }
+
+    .metric-subtitle.success {
+      color: #4CAF50;
+    }
+
+    .step-1 { display: block; }
+    .step-2 { display: none; }
+
+    .step-2.active { display: block; }
+    .step-1.inactive { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Option 2: Two-Pass Workflow</h1>
+
+    <div class="mockup-label">
+      📋 <strong>Concept:</strong> Fast initial batch gives immediate feedback. User decides if/when to run expensive experimental analysis. Results appear progressively.
+    </div>
+
+    <div class="step-buttons">
+      <button class="step-button" onclick="showStep(1)">Step 1: Fast Initial Batch</button>
+      <button class="step-button inactive" onclick="showStep(2)">Step 2: Running Experimental</button>
+    </div>
+
+    <!-- STEP 1: Initial Fast Batch -->
+    <div class="step-1">
+      <div class="batch-summary">
+        <h2>Batch Analysis Results</h2>
+        <div class="summary-stats">
+          <div class="stat pass">
+            <div class="stat-value">15</div>
+            <div class="stat-label">Pass</div>
+          </div>
+          <div class="stat warning">
+            <div class="stat-value">1</div>
+            <div class="stat-label">Warnings</div>
+          </div>
+          <div class="stat fail">
+            <div class="stat-value">1</div>
+            <div class="stat-label">Failed</div>
+          </div>
+        </div>
+        <div class="batch-time">✓ Processed 17 files in 0.8 seconds</div>
+      </div>
+
+      <div class="experimental-cta">
+        <h3>🧪 Want deeper insights?</h3>
+        <p style="margin-bottom: 1rem; color: #666;">Run experimental analysis to check reverb, noise floor, silence, and mic bleed</p>
+        <button class="experimental-button" onclick="showStep(2)">🧪 Run Experimental Analysis on 17 files</button>
+      </div>
+
+      <div class="results-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Filename</th>
+              <th>Sample Rate</th>
+              <th>Bit Depth</th>
+              <th>Channels</th>
+              <th>Duration</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>recording_001.wav</td>
+              <td>48000 Hz</td>
+              <td>24-bit</td>
+              <td>Mono</td>
+              <td>0:15</td>
+              <td><span class="status-badge status-pass">✓ Pass</span></td>
+            </tr>
+            <tr>
+              <td>recording_002.wav</td>
+              <td>48000 Hz</td>
+              <td>16-bit</td>
+              <td>Stereo</td>
+              <td>0:23</td>
+              <td><span class="status-badge status-warning">⚠ Warning</span></td>
+            </tr>
+            <tr>
+              <td>recording_003.wav</td>
+              <td>44100 Hz</td>
+              <td>16-bit</td>
+              <td>Mono</td>
+              <td>0:18</td>
+              <td><span class="status-badge status-pass">✓ Pass</span></td>
+            </tr>
+            <tr>
+              <td>recording_004.wav</td>
+              <td>48000 Hz</td>
+              <td>24-bit</td>
+              <td>Mono</td>
+              <td>0:22</td>
+              <td><span class="status-badge status-pass">✓ Pass</span></td>
+            </tr>
+            <tr>
+              <td>recording_005.wav</td>
+              <td>48000 Hz</td>
+              <td>24-bit</td>
+              <td>Mono</td>
+              <td>0:19</td>
+              <td><span class="status-badge status-pass">✓ Pass</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- STEP 2: Running Experimental Analysis -->
+    <div class="step-2">
+      <div class="batch-summary">
+        <h2>Batch Analysis Results</h2>
+        <div class="summary-stats">
+          <div class="stat pass">
+            <div class="stat-value">15</div>
+            <div class="stat-label">Pass</div>
+          </div>
+          <div class="stat warning">
+            <div class="stat-value">1</div>
+            <div class="stat-label">Warnings</div>
+          </div>
+          <div class="stat fail">
+            <div class="stat-value">1</div>
+            <div class="stat-label">Failed</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="progress-section active">
+        <div class="progress-text">
+          Running experimental analysis on file 8 of 17... (47%)
+        </div>
+        <div class="progress-bar-container">
+          <div class="progress-bar"></div>
+        </div>
+        <button class="cancel-button">✕ Cancel</button>
+      </div>
+
+      <div class="results-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Filename</th>
+              <th>Sample Rate</th>
+              <th>Bit Depth</th>
+              <th>Experimental Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Completed files with expandable details -->
+            <tr onclick="toggleDetails(this)">
+              <td>recording_001.wav</td>
+              <td>48000 Hz</td>
+              <td>24-bit</td>
+              <td><span class="status-badge status-pass">🧪 Complete</span></td>
+            </tr>
+            <tr>
+              <td colspan="4" class="expanded-details visible">
+                <div class="advanced-analysis-header">🧪 Experimental Analysis Results</div>
+                <div class="metrics-grid">
+                  <div class="metric-card">
+                    <div class="metric-label">Peak Level</div>
+                    <div class="metric-value">-9.1 dB</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Normalization</div>
+                    <div class="metric-value">Too quiet</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Reverb (RT60)</div>
+                    <div class="metric-value">~0.62 s</div>
+                    <div class="metric-subtitle">Fair</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Longest Silence</div>
+                    <div class="metric-value">0:02</div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+
+            <tr onclick="toggleDetails(this)">
+              <td>recording_002.wav</td>
+              <td>48000 Hz</td>
+              <td>16-bit</td>
+              <td><span class="status-badge status-pass">🧪 Complete</span></td>
+            </tr>
+            <tr>
+              <td colspan="4" class="expanded-details">
+                <div class="advanced-analysis-header">🧪 Experimental Analysis Results</div>
+                <div class="metrics-grid">
+                  <div class="metric-card">
+                    <div class="metric-label">Peak Level</div>
+                    <div class="metric-value">-5.5 dB</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Normalization</div>
+                    <div class="metric-value">Too loud</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Reverb (RT60)</div>
+                    <div class="metric-value success">~0.48 s</div>
+                    <div class="metric-subtitle success">Good</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Mic Bleed</div>
+                    <div class="metric-value success">Not detected</div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Currently processing -->
+            <tr>
+              <td>recording_008.wav</td>
+              <td>48000 Hz</td>
+              <td>16-bit</td>
+              <td><span class="status-badge status-analyzing">⏳ Analyzing...</span></td>
+            </tr>
+
+            <!-- Pending files -->
+            <tr>
+              <td>recording_009.wav</td>
+              <td>44100 Hz</td>
+              <td>16-bit</td>
+              <td><span class="status-badge status-pending">⏸ Pending...</span></td>
+            </tr>
+            <tr>
+              <td>recording_010.wav</td>
+              <td>48000 Hz</td>
+              <td>24-bit</td>
+              <td><span class="status-badge status-pending">⏸ Pending...</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showStep(stepNum) {
+      if (stepNum === 1) {
+        document.querySelector('.step-1').classList.remove('inactive');
+        document.querySelector('.step-2').classList.remove('active');
+        document.querySelectorAll('.step-button')[0].classList.remove('inactive');
+        document.querySelectorAll('.step-button')[1].classList.add('inactive');
+      } else {
+        document.querySelector('.step-1').classList.add('inactive');
+        document.querySelector('.step-2').classList.add('active');
+        document.querySelectorAll('.step-button')[0].classList.add('inactive');
+        document.querySelectorAll('.step-button')[1].classList.remove('inactive');
+      }
+    }
+
+    function toggleDetails(row) {
+      const detailsRow = row.nextElementSibling;
+      if (detailsRow && detailsRow.querySelector('.expanded-details')) {
+        const details = detailsRow.querySelector('.expanded-details');
+        details.classList.toggle('visible');
+      }
+    }
+  </script>
+</body>
+</html>
