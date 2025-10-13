@@ -274,8 +274,7 @@ export class GoogleDriveAPI {
         // Add file selection view with folders visible for navigation
         const docsView = new window.google.picker.DocsView()
           .setIncludeFolders(true)
-          .setSelectFolderEnabled(options?.selectFolders || false)
-          .setParent('root');
+          .setSelectFolderEnabled(options?.selectFolders || false);
 
         // Add MIME type filter for audio files if specified
         if (options?.audioOnly !== false) { // Default to audio-only

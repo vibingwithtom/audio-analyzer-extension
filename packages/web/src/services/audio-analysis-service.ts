@@ -1,13 +1,12 @@
 import { AudioAnalyzer, LevelAnalyzer, CriteriaValidator } from '@audio-analyzer/core';
 import { FilenameValidator } from '../validation/filename-validator';
-import type { AudioResults, ValidationResults, AnalysisMode } from '../types';
-import type { Preset } from '../presets';
-import { get } from 'svelte/store';
-import { analysisMode, currentCriteria, currentPresetId, availablePresets } from '../stores/settings';
+import type { AudioResults, ValidationResults } from '../types';
+import type { AnalysisMode } from '../stores/analysisMode';
+import type { PresetConfig } from '../settings/types';
 
 export interface AnalysisOptions {
   analysisMode: AnalysisMode;
-  preset?: Preset | null;
+  preset?: PresetConfig | null;
   presetId?: string;
   criteria?: any; // AudioCriteria from core
   // Three Hour configuration (for script-match validation)
@@ -49,7 +48,7 @@ export async function analyzeAudioFile(
 async function analyzeMetadataOnly(
   file: File | Blob,
   filename: string,
-  preset?: Preset | null,
+  preset?: PresetConfig | null,
   presetId?: string,
   mode?: AnalysisMode,
   scriptsList?: string[],
@@ -92,7 +91,7 @@ async function analyzeFullFile(
   file: File | Blob,
   filename: string,
   mode: AnalysisMode,
-  preset?: Preset | null,
+  preset?: PresetConfig | null,
   presetId?: string,
   criteria?: any,
   scriptsList?: string[],
@@ -107,9 +106,13 @@ async function analyzeFullFile(
 
   let result: AudioResults = {
     filename,
-    ...basicResults,
-    fileSize: actualSize, // Must come AFTER basicResults to override file.size from core
-    status: 'pass'
+    status: 'pass',
+    sampleRate: 0,
+    bitDepth: 0,
+    channels: 0,
+    duration: 0,
+    fileSize: actualSize,
+    ...(basicResults as any)  // Spread after defaults so basicResults can override
   };
 
   // Advanced/Experimental analysis
@@ -122,13 +125,13 @@ async function analyzeFullFile(
   // Validation against preset criteria
   if (criteria) {
     const skipAudioValidation = mode === 'filename-only';
-    const validation = CriteriaValidator.validateResults(result, criteria, skipAudioValidation);
+    const validation = CriteriaValidator.validateResults(result, criteria, skipAudioValidation) as unknown as ValidationResults;
 
     // Add filename validation if preset supports it
     if (preset?.filenameValidationType && (mode === 'filename-only' || mode === 'full')) {
       const filenameValidation = validateFilename(filename, preset, presetId, scriptsList, speakerId);
       if (filenameValidation && validation) {
-        validation.filename = filenameValidation;
+        (validation as any).filename = filenameValidation;
       }
     }
 
@@ -150,7 +153,7 @@ async function analyzeExperimental(arrayBuffer: ArrayBuffer): Promise<Partial<Au
   const levelAnalyzer = new LevelAnalyzer();
 
   // Run level analysis with experimental features (reverb, noise floor, silence)
-  const advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer, null, true);
+  const advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer, null, true) as any;
 
   // Add stereo separation analysis
   const stereoSeparation = levelAnalyzer.analyzeStereoSeparation(audioBuffer);
@@ -164,7 +167,7 @@ async function analyzeExperimental(arrayBuffer: ArrayBuffer): Promise<Partial<Au
     advancedResults.micBleed = micBleed;
   }
 
-  return advancedResults;
+  return advancedResults as Partial<AudioResults>;
 }
 
 /**
@@ -172,7 +175,7 @@ async function analyzeExperimental(arrayBuffer: ArrayBuffer): Promise<Partial<Au
  */
 function validateFilename(
   filename: string,
-  preset: Preset,
+  preset: PresetConfig,
   presetId?: string,
   scriptsList?: string[],
   speakerId?: string

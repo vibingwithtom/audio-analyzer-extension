@@ -115,11 +115,11 @@ export class BoxAPI {
       // Full download needed for:
       // - Experimental mode (any format - needs full audio for analysis)
       // - Non-WAV files (MP3, FLAC, etc. - Web Audio API requires complete file)
-      return await this.boxAuth.downloadFile(fileId, sharedLink ? sharedLink : null);
+      return await this.boxAuth.downloadFile(fileId, (sharedLink || null) as any);
     } else {
       // Partial download optimization for WAV files in audio-only/full mode
       // WAV headers contain all metadata, only need first ~100KB
-      const partialBlob = await this.boxAuth.downloadFileHeaders(fileId, 102400, sharedLink ? sharedLink : null);
+      const partialBlob = await this.boxAuth.downloadFileHeaders(fileId, 102400, (sharedLink || null) as any);
       const metadata = await this.getFileMetadata(fileId, sharedLink);
       const file = new File([partialBlob], metadata.name, { type: 'audio/wav' });
 
@@ -173,7 +173,7 @@ export class BoxAPI {
    * @throws Error if listing fails
    */
   async listAudioFilesInFolder(folderId: string, sharedLink?: string): Promise<BoxFileMetadata[]> {
-    return await this.boxAuth.listAudioFilesInFolder(folderId, sharedLink ? sharedLink : null);
+    return await this.boxAuth.listAudioFilesInFolder(folderId, (sharedLink || null) as any);
   }
 
   /**
@@ -185,7 +185,7 @@ export class BoxAPI {
    */
   async getFileMetadata(fileId: string, sharedLink?: string): Promise<BoxFileMetadata> {
     const boxFile = { id: fileId, name: '', type: 'file' };
-    return await this.boxAuth.getFileMetadata(boxFile, sharedLink ? sharedLink : null);
+    return await this.boxAuth.getFileMetadata(boxFile, (sharedLink || null) as any);
   }
 
   /**

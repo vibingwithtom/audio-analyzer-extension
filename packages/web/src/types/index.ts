@@ -1,6 +1,7 @@
 export interface AudioResults {
   filename: string;
   status: 'pass' | 'fail' | 'warning' | 'error';
+  fileType?: string; // File type/extension
   sampleRate: number | 'Unknown';
   bitDepth: number | 'Unknown';
   channels: number | 'Unknown';
@@ -10,6 +11,15 @@ export interface AudioResults {
   externalUrl?: string; // External URL for Box/Google Drive
   validation?: ValidationResults;
   isMetadataOnly?: boolean;
+  // Experimental analysis properties
+  peakDb?: number;
+  noiseFloor?: number;
+  noiseFloorDb?: number;
+  reverbInfo?: any;
+  silenceInfo?: any;
+  normalizationStatus?: any;
+  stereoSeparation?: any;
+  micBleed?: any;
 }
 
 export interface ValidationResult {
