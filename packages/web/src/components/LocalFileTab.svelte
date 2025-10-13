@@ -29,12 +29,19 @@
   let cancelRequested = false;
   let batchFiles: File[] = []; // Store files for reprocessing
 
-  // Cleanup blob URL when component is destroyed
+  // Cleanup blob URLs when component is destroyed
   function cleanup() {
+    // Clean up single file audio URL
     if (currentAudioUrl) {
       URL.revokeObjectURL(currentAudioUrl);
       currentAudioUrl = null;
     }
+    // Clean up batch audio URLs
+    batchResults.forEach(result => {
+      if (result.audioUrl) {
+        URL.revokeObjectURL(result.audioUrl);
+      }
+    });
   }
 
   onDestroy(cleanup);
@@ -204,6 +211,11 @@
 
       try {
         const result = await processSingleFile(file);
+
+        // Create blob URL for audio playback in batch mode
+        const blobUrl = URL.createObjectURL(file);
+        result.audioUrl = blobUrl;
+
         batchResults = [...batchResults, result];
       } catch (err) {
         // Add error result (separate from validation failures)

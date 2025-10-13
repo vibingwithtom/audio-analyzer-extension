@@ -27,21 +27,40 @@ export class AudioAnalyzer {
           // WAV header parsing failed - check actual file type from header
           const detectedType = this.detectFileTypeFromHeader(view);
           if (detectedType && detectedType !== 'WAV') {
+            // File has wrong extension - fall through to decode with Web Audio API
+            // which can handle M4A, MP3, etc. We'll use the detected type for the label.
             fileType = `${detectedType} (wrong extension)`;
+            // Don't return here - fall through to Web Audio API decoding below
           } else {
             fileType = 'Unknown Format';
+            // Truly unknown format - return with Unknown values
+            return {
+              fileType: fileType,
+              sampleRate: wavInfo.sampleRate,
+              channels: wavInfo.channels,
+              bitDepth: wavInfo.bitDepth,
+              duration: wavInfo.duration,
+              fileSize: file.size
+            };
           }
         }
       }
 
-      return {
-        fileType: fileType,
-        sampleRate: wavInfo.sampleRate,
-        channels: wavInfo.channels,
-        bitDepth: wavInfo.bitDepth,
-        duration: wavInfo.duration,
-        fileSize: file.size
-      };
+      // Only return here if we successfully parsed WAV headers
+      if (fileType.startsWith('WAV')) {
+        return {
+          fileType: fileType,
+          sampleRate: wavInfo.sampleRate,
+          channels: wavInfo.channels,
+          bitDepth: wavInfo.bitDepth,
+          duration: wavInfo.duration,
+          fileSize: file.size
+        };
+      }
+
+      // For misnamed files (e.g., M4A with .wav extension), continue to Web Audio API decoding
+      // Store the detected file type to use later
+      this._detectedFileType = fileType;
     }
 
     // Initialize audio context if needed
@@ -54,8 +73,15 @@ export class AudioAnalyzer {
       const arrayBufferCopy = arrayBuffer.slice(0);
       this.audioBuffer = await this.audioContext.decodeAudioData(arrayBufferCopy);
 
+      // Use detected file type if we found one (e.g., M4A with .wav extension)
+      // Otherwise use file type from extension
+      const fileType = this._detectedFileType || this.getFileType(file.name);
+
+      // Clear the detected file type for next analysis
+      this._detectedFileType = null;
+
       return {
-        fileType: this.getFileType(file.name),
+        fileType: fileType,
         sampleRate: this.audioBuffer.sampleRate,
         channels: this.audioBuffer.numberOfChannels,
         duration: this.audioBuffer.duration,
@@ -63,6 +89,9 @@ export class AudioAnalyzer {
         bitDepth: this.estimateBitDepth(arrayBuffer, file.name)
       };
     } catch (error) {
+      // Clear detected file type on error
+      this._detectedFileType = null;
+
       // Fallback to header analysis using the original arrayBuffer
       return await this.analyzeFileHeaders(arrayBuffer, file.name, file.size);
     }
