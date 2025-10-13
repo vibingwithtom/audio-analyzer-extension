@@ -319,9 +319,22 @@
         value={$currentPresetId}
         on:change={handlePresetChange}
       >
-        {#each presetEntries as [id, preset]}
-          <option value={id}>{preset.name}</option>
-        {/each}
+        <!-- Auditions Group -->
+        <option value="auditions-character-recordings">{availablePresets['auditions-character-recordings'].name}</option>
+        <option value="auditions-emotional-voice">{availablePresets['auditions-emotional-voice'].name}</option>
+        <option disabled>─────────────────────</option>
+
+        <!-- Other Presets -->
+        <option value="bilingual-conversational">{availablePresets['bilingual-conversational'].name}</option>
+        <option value="character-recordings">{availablePresets['character-recordings'].name}</option>
+        <option value="p2b2-pairs-mixed">{availablePresets['p2b2-pairs-mixed'].name}</option>
+        <option value="p2b2-pairs-mono">{availablePresets['p2b2-pairs-mono'].name}</option>
+        <option value="p2b2-pairs-stereo">{availablePresets['p2b2-pairs-stereo'].name}</option>
+        <option value="three-hour">{availablePresets['three-hour'].name}</option>
+        <option disabled>─────────────────────</option>
+
+        <!-- Custom -->
+        <option value="custom">{availablePresets['custom'].name}</option>
       </select>
     </div>
 
