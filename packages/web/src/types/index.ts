@@ -6,7 +6,8 @@ export interface AudioResults {
   channels: number | 'Unknown';
   duration: number | 'Unknown';
   fileSize: number;
-  audioUrl?: string;
+  audioUrl?: string; // Blob URL for local playback
+  externalUrl?: string; // External URL for Box/Google Drive
   validation?: ValidationResults;
   isMetadataOnly?: boolean;
 }

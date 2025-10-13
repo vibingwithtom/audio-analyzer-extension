@@ -175,9 +175,18 @@
       const analysisResults = await analyzeFile(file);
 
       // Create blob URL for audio playback (skip for empty files)
-      if (file.size > 0) {
+      // Only create blob for full files, not partial downloads
+      if (file.size > 0 && !(file as any).actualSize) {
         currentAudioUrl = URL.createObjectURL(file);
         analysisResults.audioUrl = currentAudioUrl;
+      }
+
+      // Add external URL for Google Drive files (allows viewing in Drive)
+      if (originalFileUrl) {
+        analysisResults.externalUrl = originalFileUrl;
+      } else if (originalFileId) {
+        // Construct Google Drive view URL from file ID
+        analysisResults.externalUrl = `https://drive.google.com/file/d/${originalFileId}/view`;
       }
 
       results = analysisResults;
@@ -243,6 +252,9 @@
 
               // Analyze file (pure function)
               const result = await analyzeFile(file);
+
+              // Add external URL for Google Drive files
+              result.externalUrl = `https://drive.google.com/file/d/${driveFile.id}/view`;
 
               // Add to results and increment processed count
               batchResults = [...batchResults, result];
@@ -908,6 +920,7 @@
             bind:value={fileUrl}
             placeholder="Paste Google Drive file or folder URL (e.g., https://drive.google.com/...)"
             disabled={processing}
+            on:keydown={(e) => e.key === 'Enter' && !processing && fileUrl.trim() && handleUrlSubmit()}
           />
           <button on:click={handleUrlSubmit} disabled={processing || !fileUrl.trim()}>
             Analyze URL

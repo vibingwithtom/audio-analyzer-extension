@@ -54,9 +54,12 @@ async function analyzeMetadataOnly(
   const extension = filename.split('.').pop()?.toLowerCase() || '';
   const fileType = extension || 'unknown';
 
+  // Use actualSize if available (for partial downloads), otherwise use file.size
+  const actualSize = (file as any).actualSize || file.size;
+
   const result: AudioResults = {
     filename,
-    fileSize: file.size,
+    fileSize: actualSize,
     fileType,
     channels: 0,
     sampleRate: 0,
@@ -92,10 +95,13 @@ async function analyzeFullFile(
   const audioAnalyzer = new AudioAnalyzer();
   const basicResults = await audioAnalyzer.analyzeFile(file);
 
+  // Use actualSize if available (for partial downloads), otherwise use file.size
+  const actualSize = (file as any).actualSize || file.size;
+
   let result: AudioResults = {
     filename,
-    fileSize: file.size,
     ...basicResults,
+    fileSize: actualSize, // Must come AFTER basicResults to override file.size from core
     status: 'pass'
   };
 

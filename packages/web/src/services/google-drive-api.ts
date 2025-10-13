@@ -131,7 +131,12 @@ export class GoogleDriveAPI {
       // WAV headers contain all metadata, only need first ~100KB
       const partialBlob = await this.googleAuth.downloadFileHeaders(fileId);
       const metadata = await this.getFileMetadata(fileId);
-      return new File([partialBlob], metadata.name, { type: metadata.mimeType });
+      const file = new File([partialBlob], metadata.name, { type: metadata.mimeType });
+
+      // Store actual file size as custom property (File.size reflects blob size)
+      (file as any).actualSize = metadata.size;
+
+      return file;
     }
   }
 

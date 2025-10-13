@@ -218,6 +218,32 @@
   .experimental-table-wrapper {
     overflow-x: auto;
   }
+
+  .external-link-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: var(--primary, #2563eb);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 1.25rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+
+  .external-link-btn:hover {
+    background: var(--primary-dark, #1d4ed8);
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
+  }
+
+  .external-link-btn:active {
+    transform: scale(0.95);
+  }
 </style>
 
 <div class="results-container">
@@ -338,9 +364,7 @@
           <th>Channels</th>
           <th>Duration</th>
           <th>File Size</th>
-          {#if isSingleFile}
-            <th>Play</th>
-          {/if}
+          <th>Play</th>
         {/if}
       </tr>
     </thead>
@@ -412,13 +436,15 @@
             <td>
               {formatBytes(result.fileSize)}
             </td>
-            {#if isSingleFile}
-              <td>
-                {#if result.audioUrl}
-                  <audio controls src={result.audioUrl}></audio>
-                {/if}
-              </td>
-            {/if}
+            <td>
+              {#if result.audioUrl}
+                <audio controls src={result.audioUrl}></audio>
+              {:else if result.externalUrl}
+                <a href={result.externalUrl} target="_blank" rel="noopener noreferrer" class="external-link-btn" title="View in Box/Google Drive">
+                  ▶
+                </a>
+              {/if}
+            </td>
           {/if}
         </tr>
       {/each}

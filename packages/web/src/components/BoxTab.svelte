@@ -14,11 +14,14 @@
   let boxAPI: BoxAPI | null = null;
 
   // Detect if we're in the middle of OAuth callback processing
-  let isProcessingCallback = false;
-  if (typeof window !== 'undefined') {
+  // Only show processing state if: (1) OAuth params exist AND (2) not yet authenticated
+  $: isProcessingCallback = (() => {
+    if (typeof window === 'undefined') return false;
+    if ($authState.box.isAuthenticated) return false; // Already authenticated, don't show processing
+
     const params = new URLSearchParams(window.location.search);
-    isProcessingCallback = params.has('code') && params.has('state');
-  }
+    return params.has('code') && params.has('state');
+  })();
 
   function goToSettings() {
     currentTab.setTab('settings');
@@ -55,6 +58,7 @@
   let totalFiles = 0;
   let processedFiles = 0;
   let batchCancelled = false;
+  let batchBoxFiles: any[] = []; // Store for batch reprocessing
 
   // Cleanup blob URL when component is destroyed
   function cleanup() {
@@ -159,9 +163,15 @@
       const analysisResults = await analyzeFile(file);
 
       // Create blob URL for audio playback (skip for empty files)
-      if (file.size > 0) {
+      // Only create blob for full files, not partial downloads
+      if (file.size > 0 && !(file as any).actualSize) {
         currentAudioUrl = URL.createObjectURL(file);
         analysisResults.audioUrl = currentAudioUrl;
+      }
+
+      // Add external URL for Box files (allows viewing in Box)
+      if (originalFileUrl) {
+        analysisResults.externalUrl = originalFileUrl;
       }
 
       results = analysisResults;
@@ -247,6 +257,7 @@
     processedFiles = 0;
     batchResults = [];
     batchCancelled = false;
+    batchBoxFiles = boxFiles; // Store for reprocessing
     error = '';
     resultsMode = $analysisMode;
 
@@ -286,6 +297,9 @@
 
               // Analyze file (pure function)
               const result = await analyzeFile(file);
+
+              // Add external URL for Box files
+              result.externalUrl = `https://app.box.com/file/${boxFile.id}`;
 
               // Add to results and increment processed count
               batchResults = [...batchResults, result];
@@ -352,6 +366,14 @@
       return;
     }
 
+    // Check if this is batch reprocessing
+    if (batchResults.length > 0 && batchBoxFiles.length > 0) {
+      // Batch reprocessing - re-download and reprocess all files
+      await processBatchFiles(batchBoxFiles);
+      return;
+    }
+
+    // Single file reprocessing
     // Check if we need to re-download (switching from filename-only to audio mode)
     const needsRedownload = resultsMode === 'filename-only' && $analysisMode !== 'filename-only';
 
@@ -799,6 +821,7 @@
             bind:value={fileUrl}
             placeholder="Paste Box shared link URL (e.g., https://app.box.com/s/...)"
             disabled={processing}
+            on:keydown={(e) => e.key === 'Enter' && !processing && fileUrl.trim() && handleUrlSubmit()}
           />
           <button on:click={handleUrlSubmit} disabled={processing || !fileUrl.trim()}>
             Analyze URL
@@ -816,29 +839,14 @@
             <input
               type="radio"
               name="analysis-mode-box"
-              value="full"
-              checked={$analysisMode === 'full'}
-              on:change={() => setAnalysisMode('full')}
-              disabled={processing}
-            />
-            <div class="radio-content">
-              <span class="radio-title">Full Analysis</span>
-              <span class="radio-description">Audio analysis + filename validation</span>
-            </div>
-          </label>
-
-          <label class="radio-label">
-            <input
-              type="radio"
-              name="analysis-mode-box"
               value="audio-only"
               checked={$analysisMode === 'audio-only'}
               on:change={() => setAnalysisMode('audio-only')}
               disabled={processing}
             />
             <div class="radio-content">
-              <span class="radio-title">Audio Analysis Only</span>
-              <span class="radio-description">Skip filename validation</span>
+              <span class="radio-title">Audio Only</span>
+              <span class="radio-description">Basic properties only</span>
             </div>
           </label>
 
@@ -852,8 +860,38 @@
               disabled={processing}
             />
             <div class="radio-content">
-              <span class="radio-title">Filename Validation Only</span>
-              <span class="radio-description">Fast - metadata only, no audio processing</span>
+              <span class="radio-title">Filename Only</span>
+              <span class="radio-description">Fastest - metadata only</span>
+            </div>
+          </label>
+
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode-box"
+              value="full"
+              checked={$analysisMode === 'full'}
+              on:change={() => setAnalysisMode('full')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Full Analysis</span>
+              <span class="radio-description">Basic properties + filename validation</span>
+            </div>
+          </label>
+
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode-box"
+              value="experimental"
+              checked={$analysisMode === 'experimental'}
+              on:change={() => setAnalysisMode('experimental')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Experimental Analysis</span>
+              <span class="radio-description">Peak level, noise floor, reverb, silence detection</span>
             </div>
           </label>
         </div>

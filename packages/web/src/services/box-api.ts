@@ -121,7 +121,12 @@ export class BoxAPI {
       // WAV headers contain all metadata, only need first ~100KB
       const partialBlob = await this.boxAuth.downloadFileHeaders(fileId, 102400, sharedLink ? sharedLink : null);
       const metadata = await this.getFileMetadata(fileId, sharedLink);
-      return new File([partialBlob], metadata.name, { type: 'audio/wav' });
+      const file = new File([partialBlob], metadata.name, { type: 'audio/wav' });
+
+      // Store actual file size as custom property (File.size reflects blob size)
+      (file as any).actualSize = metadata.size;
+
+      return file;
     }
   }
 
@@ -203,5 +208,31 @@ export class BoxAPI {
     }
 
     return await this.getFileMetadata(parsed.id);
+  }
+
+  /**
+   * Parse a Box folder URL and extract the folder ID
+   *
+   * @param url - Box folder URL
+   * @returns The folder ID
+   * @throws Error if URL is not a valid folder URL
+   */
+  parseFolderUrl(url: string): string {
+    const match = url.match(/\/folder\/(\d+)/);
+    if (match && match[1]) {
+      return match[1];
+    }
+    throw new Error('Invalid or unsupported Box folder URL');
+  }
+
+  /**
+   * Check if a filename has a common audio extension
+   *
+   * @param filename - The name of the file
+   * @returns True if the file is an audio file
+   */
+  isAudioFile(filename: string): boolean {
+    const audioExtensions = ['.wav', '.mp3', '.flac', '.ogg', '.m4a', '.aac', '.wma', '.aiff'];
+    return audioExtensions.some(ext => filename.toLowerCase().endsWith(ext));
   }
 }
