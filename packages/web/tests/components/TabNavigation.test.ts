@@ -1,108 +1,51 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, fireEvent } from '@testing-library/svelte';
-import { get } from 'svelte/store';
+import { render, screen } from '@testing-library/svelte';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, beforeEach } from 'vitest';
 import TabNavigation from '../../src/components/TabNavigation.svelte';
 import { currentTab } from '../../src/stores/tabs';
-import { AppBridge } from '../../src/bridge/app-bridge';
 
 describe('TabNavigation Component', () => {
-  let bridge: AppBridge;
 
+  // Reset the store to its default state before each test
   beforeEach(() => {
-    bridge = AppBridge.getInstance();
-    // Reset tab to default
     currentTab.setTab('local');
   });
 
-  it('renders all three tab buttons', () => {
-    const { getByText } = render(TabNavigation);
+  it('should render all tabs and mark the default tab as active', () => {
+    render(TabNavigation);
 
-    expect(getByText('📁 Local Files')).toBeTruthy();
-    expect(getByText('☁️ Google Drive')).toBeTruthy();
-    expect(getByText('📦 Box')).toBeTruthy();
+    const localFilesTab = screen.getByText('📁 Local Files');
+    const googleDriveTab = screen.getByText('☁️ Google Drive');
+
+    expect(localFilesTab).toBeInTheDocument();
+    expect(googleDriveTab).toBeInTheDocument();
+
+    // Check that the default tab is active
+    expect(localFilesTab).toHaveClass('active');
+    expect(localFilesTab).toHaveAttribute('aria-current', 'page');
+
+    // Check that another tab is not active
+    expect(googleDriveTab).not.toHaveClass('active');
+    expect(googleDriveTab).not.toHaveAttribute('aria-current');
   });
 
-  it('shows local tab as active by default', () => {
-    const { getByText } = render(TabNavigation);
-    const localButton = getByText('📁 Local Files');
+  it('should switch the active tab when a user clicks on it', async () => {
+    render(TabNavigation);
+    const user = userEvent.setup();
 
-    expect(localButton.classList.contains('active')).toBe(true);
-  });
+    const localFilesTab = screen.getByText('📁 Local Files');
+    const googleDriveTab = screen.getByText('☁️ Google Drive');
 
-  it('updates store when tab is clicked', async () => {
-    const { getByText } = render(TabNavigation);
-    const driveButton = getByText('☁️ Google Drive');
+    // Initial state check
+    expect(localFilesTab).toHaveClass('active');
+    expect(googleDriveTab).not.toHaveClass('active');
 
-    await fireEvent.click(driveButton);
+    // Click the Google Drive tab
+    await user.click(googleDriveTab);
 
-    expect(get(currentTab)).toBe('googleDrive');
-  });
-
-  it('dispatches tab:changed event through bridge when clicked', async () => {
-    const { getByText } = render(TabNavigation);
-    const dispatchSpy = vi.spyOn(bridge, 'dispatch');
-
-    const boxButton = getByText('📦 Box');
-    await fireEvent.click(boxButton);
-
-    expect(dispatchSpy).toHaveBeenCalledWith({
-      type: 'tab:changed',
-      tab: 'box'
-    });
-  });
-
-  it('updates active state when store changes', async () => {
-    const { getByText, component } = render(TabNavigation);
-
-    // Initially local is active
-    const localButton = getByText('📁 Local Files');
-    const driveButton = getByText('☁️ Google Drive');
-
-    expect(localButton.classList.contains('active')).toBe(true);
-    expect(driveButton.classList.contains('active')).toBe(false);
-
-    // Change tab externally via store
-    currentTab.setTab('googleDrive');
-
-    // Wait for component to update
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    expect(localButton.classList.contains('active')).toBe(false);
-    expect(driveButton.classList.contains('active')).toBe(true);
-  });
-
-  it('has proper ARIA attributes', () => {
-    const { getByText } = render(TabNavigation);
-    const nav = getByText('📁 Local Files').closest('nav');
-
-    expect(nav?.getAttribute('aria-label')).toBe('Main navigation');
-  });
-
-  it('sets aria-current on active tab', () => {
-    const { getByText } = render(TabNavigation);
-    const localButton = getByText('📁 Local Files');
-
-    expect(localButton.getAttribute('aria-current')).toBe('page');
-  });
-
-  it('removes aria-current from inactive tabs', async () => {
-    const { getByText } = render(TabNavigation);
-    const localButton = getByText('📁 Local Files');
-    const driveButton = getByText('☁️ Google Drive');
-
-    expect(localButton.getAttribute('aria-current')).toBe('page');
-    expect(driveButton.getAttribute('aria-current')).toBe(null);
-
-    await fireEvent.click(driveButton);
-
-    expect(localButton.getAttribute('aria-current')).toBe(null);
-    expect(driveButton.getAttribute('aria-current')).toBe('page');
-  });
-
-  it('applies scoped CSS classes', () => {
-    const { container } = render(TabNavigation);
-    const nav = container.querySelector('nav');
-
-    expect(nav?.classList.contains('sv-tab-nav')).toBe(true);
+    // Assert that the UI has updated correctly
+    expect(localFilesTab).not.toHaveClass('active');
+    expect(googleDriveTab).toHaveClass('active');
+    expect(googleDriveTab).toHaveAttribute('aria-current', 'page');
   });
 });

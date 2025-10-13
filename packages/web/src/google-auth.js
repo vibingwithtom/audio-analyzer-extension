@@ -297,26 +297,34 @@ class GoogleAuth {
     try {
       // Query for files in the folder with specific extension
       const query = `'${folderId}' in parents and trashed=false`;
+      let allFiles = [];
+      let nextPageToken = null;
 
-      const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType)&pageSize=1000`,
-        {
+      // Fetch all pages using pagination
+      do {
+        const url = nextPageToken
+          ? `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType),nextPageToken&pageSize=1000&pageToken=${nextPageToken}`
+          : `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType),nextPageToken&pageSize=1000`;
+
+        const response = await fetch(url, {
           headers: {
             'Authorization': `Bearer ${token.access_token}`
           }
-        }
-      );
+        });
 
-      if (!response.ok) {
-        if (response.status === 403) {
-          this.signOut();
-          throw new Error('Insufficient permissions to access Google Drive folder. Please sign in again.');
+        if (!response.ok) {
+          if (response.status === 403) {
+            this.signOut();
+            throw new Error('Insufficient permissions to access Google Drive folder. Please sign in again.');
+          }
+          throw new Error(`Failed to list folder contents: ${response.status}`);
         }
-        throw new Error(`Failed to list folder contents: ${response.status}`);
-      }
 
-      const data = await response.json();
-      const allFiles = data.files || [];
+        const data = await response.json();
+        allFiles = allFiles.concat(data.files || []);
+        nextPageToken = data.nextPageToken;
+
+      } while (nextPageToken);
 
       // Filter by extension if provided
       if (extension) {

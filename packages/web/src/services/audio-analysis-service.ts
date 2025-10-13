@@ -199,6 +199,7 @@ function validateFilename(
     }
 
     const validation = FilenameValidator.validateThreeHour(filename, scriptsList, speakerId);
+
     return {
       status: validation.status as 'pass' | 'warning' | 'fail',
       value: filename,

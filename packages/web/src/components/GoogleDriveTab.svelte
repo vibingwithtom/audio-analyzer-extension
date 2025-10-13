@@ -58,6 +58,7 @@
   let scriptsList: string[] = []; // Script base names from Google Drive folder
   let fetchingScripts = false;
   let scriptsError = '';
+  let lastFetchedScriptsUrl = ''; // Track which URL was used to fetch scripts
 
   // Cleanup blob URL when component is destroyed
   function cleanup() {
@@ -337,6 +338,36 @@
   }
 
   /**
+   * Auto-fetch scripts if needed (URL changed or scripts not yet fetched)
+   * Returns error message if fetch fails, null if successful
+   */
+  async function autoFetchScriptsIfNeeded(): Promise<string | null> {
+    if (!isThreeHourConfigRequired()) {
+      return null; // Not required, no fetch needed
+    }
+
+    const currentUrl = $threeHourSettings.scriptsFolderUrl.trim();
+
+    if (!currentUrl) {
+      return "Three Hour configuration required: Please provide scripts folder URL";
+    }
+
+    // Always fetch latest scripts (fast metadata-only operation)
+    await handleFetchScripts();
+
+    // Check if fetch was successful
+    if (scriptsError) {
+      return scriptsError;
+    }
+
+    if (scriptsList.length === 0) {
+      return "Failed to fetch scripts from folder";
+    }
+
+    return null; // Scripts are ready
+  }
+
+  /**
    * Validate Three Hour configuration before processing
    * Returns error message if validation fails, null if valid
    */
@@ -353,10 +384,7 @@
       return "Three Hour configuration required: Please provide speaker ID";
     }
 
-    if (scriptsList.length === 0) {
-      return "Three Hour configuration required: Please click 'Fetch Scripts' to load script list";
-    }
-
+    // Note: We no longer check scriptsList here because auto-fetch handles it
     return null; // All good
   }
 
@@ -405,12 +433,14 @@
         return lastDotIndex > 0 ? name.substring(0, lastDotIndex) : name;
       });
 
-      // Success - clear any previous errors
+      // Success - store the URL and clear any previous errors
+      lastFetchedScriptsUrl = $threeHourSettings.scriptsFolderUrl;
       scriptsError = '';
     } catch (err) {
       console.error('Failed to fetch scripts:', err);
       scriptsError = err instanceof Error ? err.message : 'Failed to fetch scripts from folder';
       scriptsList = [];
+      lastFetchedScriptsUrl = '';
     } finally {
       fetchingScripts = false;
     }
@@ -427,6 +457,13 @@
     const configError = validateThreeHourConfig();
     if (configError) {
       error = configError;
+      return;
+    }
+
+    // Auto-fetch scripts if needed
+    const fetchError = await autoFetchScriptsIfNeeded();
+    if (fetchError) {
+      error = fetchError;
       return;
     }
 
@@ -494,8 +531,6 @@
           await processSingleFile(file);
         }
       }
-
-      fileUrl = ''; // Clear input on success
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to process Google Drive URL';
       results = null;
@@ -513,6 +548,13 @@
     const configError = validateThreeHourConfig();
     if (configError) {
       error = configError;
+      return;
+    }
+
+    // Auto-fetch scripts if needed
+    const fetchError = await autoFetchScriptsIfNeeded();
+    if (fetchError) {
+      error = fetchError;
       return;
     }
 
@@ -628,6 +670,13 @@
     const configError = validateThreeHourConfig();
     if (configError) {
       error = configError;
+      return;
+    }
+
+    // Auto-fetch scripts if needed
+    const fetchError = await autoFetchScriptsIfNeeded();
+    if (fetchError) {
+      error = fetchError;
       return;
     }
 
@@ -1213,32 +1262,13 @@
             <!-- Scripts Folder URL -->
             <div class="config-field">
               <label for="scripts-folder-url">Scripts Folder URL:</label>
-              <div class="input-with-button">
-                <input
-                  id="scripts-folder-url"
-                  type="text"
-                  bind:value={$threeHourSettings.scriptsFolderUrl}
-                  placeholder="https://drive.google.com/drive/folders/..."
-                  disabled={processing}
-                  on:keydown={(e) => e.key === 'Enter' && !fetchingScripts && $threeHourSettings.scriptsFolderUrl.trim() && handleFetchScripts()}
-                />
-                <button
-                  on:click={handleFetchScripts}
-                  disabled={fetchingScripts || processing || !$threeHourSettings.scriptsFolderUrl.trim()}
-                  class="fetch-button"
-                >
-                  {#if fetchingScripts}
-                    🔄 Fetching...
-                  {:else}
-                    Fetch Scripts
-                  {/if}
-                </button>
-              </div>
-              {#if scriptsError}
-                <div class="error-message">❌ {scriptsError}</div>
-              {:else if scriptsList.length > 0}
-                <div class="success-message">✓ Found {scriptsList.length} scripts</div>
-              {/if}
+              <input
+                id="scripts-folder-url"
+                type="text"
+                bind:value={$threeHourSettings.scriptsFolderUrl}
+                placeholder="https://drive.google.com/drive/folders/..."
+                disabled={processing}
+              />
             </div>
 
             <!-- Speaker ID -->
@@ -1260,7 +1290,7 @@
             </div>
 
             <div class="config-info">
-              ℹ️ These settings are saved automatically and used for filename validation.
+              ℹ️ These settings are saved automatically. Scripts will be fetched when you start analysis.
             </div>
           </div>
         {/if}
