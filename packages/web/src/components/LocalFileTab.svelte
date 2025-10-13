@@ -469,7 +469,7 @@
     <div class="current-preset">
       <span class="preset-label">Current Preset:</span>
       {#if $isSimplifiedMode}
-        <span class="preset-name locked">🔒 {availablePresets[$currentPresetId]?.name || $currentPresetId} (Locked)</span>
+        <span class="preset-name locked">🔒 {availablePresets[$currentPresetId]?.name || $currentPresetId}</span>
       {:else}
         <span class="preset-name" on:click={goToSettings}>{availablePresets[$currentPresetId]?.name || $currentPresetId}</span>
         <a href="#" on:click|preventDefault={goToSettings}>Change</a>
