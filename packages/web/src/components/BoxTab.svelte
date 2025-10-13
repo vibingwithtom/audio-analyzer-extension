@@ -59,6 +59,8 @@
   let processedFiles = 0;
   let batchCancelled = false;
   let batchBoxFiles: any[] = []; // Store for batch reprocessing
+  let batchFolderName = ''; // Name of folder being processed
+  let batchFolderUrl = ''; // URL of folder being processed
 
   // Cleanup blob URL when component is destroyed
   function cleanup() {
@@ -204,6 +206,11 @@
 
       if (parsed.type === 'folder') {
         // Folder URL - list audio files and batch process
+        // First, fetch folder metadata to get the folder name
+        const folderMetadata = await boxAPI.getFolderMetadata(parsed.id, parsed.sharedLink);
+        batchFolderName = folderMetadata.name;
+        batchFolderUrl = `https://app.box.com/folder/${parsed.id}`;
+
         const filesToProcess = await boxAPI.listAudioFilesInFolder(parsed.id, parsed.sharedLink);
 
         if (filesToProcess.length === 0) {
@@ -964,6 +971,8 @@
       onReprocess={handleReprocess}
       onCancel={handleCancelBatch}
       cancelRequested={batchCancelled}
+      folderName={batchResults.length > 0 ? batchFolderName : null}
+      folderUrl={batchResults.length > 0 ? batchFolderUrl : null}
     />
   {/if}
 </div>

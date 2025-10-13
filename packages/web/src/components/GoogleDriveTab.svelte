@@ -53,6 +53,8 @@
   let processedFiles = 0;
   let batchCancelled = false;
   let batchDriveFiles: DriveFileMetadata[] = []; // Store for batch reprocessing
+  let batchFolderName = ''; // Name of folder being processed
+  let batchFolderUrl = ''; // URL of folder being processed
 
   // Three Hour configuration state
   let scriptsList: string[] = []; // Script base names from Google Drive folder
@@ -478,6 +480,11 @@
 
       if (parsed.type === 'folder') {
         // Folder URL - list audio files and batch process
+        // First, get folder metadata to get the folder name
+        const folderMetadata = await driveAPI.getFileMetadata(parsed.id);
+        batchFolderName = folderMetadata.name;
+        batchFolderUrl = `https://drive.google.com/drive/folders/${parsed.id}`;
+
         const filesToProcess = await driveAPI.getAllAudioFilesInFolder(parsed.id);
 
         if (filesToProcess.length === 0) {
@@ -598,6 +605,10 @@
         // Get all audio files from folder
         processing = true;
         try {
+          // Store folder name and URL from picker result
+          batchFolderName = doc.name;
+          batchFolderUrl = `https://drive.google.com/drive/folders/${doc.id}`;
+
           filesToProcess = await driveAPI.getAllAudioFilesInFolder(doc.id);
           if (filesToProcess.length === 0) {
             error = 'No audio files found in the selected folder';
@@ -1315,6 +1326,8 @@
       onReprocess={handleReprocess}
       onCancel={handleCancelBatch}
       cancelRequested={batchCancelled}
+      folderName={batchResults.length > 0 ? batchFolderName : null}
+      folderUrl={batchResults.length > 0 ? batchFolderUrl : null}
     />
   {/if}
 </div>

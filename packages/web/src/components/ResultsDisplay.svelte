@@ -15,6 +15,8 @@
   export let onReprocess: (() => void) | null = null;
   export let onCancel: (() => void) | null = null;
   export let cancelRequested = false;
+  export let folderName: string | null = null; // Name of folder being processed
+  export let folderUrl: string | null = null; // URL of folder being processed
 
   // Determine if we're in batch mode
   $: isBatchMode = Array.isArray(results);
@@ -226,11 +228,41 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   }
 
+  .batch-header {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1.25rem;
+  }
+
   .batch-summary h2 {
-    margin: 0 0 1.25rem 0;
+    margin: 0 0 0.5rem 0;
     font-size: 1.25rem;
     font-weight: 700;
     color: var(--text-primary, #333333);
+  }
+
+  .folder-name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary, #666666);
+  }
+
+  .folder-name .folder-icon {
+    font-size: 1rem;
+  }
+
+  .folder-link {
+    color: var(--primary, #2563eb);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    font-weight: 500;
+  }
+
+  .folder-link:hover {
+    text-decoration: underline;
+    color: var(--primary-dark, #1d4ed8);
   }
 
   .summary-content {
@@ -378,7 +410,19 @@
     <!-- Batch Summary and Results -->
     <div class:stale-results-overlay={resultsStale}>
       <div class="batch-summary">
-        <h2>Batch Analysis Results</h2>
+        <div class="batch-header">
+          <h2>Batch Analysis Results</h2>
+          {#if folderName}
+            <div class="folder-name">
+              <span class="folder-icon">📁</span>
+              {#if folderUrl}
+                <a href={folderUrl} target="_blank" rel="noopener noreferrer" class="folder-link">{folderName}</a>
+              {:else}
+                <span>{folderName}</span>
+              {/if}
+            </div>
+          {/if}
+        </div>
         <div class="summary-content">
           <div class="summary-stats">
             <div class="stat pass">

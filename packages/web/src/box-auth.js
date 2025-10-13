@@ -351,6 +351,37 @@ class BoxAuth {
     }
   }
 
+  async getFolderMetadata(folderId, sharedLink = null) {
+    try {
+      const headers = {};
+
+      if (sharedLink) {
+        headers['BoxApi'] = `shared_link=${sharedLink}`;
+      } else {
+        const token = await this.getValidToken();
+        headers['Authorization'] = `Bearer ${token.access_token}`;
+      }
+
+      const response = await fetch(
+        `${BOX_CONFIG.API_URL}/folders/${folderId}?fields=id,name,type`,
+        { headers }
+      );
+
+      if (!response.ok) {
+        if (!sharedLink && response.status === 401) {
+          this.signOut();
+          throw new Error('Session expired. Please sign in again.');
+        }
+        throw new Error(`Failed to get folder metadata: ${response.status}`);
+      }
+
+      return await response.json();
+
+    } catch (error) {
+      throw new Error(`Box folder metadata fetch failed: ${error.message}`);
+    }
+  }
+
   signOut() {
     this.accessToken = null;
     this.userInfo = null;

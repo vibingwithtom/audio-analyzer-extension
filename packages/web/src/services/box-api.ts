@@ -211,6 +211,17 @@ export class BoxAPI {
   }
 
   /**
+   * Get folder metadata
+   *
+   * @param folderId - Box folder ID
+   * @param sharedLink - Optional Box shared link URL
+   * @returns Folder metadata
+   */
+  async getFolderMetadata(folderId: string, sharedLink?: string): Promise<BoxFileMetadata> {
+    return await this.boxAuth.getFolderMetadata(folderId, (sharedLink || null) as any);
+  }
+
+  /**
    * Parse a Box folder URL and extract the folder ID
    *
    * @param url - Box folder URL
