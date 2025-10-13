@@ -156,7 +156,10 @@
       analysisMode: $analysisMode,
       preset: $currentPresetId ? availablePresets[$currentPresetId] : null,
       presetId: $currentPresetId,
-      criteria: $currentCriteria
+      criteria: $currentCriteria,
+      // Pass Three Hour configuration if available
+      scriptsList: scriptsList.length > 0 ? scriptsList : undefined,
+      speakerId: $threeHourSettings.speakerId || undefined
     });
   }
 

@@ -10,6 +10,9 @@ export interface AnalysisOptions {
   preset?: Preset | null;
   presetId?: string;
   criteria?: any; // AudioCriteria from core
+  // Three Hour configuration (for script-match validation)
+  scriptsList?: string[];
+  speakerId?: string;
 }
 
 /**
@@ -27,16 +30,16 @@ export async function analyzeAudioFile(
   file: File | Blob,
   options: AnalysisOptions
 ): Promise<AudioResults> {
-  const { analysisMode: mode, preset, presetId, criteria } = options;
+  const { analysisMode: mode, preset, presetId, criteria, scriptsList, speakerId } = options;
   const filename = file instanceof File ? file.name : 'unknown';
 
   // For empty files (filename-only mode with Google Drive metadata)
   if (file.size === 0) {
-    return await analyzeMetadataOnly(file, filename, preset, presetId, mode);
+    return await analyzeMetadataOnly(file, filename, preset, presetId, mode, scriptsList, speakerId);
   }
 
   // Full audio analysis
-  return await analyzeFullFile(file, filename, mode, preset, presetId, criteria);
+  return await analyzeFullFile(file, filename, mode, preset, presetId, criteria, scriptsList, speakerId);
 }
 
 /**
@@ -48,7 +51,9 @@ async function analyzeMetadataOnly(
   filename: string,
   preset?: Preset | null,
   presetId?: string,
-  mode?: AnalysisMode
+  mode?: AnalysisMode,
+  scriptsList?: string[],
+  speakerId?: string
 ): Promise<AudioResults> {
   // Extract file type from filename extension
   const extension = filename.split('.').pop()?.toLowerCase() || '';
@@ -70,7 +75,7 @@ async function analyzeMetadataOnly(
 
   // Validate filename if preset supports it
   if (preset?.filenameValidationType && (mode === 'filename-only' || mode === 'full')) {
-    const validation = validateFilename(filename, preset, presetId);
+    const validation = validateFilename(filename, preset, presetId, scriptsList, speakerId);
     if (validation) {
       result.validation = { filename: validation };
       result.status = validation.status;
@@ -89,7 +94,9 @@ async function analyzeFullFile(
   mode: AnalysisMode,
   preset?: Preset | null,
   presetId?: string,
-  criteria?: any
+  criteria?: any,
+  scriptsList?: string[],
+  speakerId?: string
 ): Promise<AudioResults> {
   // Basic audio analysis
   const audioAnalyzer = new AudioAnalyzer();
@@ -119,7 +126,7 @@ async function analyzeFullFile(
 
     // Add filename validation if preset supports it
     if (preset.filenameValidationType && (mode === 'filename-only' || mode === 'full')) {
-      const filenameValidation = validateFilename(filename, preset, presetId);
+      const filenameValidation = validateFilename(filename, preset, presetId, scriptsList, speakerId);
       if (filenameValidation && validation) {
         validation.filename = filenameValidation;
       }
@@ -166,7 +173,9 @@ async function analyzeExperimental(arrayBuffer: ArrayBuffer): Promise<Partial<Au
 function validateFilename(
   filename: string,
   preset: Preset,
-  presetId?: string
+  presetId?: string,
+  scriptsList?: string[],
+  speakerId?: string
 ): { status: 'pass' | 'warning' | 'fail'; value: string; issue?: string } | null {
   if (!preset.filenameValidationType) return null;
 
@@ -180,12 +189,20 @@ function validateFilename(
   }
 
   if (preset.filenameValidationType === 'script-match') {
-    // Three Hour validation - requires configuration (Phase 5.7)
-    // For now, return a warning indicating it's not yet available
+    // Three Hour validation - requires scripts list and speaker ID
+    if (!scriptsList || scriptsList.length === 0 || !speakerId) {
+      return {
+        status: 'fail',
+        value: filename,
+        issue: 'Three Hour validation requires configuration: scripts folder and speaker ID must be set'
+      };
+    }
+
+    const validation = FilenameValidator.validateThreeHour(filename, scriptsList, speakerId);
     return {
-      status: 'warning',
+      status: validation.status as 'pass' | 'warning' | 'fail',
       value: filename,
-      issue: 'Three Hour validation requires configuration (Phase 5.7)'
+      issue: validation.issue
     };
   }
 
