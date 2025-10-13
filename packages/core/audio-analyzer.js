@@ -24,7 +24,13 @@ export class AudioAnalyzer {
         } else if (typeof wavInfo.audioFormat === 'number') {
           fileType = `WAV (Compressed - Format ${wavInfo.audioFormat})`;
         } else {
-          fileType = 'WAV (Unknown Format)';
+          // WAV header parsing failed - check actual file type from header
+          const detectedType = this.detectFileTypeFromHeader(view);
+          if (detectedType && detectedType !== 'WAV') {
+            fileType = `${detectedType} (wrong extension)`;
+          } else {
+            fileType = 'Unknown Format';
+          }
         }
       }
 
@@ -155,6 +161,56 @@ export class AudioAnalyzer {
       return 'Unknown';
     } catch (error) {
       return 'Unknown';
+    }
+  }
+
+  /**
+   * Detect actual file type from file header bytes (magic numbers)
+   * Returns null if file type cannot be determined from header
+   */
+  detectFileTypeFromHeader(view) {
+    try {
+      // Check first 12 bytes for common audio file signatures
+      const bytes = [];
+      for (let i = 0; i < Math.min(12, view.byteLength); i++) {
+        bytes.push(view.getUint8(i));
+      }
+
+      // RIFF/WAV: 'RIFF' + size + 'WAVE'
+      if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+          bytes[8] === 0x57 && bytes[9] === 0x41 && bytes[10] === 0x56 && bytes[11] === 0x45) {
+        return 'WAV';
+      }
+
+      // MP3: ID3 tag or MPEG frame sync
+      if ((bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) || // 'ID3'
+          (bytes[0] === 0xFF && (bytes[1] & 0xE0) === 0xE0)) { // MPEG frame sync
+        return 'MP3';
+      }
+
+      // FLAC: 'fLaC'
+      if (bytes[0] === 0x66 && bytes[1] === 0x4C && bytes[2] === 0x61 && bytes[3] === 0x43) {
+        return 'FLAC';
+      }
+
+      // M4A/AAC: 'ftyp' (MP4 container)
+      if (bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) {
+        // Check for M4A brand markers
+        const brand = String.fromCharCode(bytes[8], bytes[9], bytes[10], bytes[11]);
+        if (brand === 'M4A ' || brand === 'M4A' || brand === 'mp42' || brand === 'isom') {
+          return 'M4A';
+        }
+        return 'AAC'; // Generic MP4 audio
+      }
+
+      // OGG: 'OggS'
+      if (bytes[0] === 0x4F && bytes[1] === 0x67 && bytes[2] === 0x67 && bytes[3] === 0x53) {
+        return 'OGG';
+      }
+
+      return null; // Unknown file type
+    } catch (error) {
+      return null;
     }
   }
 
