@@ -6,8 +6,12 @@
  * Format sample rate to kHz
  * @example 48000 → "48.0 kHz"
  * @example 44100 → "44.1 kHz"
+ * @example "Unknown" → "Unknown"
  */
-export function formatSampleRate(sampleRate: number): string {
+export function formatSampleRate(sampleRate: number | string): string {
+  if (typeof sampleRate === 'string' || isNaN(sampleRate)) {
+    return 'Unknown';
+  }
   const kHz = sampleRate / 1000;
   return `${kHz.toFixed(1)} kHz`;
 }
@@ -18,8 +22,12 @@ export function formatSampleRate(sampleRate: number): string {
  * @example 120 → "2m:00s"
  * @example 45 → "45s"
  * @example 3665 → "1h:01m:05s"
+ * @example "Unknown" → "Unknown"
  */
-export function formatDuration(seconds: number): string {
+export function formatDuration(seconds: number | string): string {
+  if (typeof seconds === 'string' || isNaN(seconds)) {
+    return 'Unknown';
+  }
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
@@ -37,8 +45,13 @@ export function formatDuration(seconds: number): string {
  * Format bit depth
  * @example 16 → "16-bit"
  * @example 24 → "24-bit"
+ * @example "Unknown" → "Unknown"
+ * @example "Compressed (variable)" → "Compressed (variable)"
  */
-export function formatBitDepth(bitDepth: number): string {
+export function formatBitDepth(bitDepth: number | string): string {
+  if (typeof bitDepth === 'string' || isNaN(bitDepth)) {
+    return bitDepth.toString();
+  }
   return `${bitDepth}-bit`;
 }
 
@@ -47,8 +60,12 @@ export function formatBitDepth(bitDepth: number): string {
  * @example 1 → "Mono"
  * @example 2 → "Stereo"
  * @example 6 → "6 channels"
+ * @example "Unknown" → "Unknown"
  */
-export function formatChannels(channels: number): string {
+export function formatChannels(channels: number | string): string {
+  if (typeof channels === 'string' || isNaN(channels)) {
+    return 'Unknown';
+  }
   switch (channels) {
     case 1:
       return 'Mono';

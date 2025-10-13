@@ -9,6 +9,14 @@ export class AudioAnalyzer {
     this.audioBuffer = null;
   }
 
+  /**
+   * Get the actual file size, checking for partial downloads
+   * Google Drive/Box store actual size in file.actualSize for partial downloads
+   */
+  getActualFileSize(file) {
+    return file.actualSize || file.size;
+  }
+
   async analyzeFile(file) {
     const arrayBuffer = await file.arrayBuffer();
 
@@ -40,7 +48,7 @@ export class AudioAnalyzer {
               channels: wavInfo.channels,
               bitDepth: wavInfo.bitDepth,
               duration: wavInfo.duration,
-              fileSize: file.size
+              fileSize: this.getActualFileSize(file)
             };
           }
         }
@@ -54,7 +62,7 @@ export class AudioAnalyzer {
           channels: wavInfo.channels,
           bitDepth: wavInfo.bitDepth,
           duration: wavInfo.duration,
-          fileSize: file.size
+          fileSize: this.getActualFileSize(file)
         };
       }
 
@@ -85,36 +93,62 @@ export class AudioAnalyzer {
         sampleRate: this.audioBuffer.sampleRate,
         channels: this.audioBuffer.numberOfChannels,
         duration: this.audioBuffer.duration,
-        fileSize: file.size,
-        bitDepth: this.estimateBitDepth(arrayBuffer, file.name)
+        fileSize: this.getActualFileSize(file),
+        bitDepth: this.estimateBitDepth(arrayBuffer, file.name, fileType)
       };
     } catch (error) {
       // Clear detected file type on error
       this._detectedFileType = null;
 
       // Fallback to header analysis using the original arrayBuffer
-      return await this.analyzeFileHeaders(arrayBuffer, file.name, file.size);
+      return await this.analyzeFileHeaders(arrayBuffer, file.name, this.getActualFileSize(file));
     }
   }
 
   async analyzeFileHeaders(arrayBuffer, fileName, fileSize) {
     const view = new DataView(arrayBuffer);
-    const results = {
-      fileType: this.getFileType(fileName),
-      fileSize: fileSize
-    };
 
+    // Start with file type from extension
+    let fileType = this.getFileType(fileName);
+
+    // For .wav files, check if they're actually WAV or misnamed
     if (fileName.toLowerCase().endsWith('.wav')) {
       const wavInfo = this.parseWavHeaders(view);
-      Object.assign(results, wavInfo);
-    } else {
-      results.sampleRate = 'Unknown';
-      results.bitDepth = 'Unknown';
-      results.channels = 'Unknown';
-      results.duration = 'Unknown';
-    }
 
-    return results;
+      // If WAV parsing succeeded, it's a real WAV file
+      if (wavInfo.audioFormat === 1) {
+        fileType = 'WAV (PCM)';
+      } else if (typeof wavInfo.audioFormat === 'number') {
+        fileType = `WAV (Compressed - Format ${wavInfo.audioFormat})`;
+      } else {
+        // WAV parsing failed - check actual file type from header
+        const detectedType = this.detectFileTypeFromHeader(view);
+        if (detectedType && detectedType !== 'WAV') {
+          fileType = `${detectedType} (wrong extension)`;
+        } else {
+          fileType = 'Unknown Format';
+        }
+      }
+
+      return {
+        fileType: fileType,
+        sampleRate: wavInfo.sampleRate,
+        channels: wavInfo.channels,
+        bitDepth: wavInfo.bitDepth,
+        duration: wavInfo.duration,
+        fileSize: fileSize
+      };
+    } else {
+      // Non-WAV file
+      return {
+        fileType: fileType,
+        sampleRate: 'Unknown',
+        bitDepth: 'Unknown',
+        channels: 'Unknown',
+        duration: 'Unknown',
+        fileSize: fileSize
+      };
+    }
   }
 
   parseWavHeaders(view) {
@@ -257,7 +291,24 @@ export class AudioAnalyzer {
     return typeMap[extension] || extension.toUpperCase();
   }
 
-  estimateBitDepth(arrayBuffer, filename) {
+  estimateBitDepth(arrayBuffer, filename, actualFileType) {
+    // If actual file type is provided, use that instead of filename extension
+    if (actualFileType) {
+      // Extract the base type (e.g., "M4A" from "M4A (wrong extension)")
+      const baseType = actualFileType.split(' ')[0].toLowerCase();
+
+      if (baseType === 'wav') {
+        return 'See WAV analysis';
+      }
+
+      if (['mp3', 'aac', 'm4a'].includes(baseType)) {
+        return 'Compressed (variable)';
+      }
+
+      return 'Unknown';
+    }
+
+    // Fallback to filename extension if no actual type provided
     if (filename.toLowerCase().endsWith('.wav')) {
       return 'See WAV analysis';
     }

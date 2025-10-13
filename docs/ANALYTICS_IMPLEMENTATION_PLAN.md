@@ -1,91 +1,128 @@
-# Analytics Implementation Plan
+# Analytics Implementation Plan - Umami
 
 ## 1. Objective
 
-To integrate analytics into the web app to gain insights into user behavior, application performance, and error occurrences. This will help in making data-driven decisions for future development and improving the user experience.
+To integrate privacy-first analytics using Umami to gain insights into user behavior, application performance, and error occurrences. This approach is GDPR-compliant by default, requires no cookie consent banners, and provides meaningful insights without building custom infrastructure.
 
-## 2. Key Metrics to Track
+## 2. Why Umami?
+
+- **GDPR Compliant by Default**: No cookies, no personal data collection, no consent banners needed
+- **Free & Open Source**: Self-hosted solution with no ongoing costs (just hosting ~$5-10/month)
+- **Privacy-Respecting**: Users won't block it like they do Google Analytics
+- **Simple Integration**: One script tag + event tracking API
+- **Quick Setup**: Deploy to Vercel/Railway/other platforms in ~30 minutes
+- **Good Analytics**: Provides all the insights we need without complexity
+
+## 3. Key Metrics to Track
 
 ### User Engagement
-- **Active Users:** Number of unique users (daily, weekly, monthly).
-- **Session Duration:** How long users are actively using the app.
-- **Feature Usage:** Which tabs are most frequently used (Local File, Google Drive, Box, Settings).
-- **Analysis Modes:** Usage of different analysis modes (e.g., `full`, `filename-only`, `experimental`).
+- **Page Views**: Automatic tracking of visits to the application
+- **Active Users**: Number of unique visitors (daily, weekly, monthly)
+- **Feature Usage**: Custom events for tab usage (Local File, Google Drive, Box, Settings)
+- **Analysis Modes**: Track which analysis modes are used (`full`, `filename-only`, `experimental`)
 
 ### File Processing
-- **Total Files Processed:** The total number of files processed by the application.
-- **Processing Outcomes:** A breakdown of file processing results:
+- **Files Processed**: Total number of files analyzed
+- **Processing Outcomes**: Track results as custom events:
     - Success (`pass`)
     - Warning (`warning`)
     - Failure (`fail`)
     - Error (application errors during processing)
-- **File Sizes and Types:** Distribution of file sizes and types being processed.
+- **File Types**: Distribution of audio formats being processed
+- **File Sizes**: Track file size ranges
 
 ### Performance & Errors
-- **Processing Time:** The average time taken to analyze a file.
-- **Application Errors:** Capturing and logging of unhandled exceptions and other errors.
-- **API Errors:** Errors related to third-party services like Google Drive and Box.
+- **Processing Time**: Track analysis duration
+- **Application Errors**: Log unhandled exceptions with context
+- **API Errors**: Track errors from Google Drive and Box integrations
 
-## 3. Implementation Strategy
+## 4. Implementation Strategy
 
-### a. Analytics Service (`analytics-service.ts`)
+### a. Umami Setup
 
-A new centralized service will be created at `packages/web/src/services/analytics-service.ts`. This service will be a singleton and will provide a simple API for tracking events and errors.
+**Option 1: Deploy to Vercel (Recommended)**
+1. Fork Umami repository or use Vercel template
+2. Deploy to Vercel (free tier sufficient)
+3. Add website in Umami dashboard
+4. Get tracking script and website ID
 
-**Key Responsibilities:**
-- **User Identification:** Generate and manage a unique anonymous user ID stored in `localStorage`.
-- **Event Tracking:** A `trackEvent(eventName, properties)` method to send analytics data.
-- **Error Tracking:** A `trackError(error, context)` method to log errors with relevant context.
-- **Data Transmission:** Send data to a backend endpoint using `navigator.sendBeacon` for reliability.
+**Option 2: Deploy to Railway**
+1. Use Railway's one-click Umami deployment
+2. Configure database (PostgreSQL)
+3. Set up website and get tracking code
 
-### b. Backend Endpoint
+### b. Analytics Service (`analytics-service.ts`)
 
-A new cloud function will be created to serve as the analytics endpoint (e.g., `/api/analytics`). Initially, this function will log the received data to the console. In the future, it can be configured to store the data in a database like Firestore or a data warehouse like BigQuery.
+Create a thin wrapper at `packages/web/src/services/analytics-service.ts`:
 
-### c. Integration with Existing Code
+```typescript
+class AnalyticsService {
+  track(eventName: string, properties?: Record<string, any>) {
+    if (window.umami) {
+      window.umami.track(eventName, properties);
+    }
+  }
+}
 
-The `analyticsService` will be integrated into the following parts of the application:
+export const analyticsService = new AnalyticsService();
+```
 
-- **`packages/web/src/components/App.svelte`:**
-    - Track `page_view` on initial load.
-    - Track `tab_navigation` when the user switches between tabs (`$currentTab` store).
+### c. Integration Points
 
-- **`packages/web/src/bridge/service-coordinator.ts`:**
-    - Track authentication events: `google_signin_success`, `google_signin_error`, `box_signin_success`, etc.
+**`packages/web/index.html`:**
+- Add Umami tracking script in `<head>`
 
-- **`packages/web/src/services/audio-analysis-service.ts`:**
-    - **`analyzeAudioFile` function:**
-        - Track `analysis_started` event with file details (size, type, analysis mode).
-        - Wrap the analysis logic in a `try...catch` block to track `analysis_error`.
-        - Track `analysis_completed` event with the final `status` (`pass`, `warning`, `fail`) and other results.
+**`packages/web/src/services/audio-analysis-service.ts`:**
+- Track `file_analyzed` event with file type, size, status, processing time
+- Track `analysis_error` event with error type and context
 
-### d. User Identification
+**`packages/web/src/components/App.svelte`:**
+- Track `tab_switch` event when user navigates between tabs
 
-- On the first visit, a unique user ID (UUID) will be generated and stored in `localStorage`.
-- This ID will be included in every analytics event to track user sessions and journeys.
-- If a user logs in, the anonymous ID can be associated with their authenticated user ID for more detailed tracking.
+**`packages/web/src/bridge/service-coordinator.ts`:**
+- Track authentication events: `google_signin`, `box_signin`, etc.
+- Track authentication errors
 
-## 4. Phased Rollout
+## 5. Phased Rollout
 
-### Phase 1: Core Metrics (MVP)
-1.  Implement the `analytics-service.ts`.
-2.  Create the basic backend endpoint (logging only).
-3.  Integrate tracking for file processing outcomes (`analysis_completed`) in `audio-analysis-service.ts`.
-4.  Track application errors.
+### Phase 1: Setup & Core Metrics (MVP)
+1. Deploy Umami instance to Vercel/Railway
+2. Add tracking script to index.html
+3. Create `analytics-service.ts` wrapper
+4. Track file analysis events (outcomes, file types, sizes)
+5. Track analysis errors
 
 ### Phase 2: User Engagement
-1.  Add tracking for tab navigation in `App.svelte`.
-2.  Track authentication events in `service-coordinator.ts`.
-3.  Track analysis mode usage.
+1. Track tab navigation
+2. Track authentication events
+3. Track analysis mode selection
+4. Track preset usage
 
 ### Phase 3: Performance & Advanced Metrics
-1.  Add tracking for file processing time.
-2.  Implement more detailed error context.
-3.  Set up a proper data store for the analytics data (e.g., Firestore).
+1. Track processing time distribution
+2. Track batch processing statistics
+3. Add more detailed error context
+4. Track feature-specific metrics (reverb analysis, noise floor, etc.)
 
-## 5. Future Enhancements
+## 6. Privacy Considerations
 
-- **Dashboard:** Create a dashboard to visualize the collected analytics data.
-- **A/B Testing:** Use the analytics framework to conduct A/B tests for new features.
-- **Real-time Monitoring:** Set up real-time monitoring and alerting for critical errors.
-- **User Cohort Analysis:** Analyze the behavior of different user cohorts over time.
+- **No Personal Data**: Umami doesn't collect any personally identifiable information
+- **No Cookies**: Compliant with GDPR, CCPA, PECR without consent banners
+- **Data Ownership**: All analytics data stored in our own database
+- **Transparent**: Can add link to privacy policy explaining analytics usage
+
+## 7. Cost Analysis
+
+**Umami (Self-Hosted on Vercel):**
+- Hosting: Free (Vercel free tier)
+- Database: ~$5/month (Vercel Postgres hobby tier or free Railway PostgreSQL)
+- Maintenance: Minimal (auto-updates available)
+
+**Total: ~$0-5/month** vs. building custom infrastructure (weeks of dev time + ongoing maintenance)
+
+## 8. Future Enhancements
+
+- **Custom Dashboard**: Build custom views using Umami's API if needed
+- **Real-time Alerts**: Set up monitoring for critical errors using Umami webhooks
+- **A/B Testing**: Use event properties to track experiment variants
+- **Retention Analysis**: Track user cohorts and returning visitor patterns
