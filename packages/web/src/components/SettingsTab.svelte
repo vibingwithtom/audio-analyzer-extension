@@ -1,9 +1,61 @@
 <script lang="ts">
-  import { availablePresets, currentPresetId, setPreset, selectedPreset } from '../stores/settings';
+  import { availablePresets, currentPresetId, setPreset, selectedPreset, currentCriteria, updateCustomCriteria } from '../stores/settings';
+  import type { AudioCriteria } from '../settings/types';
+
+  // Custom criteria form state
+  let customFileTypes: string[] = [];
+  let customSampleRates: string[] = [];
+  let customBitDepths: string[] = [];
+  let customChannels: string[] = [];
+  let customMinDuration: string = '';
+
+  // Load custom criteria when switching to custom preset
+  $: if ($currentPresetId === 'custom' && $currentCriteria) {
+    customFileTypes = $currentCriteria.fileType || [];
+    customSampleRates = $currentCriteria.sampleRate || [];
+    customBitDepths = $currentCriteria.bitDepth || [];
+    customChannels = $currentCriteria.channels || [];
+    customMinDuration = $currentCriteria.minDuration || '';
+  }
 
   function handlePresetChange(event: Event) {
     const select = event.target as HTMLSelectElement;
     setPreset(select.value);
+  }
+
+  // Available options for multi-select
+  const fileTypeOptions = ['wav', 'mp3', 'flac', 'm4a', 'ogg'];
+  const sampleRateOptions = ['44100', '48000', '96000', '192000'];
+  const bitDepthOptions = ['16', '24', '32'];
+  const channelOptions = ['1', '2', '6', '8'];
+
+  function handleMultiSelect(event: Event, field: 'fileType' | 'sampleRate' | 'bitDepth' | 'channels') {
+    const select = event.target as HTMLSelectElement;
+    const selectedOptions = Array.from(select.selectedOptions).map(opt => opt.value);
+
+    if (field === 'fileType') customFileTypes = selectedOptions;
+    else if (field === 'sampleRate') customSampleRates = selectedOptions;
+    else if (field === 'bitDepth') customBitDepths = selectedOptions;
+    else if (field === 'channels') customChannels = selectedOptions;
+
+    saveCustomCriteria();
+  }
+
+  function handleDurationChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    customMinDuration = input.value;
+    saveCustomCriteria();
+  }
+
+  function saveCustomCriteria() {
+    const criteria: AudioCriteria = {
+      fileType: customFileTypes,
+      sampleRate: customSampleRates,
+      bitDepth: customBitDepths,
+      channels: customChannels,
+      minDuration: customMinDuration
+    };
+    updateCustomCriteria(criteria);
   }
 
   // Get preset entries sorted
@@ -136,6 +188,73 @@
     margin: 0.25rem 0;
     font-size: 0.9rem;
   }
+
+  .custom-config {
+    padding: 1rem;
+    background: var(--bg-primary, #ffffff);
+    border-radius: 4px;
+  }
+
+  .custom-config h4 {
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary, #333333);
+  }
+
+  .custom-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+
+  .custom-field {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .custom-field label {
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-primary, #333333);
+    font-size: 0.9rem;
+  }
+
+  .custom-field select[multiple],
+  .custom-field input {
+    padding: 0.5rem;
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: 4px;
+    background: var(--bg-primary, #ffffff);
+    color: var(--text-primary, #333333);
+    font-size: 0.9rem;
+    font-family: inherit;
+  }
+
+  .custom-field select[multiple] {
+    min-height: 120px;
+  }
+
+  .custom-field select[multiple]:focus,
+  .custom-field input:focus {
+    outline: none;
+    border-color: var(--accent-primary, #2563eb);
+    box-shadow: 0 0 0 3px var(--accent-light, rgba(37, 99, 235, 0.1));
+  }
+
+  .field-hint {
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary, #666666);
+  }
+
+  .duration-field {
+    grid-column: 1 / -1;
+  }
+
+  .duration-field input {
+    max-width: 200px;
+  }
 </style>
 
 <div class="settings-tab">
@@ -230,9 +349,93 @@
         {/if}
       </div>
     {:else if $currentPresetId === 'custom'}
-      <div class="placeholder">
-        <p>Custom criteria configuration will be available in a future update.</p>
-        <p style="margin-top: 0.5rem;">For now, select a preset above to apply validation rules.</p>
+      <div class="custom-config">
+        <h4>Custom Criteria Configuration</h4>
+        <p style="margin-bottom: 1rem; color: var(--text-secondary, #666666); font-size: 0.9rem;">
+          Select the criteria you want to validate. Hold Ctrl/Cmd to select multiple options.
+        </p>
+
+        <div class="custom-fields">
+          <!-- File Type -->
+          <div class="custom-field">
+            <label for="custom-file-type">File Type:</label>
+            <select
+              id="custom-file-type"
+              multiple
+              bind:value={customFileTypes}
+              on:change={(e) => handleMultiSelect(e, 'fileType')}
+            >
+              {#each fileTypeOptions as fileType}
+                <option value={fileType}>{fileType.toUpperCase()}</option>
+              {/each}
+            </select>
+            <span class="field-hint">Ctrl/Cmd + Click to select multiple</span>
+          </div>
+
+          <!-- Sample Rate -->
+          <div class="custom-field">
+            <label for="custom-sample-rate">Sample Rate:</label>
+            <select
+              id="custom-sample-rate"
+              multiple
+              bind:value={customSampleRates}
+              on:change={(e) => handleMultiSelect(e, 'sampleRate')}
+            >
+              {#each sampleRateOptions as rate}
+                <option value={rate}>{parseInt(rate) / 1000} kHz</option>
+              {/each}
+            </select>
+            <span class="field-hint">Ctrl/Cmd + Click to select multiple</span>
+          </div>
+
+          <!-- Bit Depth -->
+          <div class="custom-field">
+            <label for="custom-bit-depth">Bit Depth:</label>
+            <select
+              id="custom-bit-depth"
+              multiple
+              bind:value={customBitDepths}
+              on:change={(e) => handleMultiSelect(e, 'bitDepth')}
+            >
+              {#each bitDepthOptions as depth}
+                <option value={depth}>{depth}-bit</option>
+              {/each}
+            </select>
+            <span class="field-hint">Ctrl/Cmd + Click to select multiple</span>
+          </div>
+
+          <!-- Channels -->
+          <div class="custom-field">
+            <label for="custom-channels">Channels:</label>
+            <select
+              id="custom-channels"
+              multiple
+              bind:value={customChannels}
+              on:change={(e) => handleMultiSelect(e, 'channels')}
+            >
+              {#each channelOptions as channel}
+                <option value={channel}>
+                  {channel === '1' ? 'Mono (1)' : channel === '2' ? 'Stereo (2)' : channel === '6' ? '5.1 Surround (6)' : `7.1 Surround (${channel})`}
+                </option>
+              {/each}
+            </select>
+            <span class="field-hint">Ctrl/Cmd + Click to select multiple</span>
+          </div>
+
+          <!-- Min Duration -->
+          <div class="custom-field duration-field">
+            <label for="custom-min-duration">Minimum Duration (seconds):</label>
+            <input
+              id="custom-min-duration"
+              type="number"
+              min="0"
+              placeholder="e.g., 120 for 2 minutes"
+              bind:value={customMinDuration}
+              on:input={handleDurationChange}
+            />
+            <span class="field-hint">Leave empty for no minimum duration requirement</span>
+          </div>
+        </div>
       </div>
     {/if}
   </div>
