@@ -147,6 +147,8 @@
     <input type="file" {id} {accept} {multiple} on:change disabled={isDisabled} class="file-input" />
 
     <div class="drop-instruction">{isDisabled && !processing ? 'Select a preset in Settings to analyze files' : `or drag and drop ${multiple ? 'files' : 'file'} here`}</div>
-    <div class="file-info">Supported formats: WAV, MP3, FLAC, M4A, OGG</div>
+    {#if !$isSimplifiedMode}
+      <div class="file-info">Supported formats: WAV, MP3, FLAC, M4A, OGG</div>
+    {/if}
   </div>
 </div>
