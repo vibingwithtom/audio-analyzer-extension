@@ -2,6 +2,7 @@ import { writable, derived, type Readable, get } from 'svelte/store';
 import { SettingsManager } from '../settings/settings-manager';
 import type { AudioCriteria, PresetConfig } from '../settings/types';
 import { isSimplifiedMode, lockedPresetId } from './simplifiedMode';
+import { analyticsService } from '../services/analytics-service';
 
 /**
  * Settings Store
@@ -25,6 +26,7 @@ const selectedPresetId = writable<string>(
 selectedPresetId.subscribe((presetId) => {
   if (presetId) {
     SettingsManager.saveSelectedPreset(presetId);
+    analyticsService.track('preset_changed', { presetId });
 
     // When preset changes, load its criteria
     if (presetId !== 'custom') {

@@ -11,6 +11,7 @@
 
 import { writable, derived } from 'svelte/store';
 import { currentPresetId } from './settings';
+import { analyticsService } from '../services/analytics-service';
 
 export type AnalysisMode = 'full' | 'audio-only' | 'filename-only' | 'experimental';
 
@@ -29,6 +30,7 @@ if (typeof window !== 'undefined') {
 analysisModeStore.subscribe((mode) => {
   if (typeof window !== 'undefined') {
     localStorage.setItem('analysisMode', mode);
+    analyticsService.track('analysis_mode_changed', { mode });
   }
 });
 
