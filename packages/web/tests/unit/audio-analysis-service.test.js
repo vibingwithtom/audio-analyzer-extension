@@ -183,7 +183,7 @@ describe('audio-analysis-service', () => {
       expect(result.validation.sampleRate.status).toBe('pass');
     });
 
-    it('should skip validation for custom preset', async () => {
+    it('should validate custom preset when criteria provided', async () => {
       const result = await analyzeAudioFile(mockFile, {
         analysisMode: 'audio-only',
         preset: { name: 'Custom' },
@@ -191,8 +191,9 @@ describe('audio-analysis-service', () => {
         criteria: mockCriteria
       });
 
-      expect(CriteriaValidator.validateResults).not.toHaveBeenCalled();
-      expect(result.validation).toBeUndefined();
+      // Custom preset WITH criteria should validate
+      expect(CriteriaValidator.validateResults).toHaveBeenCalled();
+      expect(result.validation).toBeDefined();
     });
 
     it('should determine overall status from validation', async () => {
