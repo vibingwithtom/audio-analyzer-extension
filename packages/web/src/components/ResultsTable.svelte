@@ -1,5 +1,6 @@
 <script lang="ts">
   import StatusBadge from './StatusBadge.svelte';
+  import MicBleedCard from './MicBleedCard.svelte';
   import { formatSampleRate, formatDuration, formatBitDepth, formatChannels, formatBytes } from '../utils/format-utils';
   import type { AudioResults, ValidationResults } from '../types';
 
@@ -262,8 +263,6 @@
             <th>Trailing Silence</th>
             <th>Longest Silence</th>
             <th>Stereo Separation</th>
-            <th>Mic Bleed (Old Method)</th>
-            <th>Mic Bleed (New Method)</th>
           </tr>
         </thead>
         <tbody>
@@ -322,30 +321,16 @@
                   Mono file
                 {/if}
               </td>
-              <td>
-                {#if result.micBleed?.old}
-                  <span class="value-success">
-                    Not detected
-                  </span>
-                  <span class="subtitle">L: {result.micBleed.old.leftChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.leftChannelBleedDb.toFixed(1)}dB, R: {result.micBleed.old.rightChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.rightChannelBleedDb.toFixed(1)}dB</span>
-                {:else}
-                  <span style="color: #999;">N/A</span>
-                {/if}
-              </td>
-              <td>
-                {#if result.micBleed?.new}
-                  <span class="value-{getMicBleedClass(result.micBleed.new)}">
-                    {result.micBleed.new.percentageConfirmedBleed > 0.5 ? 'Detected' : 'Not detected'}
-                  </span>
-                  <span class="subtitle">Med: {result.micBleed.new.medianSeparation.toFixed(1)}dB, P10: {result.micBleed.new.p10Separation.toFixed(1)}dB, Bleed: {result.micBleed.new.percentageConfirmedBleed.toFixed(1)}%</span>
-                {:else}
-                  <span style="color: #999;">N/A</span>
-                {/if}
-              </td>
             </tr>
           {/each}
         </tbody>
       </table>
+
+      {#each results as result}
+        {#if result.micBleed}
+          <MicBleedCard micBleed={result.micBleed} />
+        {/if}
+      {/each}
     </div>
   {:else}
     <!-- STANDARD MODE TABLE -->

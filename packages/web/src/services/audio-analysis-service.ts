@@ -159,12 +159,14 @@ async function analyzeExperimental(arrayBuffer: ArrayBuffer): Promise<Partial<Au
   const stereoSeparation = levelAnalyzer.analyzeStereoSeparation(audioBuffer);
   if (stereoSeparation) {
     advancedResults.stereoSeparation = stereoSeparation;
-  }
 
-  // Add mic bleed analysis (only meaningful for stereo files)
-  const micBleed = levelAnalyzer.analyzeMicBleed(audioBuffer);
-  if (micBleed) {
-    advancedResults.micBleed = micBleed;
+    // Add mic bleed analysis (only meaningful for conversational stereo files)
+    if (stereoSeparation.type === 'Conversational Stereo') {
+      const micBleed = levelAnalyzer.analyzeMicBleed(audioBuffer);
+      if (micBleed) {
+        advancedResults.micBleed = micBleed;
+      }
+    }
   }
 
   return advancedResults as Partial<AudioResults>;
