@@ -1,6 +1,7 @@
-import { writable, derived, type Readable } from 'svelte/store';
+import { writable, derived, type Readable, get } from 'svelte/store';
 import { SettingsManager } from '../settings/settings-manager';
 import type { AudioCriteria, PresetConfig } from '../settings/types';
+import { isSimplifiedMode, lockedPresetId } from './simplifiedMode';
 
 /**
  * Settings Store
@@ -58,6 +59,15 @@ export const selectedPreset: Readable<PresetConfig | null> = derived(
 
 // Export writable for setting preset
 export function setPreset(presetId: string): void {
+  // Prevent preset changes in simplified mode (unless it's the initial lock)
+  const isSimple = get(isSimplifiedMode);
+  const lockedPreset = get(lockedPresetId);
+
+  if (isSimple && lockedPreset && presetId !== lockedPreset) {
+    console.warn('[Settings] Preset change blocked - simplified mode is active with locked preset:', lockedPreset);
+    return;
+  }
+
   selectedPresetId.set(presetId);
 }
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { currentTab, type TabType } from '../stores/tabs';
   import { AppBridge } from '../bridge/app-bridge';
+  import { isSimplifiedMode } from '../stores/simplifiedMode';
 
   const bridge = AppBridge.getInstance();
 
@@ -62,28 +63,31 @@
   >
     📁 Local Files
   </button>
-  <button
-    class="tab-button"
-    class:active={$currentTab === 'googleDrive'}
-    on:click={() => handleTabClick('googleDrive')}
-    aria-current={$currentTab === 'googleDrive' ? 'page' : undefined}
-  >
-    ☁️ Google Drive
-  </button>
-  <button
-    class="tab-button"
-    class:active={$currentTab === 'box'}
-    on:click={() => handleTabClick('box')}
-    aria-current={$currentTab === 'box' ? 'page' : undefined}
-  >
-    📦 Box
-  </button>
-  <button
-    class="tab-button"
-    class:active={$currentTab === 'settings'}
-    on:click={() => handleTabClick('settings')}
-    aria-current={$currentTab === 'settings' ? 'page' : undefined}
-  >
-    ⚙️ Settings
-  </button>
+
+  {#if !$isSimplifiedMode}
+    <button
+      class="tab-button"
+      class:active={$currentTab === 'googleDrive'}
+      on:click={() => handleTabClick('googleDrive')}
+      aria-current={$currentTab === 'googleDrive' ? 'page' : undefined}
+    >
+      ☁️ Google Drive
+    </button>
+    <button
+      class="tab-button"
+      class:active={$currentTab === 'box'}
+      on:click={() => handleTabClick('box')}
+      aria-current={$currentTab === 'box' ? 'page' : undefined}
+    >
+      📦 Box
+    </button>
+    <button
+      class="tab-button"
+      class:active={$currentTab === 'settings'}
+      on:click={() => handleTabClick('settings')}
+      aria-current={$currentTab === 'settings' ? 'page' : undefined}
+    >
+      ⚙️ Settings
+    </button>
+  {/if}
 </nav>

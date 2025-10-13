@@ -8,6 +8,9 @@
   import UpdateBanner from './UpdateBanner.svelte';
   import { currentTab, type TabType } from '../stores/tabs';
   import { versionCheckService } from '../services/version-check-service';
+  import { initializeSimplifiedMode, isSimplifiedMode, lockedPresetId, autoAnalysisMode } from '../stores/simplifiedMode';
+  import { setPreset } from '../stores/settings';
+  import { setAnalysisMode } from '../stores/analysisMode';
 
   let updateAvailable = false;
 
@@ -45,6 +48,33 @@
 
   // Listen for Box OAuth completion and restore tab
   onMount(() => {
+    // Initialize simplified mode from URL parameters
+    initializeSimplifiedMode();
+
+    // If simplified mode is enabled, lock preset and analysis mode
+    const unsubscribe = isSimplifiedMode.subscribe(isSimple => {
+      if (isSimple) {
+        // Get the locked preset and analysis mode
+        let preset: string | null = null;
+        let analysisMode: string = 'audio-only';
+
+        const unsubPreset = lockedPresetId.subscribe(p => preset = p);
+        const unsubMode = autoAnalysisMode.subscribe(m => analysisMode = m);
+
+        unsubPreset();
+        unsubMode();
+
+        if (preset) {
+          // Set the locked preset
+          setPreset(preset);
+          // Set the auto-determined analysis mode
+          setAnalysisMode(analysisMode);
+          // Force user to Local Files tab
+          currentTab.setTab('local');
+        }
+      }
+    });
+
     const handleBoxAuthComplete = (event: CustomEvent<{ returnTab: string }>) => {
       const { returnTab } = event.detail;
       if (returnTab) {
@@ -66,6 +96,7 @@
     });
 
     return () => {
+      unsubscribe();
       window.removeEventListener('box-auth-complete', handleBoxAuthComplete as EventListener);
       versionCheckService.stopPeriodicCheck();
     };

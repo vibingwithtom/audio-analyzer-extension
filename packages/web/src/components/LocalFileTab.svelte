@@ -6,6 +6,7 @@
   import { currentPresetId, availablePresets, currentCriteria, hasValidPresetConfig } from '../stores/settings';
   import { currentTab } from '../stores/tabs';
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
+  import { isSimplifiedMode } from '../stores/simplifiedMode';
   import type { AudioResults, ValidationResults } from '../types';
 
   function goToSettings() {
@@ -304,6 +305,15 @@
     text-decoration: underline;
   }
 
+  .preset-name.locked {
+    cursor: default;
+    color: var(--text-primary, #333333);
+  }
+
+  .preset-name.locked:hover {
+    text-decoration: none;
+  }
+
   .current-preset a {
     margin-left: auto;
     padding: 0.5rem 1rem;
@@ -458,8 +468,12 @@
   {:else if $currentPresetId}
     <div class="current-preset">
       <span class="preset-label">Current Preset:</span>
-      <span class="preset-name" on:click={goToSettings}>{availablePresets[$currentPresetId]?.name || $currentPresetId}</span>
-      <a href="#" on:click|preventDefault={goToSettings}>Change</a>
+      {#if $isSimplifiedMode}
+        <span class="preset-name locked">🔒 {availablePresets[$currentPresetId]?.name || $currentPresetId} (Locked)</span>
+      {:else}
+        <span class="preset-name" on:click={goToSettings}>{availablePresets[$currentPresetId]?.name || $currentPresetId}</span>
+        <a href="#" on:click|preventDefault={goToSettings}>Change</a>
+      {/if}
     </div>
   {/if}
 
@@ -472,8 +486,8 @@
     on:change={handleFileChange}
   />
 
-  <!-- Analysis Mode Selection (only show for non-auditions presets) -->
-  {#if !$currentPresetId?.startsWith('auditions-')}
+  <!-- Analysis Mode Selection (only show for non-auditions presets and not in simplified mode) -->
+  {#if !$currentPresetId?.startsWith('auditions-') && !$isSimplifiedMode}
     <div class="analysis-mode-section">
       <h3>Analysis Mode:</h3>
       <div class="radio-group">
