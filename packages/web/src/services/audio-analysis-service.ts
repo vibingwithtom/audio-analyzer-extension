@@ -41,7 +41,7 @@ export async function analyzeAudioFile(
       filename,
       fileSize: file.size,
       analysisMode: mode,
-      presetId: preset?.id,
+      presetId,
     });
 
     // For empty files (filename-only mode with Google Drive metadata)
