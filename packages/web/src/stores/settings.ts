@@ -9,6 +9,11 @@ import type { AudioCriteria, PresetConfig } from '../settings/types';
  * selected preset and criteria configuration.
  */
 
+// Current criteria (must be defined before selectedPresetId subscription)
+const criteria = writable<AudioCriteria | null>(
+  SettingsManager.getCriteria()
+);
+
 // Selected preset ID
 const selectedPresetId = writable<string>(
   SettingsManager.getSelectedPreset() || 'custom'
@@ -23,23 +28,20 @@ selectedPresetId.subscribe((presetId) => {
     if (presetId !== 'custom') {
       const presetConfig = SettingsManager.getPresetConfig(presetId);
       if (presetConfig) {
-        const criteria: AudioCriteria = {
+        const newCriteria: AudioCriteria = {
           fileType: presetConfig.fileType || [],
           sampleRate: presetConfig.sampleRate || [],
           bitDepth: presetConfig.bitDepth || [],
           channels: presetConfig.channels || [],
           minDuration: presetConfig.minDuration || ''
         };
-        SettingsManager.saveCriteria(criteria);
+        SettingsManager.saveCriteria(newCriteria);
+        // IMPORTANT: Update the reactive store so components get the new criteria
+        criteria.set(newCriteria);
       }
     }
   }
 });
-
-// Current criteria (derived from selected preset or custom)
-const criteria = writable<AudioCriteria | null>(
-  SettingsManager.getCriteria()
-);
 
 // Get all available presets
 export const availablePresets = SettingsManager.getPresetConfigurations();
