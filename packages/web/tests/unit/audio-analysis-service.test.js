@@ -18,6 +18,13 @@ vi.mock('../../src/validation/filename-validator', () => ({
   }
 }));
 
+// Mock the analytics service
+vi.mock('../../src/services/analytics-service', () => ({
+  analyticsService: {
+    track: vi.fn()
+  }
+}));
+
 /**
  * Tests for audio-analysis-service.ts
  *

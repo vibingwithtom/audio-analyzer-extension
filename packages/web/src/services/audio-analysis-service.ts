@@ -34,7 +34,7 @@ export async function analyzeAudioFile(
   let result: AudioResults | null = null;
 
   try {
-    const { analysisMode: mode, preset } = options;
+    const { analysisMode: mode, preset, presetId, criteria, scriptsList, speakerId } = options;
     const filename = file instanceof File ? file.name : 'unknown';
 
     analyticsService.track('analysis_started', {
@@ -49,7 +49,7 @@ export async function analyzeAudioFile(
       result = await analyzeMetadataOnly(file, filename, options);
     } else {
       // Full audio analysis
-      result = await analyzeFullFile(file, filename, options);
+      result = await analyzeFullFile(file, filename, mode, preset, presetId, criteria, scriptsList, speakerId);
     }
 
     return result;
