@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { isSimplifiedMode } from '../stores/simplifiedMode';
 
   export let id: string;
   export let processing = false;
