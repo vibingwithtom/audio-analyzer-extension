@@ -78,14 +78,26 @@ npm run serve
 
 ### Architecture
 
-This web app is part of a monorepo that includes:
+This web app is built with **Svelte 5** and Vite 7, using a modern component-based architecture.
 
+**Key Technologies:**
+- **Framework**: Svelte 5 (migrated from vanilla JavaScript)
+- **Build Tool**: Vite 7
+- **Language**: TypeScript + JavaScript
+- **State Management**: Svelte stores
+- **Testing**: Vitest (729 tests, 75%+ coverage)
+
+**Monorepo Structure:**
 - `@audio-analyzer/core` - Shared audio analysis engine
 - `@audio-analyzer/extension` - Chrome extension
 - `@audio-analyzer/desktop` - Electron desktop app
-- `@audio-analyzer/web` - This web application
+- `@audio-analyzer/web` - This web application (Svelte)
 
 The web app imports the shared core engine to maintain consistency across all platforms.
+
+**Architecture Documentation:**
+- **Phase 5 Status**: See `../../docs/PHASE_5_STATUS.md` for migration completion details
+- **Architecture Guide**: See `../../docs/ARCHITECTURE.md` for detailed architecture documentation
 
 ## Deployment
 
@@ -165,9 +177,17 @@ Full OAuth 2.0 integration with:
 
 ## Documentation
 
-- **Future Features**: See `docs/FUTURE_FEATURES.md` for planned enhancements
-- **Batch Experimental Analysis**: See `docs/BATCH_EXPERIMENTAL_OPTIONS.md` for design details
-- **Archived Docs**: Historical planning documents in `docs/archive/`
+### Current Project Status
+- **Phase 5 Status**: `../../docs/PHASE_5_STATUS.md` - Migration completion summary
+- **Architecture Guide**: `../../docs/ARCHITECTURE.md` - Detailed technical architecture
+
+### Planning & Features
+- **Future Features**: `docs/FUTURE_FEATURES.md` - Planned enhancements
+- **Batch Experimental Analysis**: `docs/BATCH_EXPERIMENTAL_OPTIONS.md` - Design details
+
+### Historical Documentation
+- **Archived Migration Docs**: `../../docs/Archive_TESTING_AND_REFACTORING.md` - Historical refactoring journey
+- **Archived Planning**: `docs/archive/` - Historical planning documents
 
 ## License
 

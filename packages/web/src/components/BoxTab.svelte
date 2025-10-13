@@ -238,8 +238,6 @@
         }
         processing = false;
       }
-
-      fileUrl = ''; // Clear input on success
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to process Box URL';
       results = null;

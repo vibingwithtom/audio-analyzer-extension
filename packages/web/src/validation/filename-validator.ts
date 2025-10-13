@@ -217,14 +217,16 @@ export class FilenameValidator {
       issues.push('Filename must be all lowercase');
     }
 
-    // Use lowercase version for parsing to extract parts even if original wasn't lowercase
-    const parts = nameWithoutExt.toLowerCase().split('-');
+    // Use lowercase version for parsing
+    const lowercaseName = nameWithoutExt.toLowerCase();
 
     // Expected format: [ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]
-    // This should result in exactly 6 parts when split by '-'
-    if (parts.length !== 6) {
-      issues.push(`Invalid format: expected 6 parts separated by '-', got ${parts.length}`);
-      // Can't continue validation without proper parts
+    // Parse from the end since conversation IDs may contain dashes
+    // Pattern: ends with -user-[ID]-agent-[ID]
+    const match = lowercaseName.match(/^(.+)-([a-z_]+)-user-([^-]+)-agent-([^-]+)$/);
+
+    if (!match) {
+      issues.push('Invalid format: expected [ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]');
       return {
         status: 'fail',
         expectedFormat: '[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID].wav',
@@ -233,21 +235,10 @@ export class FilenameValidator {
       };
     }
 
-    const conversationId = parts[0];
-    const languageCode = parts[1];
-    const userLabel = parts[2];
-    const userId = parts[3];
-    const agentLabel = parts[4];
-    const agentId = parts[5];
-
-    // Validate "user" and "agent" labels
-    if (userLabel !== 'user') {
-      issues.push(`Expected 'user' label, got '${userLabel}'`);
-    }
-
-    if (agentLabel !== 'agent') {
-      issues.push(`Expected 'agent' label, got '${agentLabel}'`);
-    }
+    const conversationId = match[1];
+    const languageCode = match[2];
+    const userId = match[3];
+    const agentId = match[4];
 
     // Validate language code
     if (!typedBilingualData.languageCodes.includes(languageCode)) {
