@@ -73,7 +73,7 @@ describe('audio-analysis-service', () => {
         noiseFloor: -60,
         reverbInfo: { rt60: 0.5 }
       }),
-      analyzeStereoSeparation: vi.fn().mockReturnValue({ type: 'Conversational Stereo' }),
+      analyzeStereoSeparation: vi.fn().mockReturnValue({ stereoType: 'Conversational Stereo' }),
       analyzeMicBleed: vi.fn().mockReturnValue({ detected: false })
     };
 
