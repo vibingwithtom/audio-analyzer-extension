@@ -2,6 +2,7 @@
   import ResultsTable from './ResultsTable.svelte';
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
   import { currentPresetId } from '../stores/settings';
+  import { isSimplifiedMode } from '../stores/simplifiedMode';
   import type { AudioResults } from '../types';
 
   // Props
@@ -459,8 +460,8 @@
         experimentalMode={$analysisMode === 'experimental'}
       />
 
-      <!-- Mode Switcher Hints (only for non-auditions presets) -->
-      {#if !$currentPresetId?.startsWith('auditions-')}
+      <!-- Mode Switcher Hints (only for non-auditions presets and not in simplified mode) -->
+      {#if !$currentPresetId?.startsWith('auditions-') && !$isSimplifiedMode}
         {#if $analysisMode === 'experimental'}
           <div class="mode-switcher">
             💡 Want to see basic file properties? Switch to
@@ -505,8 +506,8 @@
         experimentalMode={$analysisMode === 'experimental'}
       />
 
-      <!-- Mode Switcher Hints (only for non-auditions presets) -->
-      {#if !$currentPresetId?.startsWith('auditions-')}
+      <!-- Mode Switcher Hints (only for non-auditions presets and not in simplified mode) -->
+      {#if !$currentPresetId?.startsWith('auditions-') && !$isSimplifiedMode}
         {#if $analysisMode === 'experimental'}
           <div class="mode-switcher">
             💡 Want to see basic file properties? Switch to

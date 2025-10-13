@@ -3,6 +3,7 @@ import { FilenameValidator } from '../validation/filename-validator';
 import type { AudioResults, ValidationResults } from '../types';
 import type { AnalysisMode } from '../stores/analysisMode';
 import type { PresetConfig } from '../settings/types';
+import { analyticsService } from './analytics-service';
 
 export interface AnalysisOptions {
   analysisMode: AnalysisMode;
@@ -29,16 +30,47 @@ export async function analyzeAudioFile(
   file: File | Blob,
   options: AnalysisOptions
 ): Promise<AudioResults> {
-  const { analysisMode: mode, preset, presetId, criteria, scriptsList, speakerId } = options;
-  const filename = file instanceof File ? file.name : 'unknown';
+  const startTime = Date.now();
+  let result: AudioResults | null = null;
 
-  // For empty files (filename-only mode with Google Drive metadata)
-  if (file.size === 0) {
-    return await analyzeMetadataOnly(file, filename, preset, presetId, mode, scriptsList, speakerId);
+  try {
+    const { analysisMode: mode, preset, presetId, criteria, scriptsList, speakerId } = options;
+    const filename = file instanceof File ? file.name : 'unknown';
+
+    analyticsService.track('analysis_started', {
+      filename,
+      fileSize: file.size,
+      analysisMode: mode,
+      presetId,
+    });
+
+    // For empty files (filename-only mode with Google Drive metadata)
+    if (file.size === 0) {
+      result = await analyzeMetadataOnly(file, filename, options);
+    } else {
+      // Full audio analysis
+      result = await analyzeFullFile(file, filename, mode, preset, presetId, criteria, scriptsList, speakerId);
+    }
+
+    return result;
+  } catch (error) {
+    analyticsService.track('analysis_error', {
+      filename: file instanceof File ? file.name : 'unknown',
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error; // Re-throw the error to be handled by the caller
+  } finally {
+    if (result) {
+      const processingTime = Date.now() - startTime;
+      analyticsService.track('analysis_completed', {
+        filename: result.filename,
+        status: result.status,
+        processingTime,
+        fileSize: result.fileSize,
+        fileType: result.fileType,
+      });
+    }
   }
-
-  // Full audio analysis
-  return await analyzeFullFile(file, filename, mode, preset, presetId, criteria, scriptsList, speakerId);
 }
 
 /**
@@ -48,12 +80,9 @@ export async function analyzeAudioFile(
 async function analyzeMetadataOnly(
   file: File | Blob,
   filename: string,
-  preset?: PresetConfig | null,
-  presetId?: string,
-  mode?: AnalysisMode,
-  scriptsList?: string[],
-  speakerId?: string
+  options: AnalysisOptions
 ): Promise<AudioResults> {
+  const { analysisMode: mode, preset, presetId, scriptsList, speakerId } = options;
   // Extract file type from filename extension
   const extension = filename.split('.').pop()?.toLowerCase() || '';
   const fileType = extension || 'unknown';
