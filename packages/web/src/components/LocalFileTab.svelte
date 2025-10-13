@@ -431,7 +431,7 @@
 </style>
 
 <div class="local-file-tab">
-  {#if $currentPresetId && $currentPresetId !== 'custom'}
+  {#if $currentPresetId}
     <div class="current-preset">
       <span class="preset-label">Current Preset:</span>
       <span class="preset-name">{availablePresets[$currentPresetId]?.name || $currentPresetId}</span>
