@@ -1,6 +1,5 @@
 <script lang="ts">
   import StatusBadge from './StatusBadge.svelte';
-  import { renderResultRow, updateColumnVisibility } from '../display-utils';
   import { formatSampleRate, formatDuration, formatBitDepth, formatChannels, formatBytes } from '../utils/format-utils';
   import type { AudioResults, ValidationResults } from '../types';
 
