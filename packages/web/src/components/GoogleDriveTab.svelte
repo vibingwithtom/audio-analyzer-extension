@@ -8,6 +8,7 @@
   import { currentTab } from '../stores/tabs';
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
   import { GoogleDriveAPI, type DriveFileMetadata } from '../services/google-drive-api';
+  import { threeHourSettings } from '../stores/threeHourSettings';
   import type { AudioResults, ValidationResults } from '../types';
 
   const bridge = AppBridge.getInstance();
@@ -52,6 +53,11 @@
   let processedFiles = 0;
   let batchCancelled = false;
   let batchDriveFiles: DriveFileMetadata[] = []; // Store for batch reprocessing
+
+  // Three Hour configuration state
+  let scriptsList: string[] = []; // Script base names from Google Drive folder
+  let fetchingScripts = false;
+  let scriptsError = '';
 
   // Cleanup blob URL when component is destroyed
   function cleanup() {
@@ -318,10 +324,106 @@
     batchCancelled = true;
   }
 
+  /**
+   * Check if Three Hour configuration is required for current analysis mode
+   */
+  function isThreeHourConfigRequired(): boolean {
+    const isThreeHourPreset = availablePresets[$currentPresetId]?.filenameValidationType === 'script-match';
+    const needsFilenameValidation = $analysisMode === 'full' || $analysisMode === 'filename-only';
+    return isThreeHourPreset && needsFilenameValidation;
+  }
+
+  /**
+   * Validate Three Hour configuration before processing
+   * Returns error message if validation fails, null if valid
+   */
+  function validateThreeHourConfig(): string | null {
+    if (!isThreeHourConfigRequired()) {
+      return null; // Not required, no error
+    }
+
+    if (!$threeHourSettings.scriptsFolderUrl.trim()) {
+      return "Three Hour configuration required: Please provide scripts folder URL";
+    }
+
+    if (!$threeHourSettings.speakerId.trim()) {
+      return "Three Hour configuration required: Please provide speaker ID";
+    }
+
+    if (scriptsList.length === 0) {
+      return "Three Hour configuration required: Please click 'Fetch Scripts' to load script list";
+    }
+
+    return null; // All good
+  }
+
+  /**
+   * Fetch scripts from Google Drive folder
+   */
+  async function handleFetchScripts() {
+    if (!$threeHourSettings.scriptsFolderUrl.trim()) {
+      scriptsError = 'Please provide a scripts folder URL';
+      return;
+    }
+
+    if (!driveAPI) {
+      scriptsError = 'Google Drive API not initialized. Please sign in again.';
+      return;
+    }
+
+    fetchingScripts = true;
+    scriptsError = '';
+    scriptsList = [];
+
+    try {
+      // Parse the folder URL
+      const parsed = driveAPI.parseUrl($threeHourSettings.scriptsFolderUrl);
+
+      if (parsed.type !== 'folder') {
+        scriptsError = 'Invalid folder URL. Please provide a Google Drive folder URL, not a file URL.';
+        fetchingScripts = false;
+        return;
+      }
+
+      // Get all files in the folder (not filtered to audio files)
+      const files = await driveAPI.listFilesInFolder(parsed.id);
+
+      if (files.length === 0) {
+        scriptsError = 'No files found in the scripts folder';
+        fetchingScripts = false;
+        return;
+      }
+
+      // Extract base names (remove file extensions)
+      scriptsList = files.map(file => {
+        // Remove file extension from filename
+        const name = file.name;
+        const lastDotIndex = name.lastIndexOf('.');
+        return lastDotIndex > 0 ? name.substring(0, lastDotIndex) : name;
+      });
+
+      // Success - clear any previous errors
+      scriptsError = '';
+    } catch (err) {
+      console.error('Failed to fetch scripts:', err);
+      scriptsError = err instanceof Error ? err.message : 'Failed to fetch scripts from folder';
+      scriptsList = [];
+    } finally {
+      fetchingScripts = false;
+    }
+  }
+
   async function handleUrlSubmit() {
     if (!fileUrl.trim()) return;
     if (!driveAPI) {
       error = 'Google Drive API not initialized. Please sign in again.';
+      return;
+    }
+
+    // Validate Three Hour configuration if required
+    const configError = validateThreeHourConfig();
+    if (configError) {
+      error = configError;
       return;
     }
 
@@ -401,6 +503,13 @@
   async function handleBrowseDrive() {
     if (!driveAPI) {
       error = 'Google Drive API not initialized. Please sign in again.';
+      return;
+    }
+
+    // Validate Three Hour configuration if required
+    const configError = validateThreeHourConfig();
+    if (configError) {
+      error = configError;
       return;
     }
 
@@ -508,6 +617,14 @@
   async function handleReprocess() {
     if (!driveAPI) {
       error = 'Google Drive API not initialized. Please sign in again.';
+      return;
+    }
+
+    // Validate Three Hour configuration if required
+    // This is crucial - mode might have changed from audio-only to full/filename-only
+    const configError = validateThreeHourConfig();
+    if (configError) {
+      error = configError;
       return;
     }
 
@@ -811,14 +928,97 @@
     line-height: 1.2;
   }
 
-  .three-hour-note {
+  .three-hour-config {
     margin-top: 1rem;
-    padding: 0.75rem;
-    background: rgba(59, 130, 246, 0.1);
-    border-left: 3px solid var(--primary, #2563eb);
-    border-radius: 4px;
-    font-size: 0.875rem;
+    padding: 1rem;
+    background: rgba(59, 130, 246, 0.05);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 8px;
+  }
+
+  .three-hour-config h4 {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--primary, #2563eb);
+  }
+
+  .config-field {
+    margin-bottom: 0.75rem;
+  }
+
+  .config-field:last-of-type {
+    margin-bottom: 0.5rem;
+  }
+
+  .config-field label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
     color: var(--text-primary, #333333);
+  }
+
+  .config-field input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 2px solid var(--bg-tertiary, #e0e0e0);
+    border-radius: 6px;
+    font-size: 0.875rem;
+  }
+
+  .config-field input:focus {
+    outline: none;
+    border-color: var(--primary, #2563eb);
+  }
+
+  .config-field input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .input-with-button {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .input-with-button input {
+    flex: 1;
+  }
+
+  .fetch-button {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .error-message {
+    margin-top: 0.375rem;
+    padding: 0.5rem;
+    background: rgba(244, 67, 54, 0.1);
+    border-left: 3px solid #f44336;
+    border-radius: 4px;
+    font-size: 0.8125rem;
+    color: #c62828;
+  }
+
+  .success-message {
+    margin-top: 0.375rem;
+    padding: 0.5rem;
+    background: rgba(76, 175, 80, 0.1);
+    border-left: 3px solid #4caf50;
+    border-radius: 4px;
+    font-size: 0.8125rem;
+    color: #2e7d32;
+    font-weight: 500;
+  }
+
+  .config-info {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(59, 130, 246, 0.08);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: var(--text-secondary, #666666);
   }
 
   button {
@@ -1002,9 +1202,63 @@
           </label>
         </div>
 
-        {#if availablePresets[$currentPresetId]?.filenameValidationType === 'script-match'}
-          <div class="three-hour-note">
-            ℹ️ <strong>Note:</strong> Three Hour filename validation configuration will be added here in Phase 5.7 (scripts folder URL + speaker ID).
+        {#if availablePresets[$currentPresetId]?.filenameValidationType === 'script-match' &&
+            ($analysisMode === 'full' || $analysisMode === 'filename-only')}
+          <div class="three-hour-config">
+            <h4>Three Hour Configuration</h4>
+
+            <!-- Scripts Folder URL -->
+            <div class="config-field">
+              <label for="scripts-folder-url">Scripts Folder URL:</label>
+              <div class="input-with-button">
+                <input
+                  id="scripts-folder-url"
+                  type="text"
+                  bind:value={$threeHourSettings.scriptsFolderUrl}
+                  placeholder="https://drive.google.com/drive/folders/..."
+                  disabled={processing}
+                  on:keydown={(e) => e.key === 'Enter' && !fetchingScripts && $threeHourSettings.scriptsFolderUrl.trim() && handleFetchScripts()}
+                />
+                <button
+                  on:click={handleFetchScripts}
+                  disabled={fetchingScripts || processing || !$threeHourSettings.scriptsFolderUrl.trim()}
+                  class="fetch-button"
+                >
+                  {#if fetchingScripts}
+                    🔄 Fetching...
+                  {:else}
+                    Fetch Scripts
+                  {/if}
+                </button>
+              </div>
+              {#if scriptsError}
+                <div class="error-message">❌ {scriptsError}</div>
+              {:else if scriptsList.length > 0}
+                <div class="success-message">✓ Found {scriptsList.length} scripts</div>
+              {/if}
+            </div>
+
+            <!-- Speaker ID -->
+            <div class="config-field">
+              <label for="speaker-id">Speaker ID:</label>
+              <input
+                id="speaker-id"
+                type="text"
+                bind:value={$threeHourSettings.speakerId}
+                placeholder="e.g., SP001"
+                disabled={processing}
+                on:blur={() => {
+                  // Trim whitespace on blur
+                  if ($threeHourSettings.speakerId) {
+                    threeHourSettings.setSpeakerId($threeHourSettings.speakerId);
+                  }
+                }}
+              />
+            </div>
+
+            <div class="config-info">
+              ℹ️ These settings are saved automatically and used for filename validation.
+            </div>
           </div>
         {/if}
       </div>

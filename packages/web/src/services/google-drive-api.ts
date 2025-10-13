@@ -162,6 +162,18 @@ export class GoogleDriveAPI {
   }
 
   /**
+   * List all files in a Google Drive folder (with optional extension filter)
+   *
+   * @param folderId - Google Drive folder ID
+   * @param extension - Optional file extension filter (e.g., '.txt', '.pdf')
+   * @returns Array of file metadata objects
+   * @throws Error if listing fails
+   */
+  async listFilesInFolder(folderId: string, extension?: string): Promise<DriveFileMetadata[]> {
+    return await this.googleAuth.listFilesInFolder(folderId, extension);
+  }
+
+  /**
    * List audio files in a Google Drive folder
    *
    * @param folderId - Google Drive folder ID

@@ -771,6 +771,16 @@
   button.secondary:hover {
     background: #d0d0d0;
   }
+
+  .three-hour-note {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: rgba(59, 130, 246, 0.1);
+    border-left: 3px solid var(--primary, #2563eb);
+    border-radius: 4px;
+    font-size: 0.875rem;
+    color: var(--text-primary, #333333);
+  }
 </style>
 
 <div class="box-tab">
@@ -830,8 +840,9 @@
       </div>
     </div>
 
-    <!-- Analysis Mode Selection (only for presets with filename validation) -->
-    {#if $currentPresetId && availablePresets[$currentPresetId]?.supportsFilenameValidation}
+    <!-- Analysis Mode Selection -->
+    {#if $currentPresetId && availablePresets[$currentPresetId]?.supportsFilenameValidation && availablePresets[$currentPresetId]?.filenameValidationType !== 'script-match'}
+      <!-- Filename validation presets (non-Three Hour): Show all 4 options -->
       <div class="analysis-mode-section">
         <h3>Analysis Mode:</h3>
         <div class="radio-group">
@@ -894,6 +905,45 @@
               <span class="radio-description">Peak level, noise floor, reverb, silence detection</span>
             </div>
           </label>
+        </div>
+      </div>
+    {:else if availablePresets[$currentPresetId]?.filenameValidationType === 'script-match'}
+      <!-- Three Hour preset: Show only Audio Analysis and Experimental -->
+      <div class="analysis-mode-section">
+        <h3>Analysis Mode:</h3>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode-box"
+              value="audio-only"
+              checked={$analysisMode === 'audio-only'}
+              on:change={() => setAnalysisMode('audio-only')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Audio Analysis</span>
+              <span class="radio-description">Basic properties (sample rate, bit depth, duration)</span>
+            </div>
+          </label>
+
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="analysis-mode-box"
+              value="experimental"
+              checked={$analysisMode === 'experimental'}
+              on:change={() => setAnalysisMode('experimental')}
+              disabled={processing}
+            />
+            <div class="radio-content">
+              <span class="radio-title">Experimental Analysis</span>
+              <span class="radio-description">Peak level, noise floor, reverb, silence detection</span>
+            </div>
+          </label>
+        </div>
+        <div class="three-hour-note">
+          ℹ️ <strong>Note:</strong> Three Hour filename validation requires Google Drive. Use the Google Drive tab for filename validation, or select Audio Analysis/Experimental here.
         </div>
       </div>
     {/if}

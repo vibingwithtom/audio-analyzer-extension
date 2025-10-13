@@ -458,8 +458,8 @@
       <h3>Analysis Mode:</h3>
       <div class="radio-group">
 
-        {#if availablePresets[$currentPresetId]?.supportsFilenameValidation}
-          <!-- Filename validation presets: Show all 4 options (Audio Only, Filename Only, Full, Experimental) -->
+        {#if availablePresets[$currentPresetId]?.supportsFilenameValidation && availablePresets[$currentPresetId]?.filenameValidationType !== 'script-match'}
+          <!-- Filename validation presets (non-Three Hour): Show all 4 options (Audio Only, Filename Only, Full, Experimental) -->
           <label class="radio-label">
             <input
               type="radio"
@@ -521,7 +521,7 @@
           </label>
 
         {:else}
-          <!-- Non-filename presets: Show 2 options (Audio Analysis, Experimental) -->
+          <!-- Non-filename presets OR Three Hour preset: Show 2 options (Audio Analysis, Experimental) -->
           <label class="radio-label">
             <input
               type="radio"
@@ -557,7 +557,7 @@
 
       {#if availablePresets[$currentPresetId]?.filenameValidationType === 'script-match'}
         <div class="three-hour-note">
-          ℹ️ <strong>Note:</strong> Three Hour filename validation requires Google Drive tab configuration (Phase 5.7).
+          ℹ️ <strong>Note:</strong> Three Hour filename validation requires Google Drive. Use the Google Drive tab for filename validation, or select Audio Analysis/Experimental here.
         </div>
       {/if}
     </div>
