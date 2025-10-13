@@ -180,7 +180,7 @@
   <!-- Footer -->
   <footer class="footer">
     <div class="container">
-      <p id="buildInfo">Audio Analyzer - Phase 5.8.1 Filename-only Optimization</p>
+      <p id="buildInfo">Audio Analyzer build-2025.10.12-2355</p>
     </div>
   </footer>
 </div>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { availablePresets, currentPresetId, setPreset, selectedPreset, currentCriteria, updateCustomCriteria } from '../stores/settings';
+  import { availablePresets, currentPresetId, setPreset, selectedPreset, currentCriteria, updateCustomCriteria, hasValidPresetConfig } from '../stores/settings';
   import type { AudioCriteria } from '../settings/types';
 
   // Custom criteria form state
@@ -98,13 +98,50 @@
   }
 
   .form-group select {
-    width: 100%;
-    padding: 0.5rem;
-    border: 1px solid var(--bg-tertiary, #e0e0e0);
-    border-radius: 4px;
-    background: var(--bg-primary, #ffffff);
+    width: auto;
+    min-width: 300px;
+    max-width: 500px;
+    padding: 0.75rem 1rem;
+    border: 2px solid #b0b0b0;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);
     color: var(--text-primary, #333333);
-    font-size: 1rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+    padding-right: 2.5rem;
+  }
+
+  .next-steps {
+    margin-top: 1.5rem;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.08) 0%, rgba(76, 175, 80, 0.12) 100%);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    color: var(--text-primary, #333333);
+  }
+
+  .next-steps strong {
+    color: #2e7d32;
+  }
+
+  .form-group select:hover {
+    border-color: var(--primary, #2563eb);
+    background: linear-gradient(180deg, #ffffff 0%, #f0f4ff 100%);
+    box-shadow: 0 4px 8px rgba(37, 99, 235, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+  }
+
+  .form-group select:focus {
+    outline: none;
+    border-color: var(--primary, #2563eb);
+    border-width: 2px;
+    background: #ffffff;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15), 0 4px 8px rgba(37, 99, 235, 0.2);
+    transform: translateY(-1px);
   }
 
   .preset-info {
@@ -255,6 +292,20 @@
   .duration-field input {
     max-width: 200px;
   }
+
+  .config-warning {
+    margin-bottom: 1rem;
+    padding: 0.875rem;
+    background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.15) 100%);
+    border: 1px solid rgba(255, 152, 0, 0.3);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: var(--text-primary, #333333);
+  }
+
+  .config-warning strong {
+    color: var(--warning, #ff9800);
+  }
 </style>
 
 <div class="settings-tab">
@@ -273,6 +324,12 @@
         {/each}
       </select>
     </div>
+
+    {#if $hasValidPresetConfig}
+      <div class="next-steps">
+        ✓ <strong>Preset configured!</strong> Return to the Local Files, Google Drive, or Box tab to analyze files.
+      </div>
+    {/if}
 
     {#if $selectedPreset && $currentPresetId !== 'custom'}
       <div class="preset-info">
@@ -351,6 +408,13 @@
     {:else if $currentPresetId === 'custom'}
       <div class="custom-config">
         <h4>Custom Criteria Configuration</h4>
+
+        {#if !$hasValidPresetConfig}
+          <div class="config-warning">
+            ⚠️ <strong>Configuration Required:</strong> You must select at least one criterion to enable file analysis. Choose one or more options below.
+          </div>
+        {/if}
+
         <p style="margin-bottom: 1rem; color: var(--text-secondary, #666666); font-size: 0.9rem;">
           Select the criteria you want to validate. Hold Ctrl/Cmd to select multiple options.
         </p>

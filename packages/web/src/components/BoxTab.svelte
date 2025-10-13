@@ -4,7 +4,7 @@
   import { AppBridge } from '../bridge/app-bridge';
   import ResultsDisplay from './ResultsDisplay.svelte';
   import { analyzeAudioFile } from '../services/audio-analysis-service';
-  import { currentCriteria, currentPresetId, availablePresets } from '../stores/settings';
+  import { currentCriteria, currentPresetId, availablePresets, hasValidPresetConfig } from '../stores/settings';
   import { currentTab } from '../stores/tabs';
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
   import { BoxAPI } from '../services/box-api';
@@ -478,6 +478,13 @@
     font-weight: 600;
     font-size: 1rem;
     color: var(--primary, #2563eb);
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  .preset-name:hover {
+    text-decoration: underline;
   }
 
   .current-preset a {
@@ -808,16 +815,16 @@
 
   {#if $authState.box.isAuthenticated}
     <!-- Preset Display -->
-    {#if $currentPresetId}
+    {#if !$hasValidPresetConfig}
+      <div class="no-preset-warning">
+        <span>Please select a Preset or configure Custom criteria to analyze files.</span>
+        <a href="#" on:click|preventDefault={goToSettings}>Select Preset</a>
+      </div>
+    {:else if $currentPresetId}
       <div class="current-preset">
         <span class="preset-label">Current Preset:</span>
-        <span class="preset-name">{availablePresets[$currentPresetId]?.name || $currentPresetId}</span>
+        <span class="preset-name" on:click={goToSettings}>{availablePresets[$currentPresetId]?.name || $currentPresetId}</span>
         <a href="#" on:click|preventDefault={goToSettings}>Change</a>
-      </div>
-    {:else}
-      <div class="no-preset-warning">
-        <span>⚠️ No preset selected. Files will be analyzed without validation.</span>
-        <a href="#" on:click|preventDefault={goToSettings}>Select a preset</a>
       </div>
     {/if}
 
@@ -829,11 +836,11 @@
           <input
             type="text"
             bind:value={fileUrl}
-            placeholder="Paste Box shared link URL (e.g., https://app.box.com/s/...)"
-            disabled={processing}
-            on:keydown={(e) => e.key === 'Enter' && !processing && fileUrl.trim() && handleUrlSubmit()}
+            placeholder={$hasValidPresetConfig ? "Paste Box shared link URL (e.g., https://app.box.com/s/...)" : "Configure a preset in Settings to analyze files"}
+            disabled={processing || !$hasValidPresetConfig}
+            on:keydown={(e) => e.key === 'Enter' && !processing && fileUrl.trim() && $hasValidPresetConfig && handleUrlSubmit()}
           />
-          <button on:click={handleUrlSubmit} disabled={processing || !fileUrl.trim()}>
+          <button on:click={handleUrlSubmit} disabled={processing || !fileUrl.trim() || !$hasValidPresetConfig}>
             Analyze URL
           </button>
         </div>

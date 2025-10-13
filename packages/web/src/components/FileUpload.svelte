@@ -5,14 +5,17 @@
   export let processing = false;
   export let accept = 'audio/*';
   export let multiple = false;
+  export let disabled = false;
 
   const dispatch = createEventDispatcher();
 
   let isDragging = false;
 
+  $: isDisabled = processing || disabled;
+
   function handleDragOver(event: DragEvent) {
     event.preventDefault();
-    if (!processing) {
+    if (!isDisabled) {
       isDragging = true;
     }
   }
@@ -26,7 +29,7 @@
     event.preventDefault();
     isDragging = false;
 
-    if (processing) return;
+    if (isDisabled) return;
 
     const files = event.dataTransfer?.files;
     if (files && files.length > 0) {
@@ -133,17 +136,17 @@
   <div
     class="drop-zone"
     class:dragging={isDragging}
-    class:disabled={processing}
+    class:disabled={isDisabled}
     on:dragover={handleDragOver}
     on:dragleave={handleDragLeave}
     on:drop={handleDrop}
   >
-    <label for={id} class="file-upload-label" class:disabled={processing}>
-      <span>📁 {processing ? 'Processing...' : multiple ? 'Choose Audio Files' : 'Choose Audio File'}</span>
+    <label for={id} class="file-upload-label" class:disabled={isDisabled}>
+      <span>📁 {isDisabled && !processing ? 'Configure preset to enable' : processing ? 'Processing...' : multiple ? 'Choose Audio Files' : 'Choose Audio File'}</span>
     </label>
-    <input type="file" {id} {accept} {multiple} on:change disabled={processing} class="file-input" />
+    <input type="file" {id} {accept} {multiple} on:change disabled={isDisabled} class="file-input" />
 
-    <div class="drop-instruction">or drag and drop {multiple ? 'files' : 'file'} here</div>
+    <div class="drop-instruction">{isDisabled && !processing ? 'Select a preset in Settings to analyze files' : `or drag and drop ${multiple ? 'files' : 'file'} here`}</div>
     <div class="file-info">Supported formats: WAV, MP3, FLAC, M4A, OGG</div>
   </div>
 </div>

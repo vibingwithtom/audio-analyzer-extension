@@ -15,8 +15,9 @@ const criteria = writable<AudioCriteria | null>(
 );
 
 // Selected preset ID
+// Default to first preset in alphabetical order (auditions-character-recordings)
 const selectedPresetId = writable<string>(
-  SettingsManager.getSelectedPreset() || 'custom'
+  SettingsManager.getSelectedPreset() || 'auditions-character-recordings'
 );
 
 // Subscribe to changes and persist to localStorage
@@ -75,3 +76,27 @@ export function updateCustomCriteria(newCriteria: AudioCriteria): void {
   criteria.set(newCriteria);
   SettingsManager.saveCriteria(newCriteria);
 }
+
+// Check if current configuration is valid (has a properly configured preset)
+export const hasValidPresetConfig: Readable<boolean> = derived(
+  [selectedPresetId, criteria],
+  ([$presetId, $criteria]) => {
+    // If no preset selected, invalid
+    if (!$presetId) return false;
+
+    // If it's a built-in preset, it's always valid
+    if ($presetId !== 'custom') return true;
+
+    // For custom preset, check if any criteria is configured
+    if (!$criteria) return false;
+
+    const hasAnyCriteria =
+      ($criteria.fileType && $criteria.fileType.length > 0) ||
+      ($criteria.sampleRate && $criteria.sampleRate.length > 0) ||
+      ($criteria.bitDepth && $criteria.bitDepth.length > 0) ||
+      ($criteria.channels && $criteria.channels.length > 0) ||
+      ($criteria.minDuration && $criteria.minDuration.length > 0);
+
+    return hasAnyCriteria;
+  }
+);

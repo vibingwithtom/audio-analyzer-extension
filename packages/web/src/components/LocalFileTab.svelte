@@ -3,7 +3,7 @@
   import FileUpload from './FileUpload.svelte';
   import ResultsDisplay from './ResultsDisplay.svelte';
   import { analyzeAudioFile } from '../services/audio-analysis-service';
-  import { currentPresetId, availablePresets, currentCriteria } from '../stores/settings';
+  import { currentPresetId, availablePresets, currentCriteria, hasValidPresetConfig } from '../stores/settings';
   import { currentTab } from '../stores/tabs';
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
   import type { AudioResults, ValidationResults } from '../types';
@@ -283,6 +283,13 @@
     font-weight: 600;
     font-size: 1rem;
     color: var(--primary, #2563eb);
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  .preset-name:hover {
+    text-decoration: underline;
   }
 
   .current-preset a {
@@ -431,24 +438,25 @@
 </style>
 
 <div class="local-file-tab">
-  {#if $currentPresetId}
+  {#if !$hasValidPresetConfig}
+    <div class="no-preset-warning">
+      <span>Please select a Preset or configure Custom criteria to analyze files.</span>
+      <a href="#" on:click|preventDefault={goToSettings}>Select Preset</a>
+    </div>
+  {:else if $currentPresetId}
     <div class="current-preset">
       <span class="preset-label">Current Preset:</span>
-      <span class="preset-name">{availablePresets[$currentPresetId]?.name || $currentPresetId}</span>
+      <span class="preset-name" on:click={goToSettings}>{availablePresets[$currentPresetId]?.name || $currentPresetId}</span>
       <a href="#" on:click|preventDefault={goToSettings}>Change</a>
-    </div>
-  {:else}
-    <div class="no-preset-warning">
-      <span>⚠️ No preset selected. Files will be analyzed without validation.</span>
-      <a href="#" on:click|preventDefault={goToSettings}>Select a preset</a>
     </div>
   {/if}
 
   <FileUpload
     id="local-file-upload"
-    {processing}
+    processing={processing}
     accept="audio/*"
     multiple={true}
+    disabled={!$hasValidPresetConfig}
     on:change={handleFileChange}
   />
 
