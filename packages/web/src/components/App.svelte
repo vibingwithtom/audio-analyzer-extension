@@ -113,7 +113,7 @@
 
   /* Header */
   .header {
-    background: var(--bg-primary, #ffffff);
+    background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
     border-bottom: 1px solid var(--bg-tertiary, #e0e0e0);
     padding: 1rem 0;
   }
@@ -135,17 +135,17 @@
     margin: 0;
     font-size: 1.75rem;
     font-weight: 600;
-    color: var(--text-primary, #333333);
+    color: white;
   }
 
   .dark-mode-toggle {
-    background: none;
-    border: none;
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
     cursor: pointer;
     font-size: 1.5rem;
     padding: 0.5rem;
     border-radius: 50%;
-    transition: background 0.2s ease;
+    transition: all 0.3s ease;
     width: 48px;
     height: 48px;
     display: flex;
@@ -154,7 +154,8 @@
   }
 
   .dark-mode-toggle:hover {
-    background: var(--bg-secondary, #f5f5f5);
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.1);
   }
 
   .light-icon {

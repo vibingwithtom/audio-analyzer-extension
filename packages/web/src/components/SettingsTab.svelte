@@ -102,9 +102,9 @@
     min-width: 300px;
     max-width: 500px;
     padding: 0.75rem 1rem;
-    border: 2px solid #b0b0b0;
+    border: 2px solid var(--border-color, #b0b0b0);
     border-radius: 8px;
-    background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);
+    background: var(--bg-secondary, #ffffff);
     color: var(--text-primary, #333333);
     font-size: 1.05rem;
     font-weight: 600;
@@ -129,19 +129,47 @@
   }
 
   .form-group select:hover {
-    border-color: var(--primary, #2563eb);
-    background: linear-gradient(180deg, #ffffff 0%, #f0f4ff 100%);
+    border-color: var(--accent-primary, #2563eb);
+    background: var(--bg-hover, #eff6ff);
     box-shadow: 0 4px 8px rgba(37, 99, 235, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
     transform: translateY(-1px);
   }
 
   .form-group select:focus {
     outline: none;
-    border-color: var(--primary, #2563eb);
+    border-color: var(--accent-primary, #2563eb);
     border-width: 2px;
-    background: #ffffff;
-    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15), 0 4px 8px rgba(37, 99, 235, 0.2);
+    background: var(--bg-secondary, #ffffff);
+    box-shadow: 0 0 0 4px var(--accent-light, rgba(37, 99, 235, 0.15)), 0 4px 8px rgba(37, 99, 235, 0.2);
     transform: translateY(-1px);
+  }
+
+  .form-group select option {
+    background: var(--bg-secondary, #ffffff);
+    color: var(--text-primary, #333333);
+    padding: 0.5rem;
+  }
+
+  /* Dark mode specific fixes for dropdown */
+  :global([data-theme="dark"]) .form-group select {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+  }
+
+  :global([data-theme="dark"]) .form-group select option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+
+  :global([data-theme="dark"]) .form-group select:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+  }
+
+  :global([data-theme="dark"]) .form-group select:focus {
+    background: var(--bg-secondary);
+    border-color: var(--accent-primary);
   }
 
   .preset-info {
