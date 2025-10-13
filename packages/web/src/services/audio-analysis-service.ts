@@ -190,7 +190,7 @@ async function analyzeExperimental(arrayBuffer: ArrayBuffer): Promise<Partial<Au
     advancedResults.stereoSeparation = stereoSeparation;
 
     // Add mic bleed analysis (only meaningful for conversational stereo files)
-    if (stereoSeparation.type === 'Conversational Stereo') {
+    if (stereoSeparation.stereoType === 'Conversational Stereo') {
       const micBleed = levelAnalyzer.analyzeMicBleed(audioBuffer);
       if (micBleed) {
         advancedResults.micBleed = micBleed;

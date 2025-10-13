@@ -1,6 +1,5 @@
 <script lang="ts">
   import StatusBadge from './StatusBadge.svelte';
-  import MicBleedCard from './MicBleedCard.svelte';
   import { formatSampleRate, formatDuration, formatBitDepth, formatChannels, formatBytes } from '../utils/format-utils';
   import type { AudioResults, ValidationResults } from '../types';
 
@@ -54,7 +53,7 @@
 
   function getMicBleedClass(micBleed: any): string {
     if (!micBleed) return '';
-    if (micBleed.percentageConfirmedBleed < 0.5) return 'success';
+    if (micBleed.new?.percentageConfirmedBleed < 0.5) return 'success';
     return 'warning';
   }
 
@@ -263,6 +262,8 @@
             <th>Trailing Silence</th>
             <th>Longest Silence</th>
             <th>Stereo Separation</th>
+            <th>Mic Bleed (Old)</th>
+            <th>Mic Bleed (New)</th>
           </tr>
         </thead>
         <tbody>
@@ -321,16 +322,40 @@
                   Mono file
                 {/if}
               </td>
+              <td>
+                {#if result.micBleed?.old}
+                  <div>
+                    <span class="value-{getMicBleedClass(result.micBleed)}">
+                      {(result.micBleed.old.leftChannelBleedDb > -60 || result.micBleed.old.rightChannelBleedDb > -60) ? 'Detected' : 'Not detected'}
+                    </span>
+                    <span class="subtitle">
+                      L: {result.micBleed.old.leftChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.leftChannelBleedDb.toFixed(1)} dB,
+                      R: {result.micBleed.old.rightChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.rightChannelBleedDb.toFixed(1)} dB
+                    </span>
+                  </div>
+                {:else}
+                  N/A
+                {/if}
+              </td>
+              <td>
+                {#if result.micBleed?.new}
+                  <div>
+                    <span class="value-{getMicBleedClass(result.micBleed)}">
+                      {result.micBleed.new.percentageConfirmedBleed > 0.5 ? 'Detected' : 'Not detected'}
+                    </span>
+                    <span class="subtitle">
+                      Median: {result.micBleed.new.medianSeparation.toFixed(1)} dB,
+                      Worst 10%: {result.micBleed.new.p10Separation.toFixed(1)} dB
+                    </span>
+                  </div>
+                {:else}
+                  N/A
+                {/if}
+              </td>
             </tr>
           {/each}
         </tbody>
       </table>
-
-      {#each results as result}
-        {#if result.micBleed}
-          <MicBleedCard micBleed={result.micBleed} />
-        {/if}
-      {/each}
     </div>
   {:else}
     <!-- STANDARD MODE TABLE -->

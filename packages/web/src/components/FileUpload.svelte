@@ -26,33 +26,124 @@
     isDragging = false;
   }
 
-  function handleDrop(event: DragEvent) {
+  async function getAllFilesFromEntry(entry: any): Promise<File[]> {
+    const files: File[] = [];
+
+    if (entry.isFile) {
+      return new Promise((resolve) => {
+        entry.file((file: File) => {
+          // Only include audio files
+          if (file.type.startsWith('audio/') || /\.(wav|mp3|flac|m4a|ogg)$/i.test(file.name)) {
+            resolve([file]);
+          } else {
+            resolve([]);
+          }
+        });
+      });
+    } else if (entry.isDirectory) {
+      const dirReader = entry.createReader();
+      return new Promise((resolve) => {
+        const readEntries = async () => {
+          dirReader.readEntries(async (entries: any[]) => {
+            if (entries.length === 0) {
+              resolve(files);
+              return;
+            }
+
+            for (const entry of entries) {
+              const entryFiles = await getAllFilesFromEntry(entry);
+              files.push(...entryFiles);
+            }
+
+            // Continue reading (directories may return entries in batches)
+            await readEntries();
+          });
+        };
+        readEntries();
+      });
+    }
+
+    return files;
+  }
+
+  async function handleDrop(event: DragEvent) {
     event.preventDefault();
     isDragging = false;
 
     if (isDisabled) return;
 
+    const items = event.dataTransfer?.items;
     const files = event.dataTransfer?.files;
-    if (files && files.length > 0) {
-      // Create a synthetic change event with the dropped files
-      const input = document.getElementById(id) as HTMLInputElement;
-      if (input) {
-        // Create a new FileList-like object
-        const dataTransfer = new DataTransfer();
 
-        // Add all files if multiple is enabled, otherwise just the first
-        if (multiple) {
-          for (let i = 0; i < files.length; i++) {
-            dataTransfer.items.add(files[i]);
+    console.log('Drop event received:', {
+      itemsLength: items?.length,
+      filesLength: files?.length,
+      items: items ? Array.from(items).map(i => ({ kind: i.kind, type: i.type })) : [],
+      files: files ? Array.from(files).map(f => f.name) : []
+    });
+
+    if (items && items.length > 0) {
+      const allFiles: File[] = [];
+      let totalDropped = 0;
+
+      // Process all dropped items (files and folders)
+      const promises = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file') {
+          totalDropped++;
+          const entry = item.webkitGetAsEntry?.() || item.getAsEntry?.();
+          if (entry) {
+            promises.push(
+              getAllFilesFromEntry(entry).then(files => {
+                console.log(`Entry ${entry.name} (${entry.isDirectory ? 'dir' : 'file'}): found ${files.length} audio files`);
+                return files;
+              })
+            );
+          } else {
+            // Fallback for browsers without webkitGetAsEntry
+            const file = item.getAsFile();
+            if (file) {
+              console.log(`Processing file: ${file.name}, type: ${file.type}`);
+              if (file.type.startsWith('audio/') || /\.(wav|mp3|flac|m4a|ogg)$/i.test(file.name)) {
+                console.log(`Adding audio file: ${file.name}`);
+                promises.push(Promise.resolve([file]));
+              } else {
+                console.log(`Skipping non-audio file: ${file.name}`);
+              }
+            }
           }
-        } else {
-          dataTransfer.items.add(files[0]);
         }
+      }
 
-        input.files = dataTransfer.files;
+      // Wait for all files to be processed
+      const fileArrays = await Promise.all(promises);
+      fileArrays.forEach(files => allFiles.push(...files));
 
-        // Dispatch change event
-        input.dispatchEvent(new Event('change', { bubbles: true }));
+      console.log(`Dropped ${totalDropped} items, found ${allFiles.length} audio files`);
+
+      if (allFiles.length > 0) {
+        const input = document.getElementById(id) as HTMLInputElement;
+        if (input) {
+          const dataTransfer = new DataTransfer();
+
+          // Add all files if multiple is enabled, otherwise just the first
+          if (multiple) {
+            for (const file of allFiles) {
+              dataTransfer.items.add(file);
+            }
+          } else {
+            dataTransfer.items.add(allFiles[0]);
+          }
+
+          input.files = dataTransfer.files;
+
+          // Dispatch change event
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      } else {
+        // No valid audio files found
+        console.warn('No valid audio files found in dropped items');
       }
     }
   }
@@ -69,6 +160,14 @@
     border-radius: 8px;
     text-align: center;
     background: var(--bg-secondary, #f5f5f5);
+    background-image:
+      repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(0, 0, 0, 0.04) 10px,
+        rgba(0, 0, 0, 0.04) 20px
+      );
     transition: all 0.2s ease;
   }
 
@@ -131,6 +230,18 @@
     font-size: 0.875rem;
     color: var(--text-secondary, #666666);
   }
+
+  /* Dark mode: lighter stripe pattern */
+  :global([data-theme="dark"]) .drop-zone {
+    background-image:
+      repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(255, 255, 255, 0.06) 10px,
+        rgba(255, 255, 255, 0.06) 20px
+      );
+  }
 </style>
 
 <div class="file-upload-wrapper">
@@ -147,7 +258,7 @@
     </label>
     <input type="file" {id} {accept} {multiple} on:change disabled={isDisabled} class="file-input" />
 
-    <div class="drop-instruction">{isDisabled && !processing ? 'Select a preset in Settings to analyze files' : `or drag and drop ${multiple ? 'files' : 'file'} here`}</div>
+    <div class="drop-instruction">{isDisabled && !processing ? 'Select a preset in Settings to analyze files' : `or drag and drop ${multiple ? 'files/folders' : 'file'} here`}</div>
     {#if !$isSimplifiedMode}
       <div class="file-info">Supported formats: WAV, MP3, FLAC, M4A, OGG</div>
     {/if}
