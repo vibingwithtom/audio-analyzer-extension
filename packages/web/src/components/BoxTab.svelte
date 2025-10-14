@@ -9,6 +9,7 @@
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
   import { BoxAPI } from '../services/box-api';
   import type { AudioResults, ValidationResults } from '../types';
+  import { analyticsService } from '../services/analytics-service';
 
   const bridge = AppBridge.getInstance();
   let boxAPI: BoxAPI | null = null;
@@ -29,16 +30,28 @@
 
   function handleSignIn() {
     bridge.dispatch({ type: 'auth:box:signin:requested' });
+    analyticsService.track('box_signin_requested');
   }
 
   function handleSignOut() {
     bridge.dispatch({ type: 'auth:box:signout:requested' });
+    analyticsService.track('box_signout');
   }
 
   // Initialize Box API when authenticated
   $: if ($authState.box.isAuthenticated && !boxAPI) {
     const boxAuth = authService.getBoxAuthInstance();
     boxAPI = new BoxAPI(boxAuth);
+    analyticsService.track('box_signin_success', {
+      user: $authState.box.userInfo?.login || $authState.box.userInfo?.name
+    });
+  }
+
+  // Track authentication errors
+  $: if ($authState.box.error) {
+    analyticsService.track('box_auth_error', {
+      error: $authState.box.error
+    });
   }
 
   let processing = false;

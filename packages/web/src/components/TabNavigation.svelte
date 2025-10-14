@@ -2,6 +2,7 @@
   import { currentTab, type TabType } from '../stores/tabs';
   import { AppBridge } from '../bridge/app-bridge';
   import { isSimplifiedMode } from '../stores/simplifiedMode';
+  import { analyticsService } from '../services/analytics-service';
 
   const bridge = AppBridge.getInstance();
 
@@ -11,6 +12,7 @@
   function handleTabClick(tab: TabType): void {
     currentTab.setTab(tab);
     bridge.dispatch({ type: 'tab:changed', tab });
+    analyticsService.track('tab_switched', { tab });
   }
 </script>
 

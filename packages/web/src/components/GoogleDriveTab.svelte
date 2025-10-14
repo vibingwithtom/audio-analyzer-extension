@@ -10,6 +10,7 @@
   import { GoogleDriveAPI, type DriveFileMetadata } from '../services/google-drive-api';
   import { threeHourSettings } from '../stores/threeHourSettings';
   import type { AudioResults, ValidationResults } from '../types';
+  import { analyticsService } from '../services/analytics-service';
 
   const bridge = AppBridge.getInstance();
   let driveAPI: GoogleDriveAPI | null = null;
@@ -20,16 +21,28 @@
 
   function handleSignIn() {
     bridge.dispatch({ type: 'auth:google:signin:requested' });
+    analyticsService.track('google_signin_requested');
   }
 
   function handleSignOut() {
     bridge.dispatch({ type: 'auth:google:signout:requested' });
+    analyticsService.track('google_signout');
   }
 
   // Initialize Drive API when authenticated (picker loads lazily on button click)
   $: if ($authState.google.isAuthenticated && !driveAPI) {
     const googleAuth = authService.getGoogleAuthInstance();
     driveAPI = new GoogleDriveAPI(googleAuth);
+    analyticsService.track('google_signin_success', {
+      email: $authState.google.userInfo?.email
+    });
+  }
+
+  // Track authentication errors
+  $: if ($authState.google.error) {
+    analyticsService.track('google_auth_error', {
+      error: $authState.google.error
+    });
   }
 
   let processing = false;
