@@ -884,42 +884,53 @@ export class LevelAnalyzer {
       segments.push(currentSegment);
     }
 
-    // Analyze consistency: check if dominance patterns flip
+    // Analyze consistency: ONLY consider segments with clear dominance, ignore balanced
     let inconsistentSegments = 0;
     let expectedPattern = null;
+    let clearlySeparatedSegments = 0;
 
     for (const segment of segments) {
       const total = segment.leftDominant + segment.rightDominant + segment.balanced;
       if (total === 0) continue;
 
       // Determine this segment's dominant pattern
+      // CHANGE: Require clear dominance (> 50% of non-balanced blocks)
+      const nonBalanced = segment.leftDominant + segment.rightDominant;
       let pattern = 'balanced';
-      if (segment.leftDominant > segment.rightDominant && segment.leftDominant > segment.balanced) {
-        pattern = 'left';
-      } else if (segment.rightDominant > segment.leftDominant && segment.rightDominant > segment.balanced) {
-        pattern = 'right';
+
+      if (nonBalanced > segment.balanced) {
+        // This segment has clear dominance
+        if (segment.leftDominant > segment.rightDominant) {
+          pattern = 'left';
+        } else {
+          pattern = 'right';
+        }
+        clearlySeparatedSegments++;
       }
 
-      // Set initial expected pattern
+      // Set initial expected pattern (skip balanced segments)
       if (expectedPattern === null && pattern !== 'balanced') {
         expectedPattern = pattern;
       }
 
       // Check for inconsistency (pattern flips from left to right or vice versa)
+      // ONLY flag as inconsistent if we have a clear dominant pattern that differs
       if (expectedPattern !== null && pattern !== 'balanced' && pattern !== expectedPattern) {
         inconsistentSegments++;
       }
     }
 
     const isConsistent = inconsistentSegments === 0;
-    const consistencyPercentage = segments.length > 0
-      ? ((segments.length - inconsistentSegments) / segments.length) * 100
+    // Calculate percentage based on clearly separated segments only
+    const consistencyPercentage = clearlySeparatedSegments > 0
+      ? ((clearlySeparatedSegments - inconsistentSegments) / clearlySeparatedSegments) * 100
       : 100;
 
     return {
       isConsistent,
       consistencyPercentage,
       totalSegments: segments.length,
+      clearlySeparatedSegments,
       inconsistentSegments,
       expectedPattern
     };
@@ -943,9 +954,10 @@ export class LevelAnalyzer {
     const silenceThresholdDb = noiseFloorDb + (effectiveDynamicRange * 0.25);
     const silenceThresholdLinear = Math.pow(10, silenceThresholdDb / 20);
 
-    const windowSize = Math.floor(sampleRate * 0.05); // 50ms windows
+    // Use smaller window for more precise detection (10ms instead of 50ms)
+    const windowSize = Math.floor(sampleRate * 0.01); // 10ms windows
 
-    // Find first and last active samples in each channel
+    // Find first and last active WINDOWS in each channel
     let leftFirstActive = -1;
     let leftLastActive = -1;
     let rightFirstActive = -1;
@@ -964,12 +976,12 @@ export class LevelAnalyzer {
 
       if (maxLeft > silenceThresholdLinear) {
         if (leftFirstActive === -1) leftFirstActive = i;
-        leftLastActive = i;
+        leftLastActive = end; // Use end of window for last active
       }
 
       if (maxRight > silenceThresholdLinear) {
         if (rightFirstActive === -1) rightFirstActive = i;
-        rightLastActive = i;
+        rightLastActive = end; // Use end of window for last active
       }
     }
 
@@ -987,7 +999,7 @@ export class LevelAnalyzer {
       };
     }
 
-    // Calculate timing differences
+    // Calculate timing differences in samples
     const startDiffSamples = Math.abs(leftFirstActive - rightFirstActive);
     const endDiffSamples = Math.abs(leftLastActive - rightLastActive);
 
