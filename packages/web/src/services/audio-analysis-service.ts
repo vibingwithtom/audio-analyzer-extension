@@ -72,6 +72,8 @@ export async function analyzeAudioFile(
         processingTime,
         fileSize: result.fileSize,
         fileType: result.fileType,
+        analysisMode: options.analysisMode,
+        presetId: options.presetId,
       });
     }
   }

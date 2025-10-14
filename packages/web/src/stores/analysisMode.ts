@@ -18,11 +18,15 @@ export type AnalysisMode = 'full' | 'audio-only' | 'filename-only' | 'experiment
 // Create writable store with default value (audio-only is simplest/fastest)
 const analysisModeStore = writable<AnalysisMode>('audio-only');
 
+// Track previous mode for analytics
+let previousMode: AnalysisMode | null = null;
+
 // Load saved mode from localStorage on initialization
 if (typeof window !== 'undefined') {
   const saved = localStorage.getItem('analysisMode') as AnalysisMode | null;
   if (saved && ['full', 'audio-only', 'filename-only', 'experimental'].includes(saved)) {
     analysisModeStore.set(saved);
+    previousMode = saved; // Set previous mode so we don't track initial load
   }
 }
 
@@ -30,7 +34,16 @@ if (typeof window !== 'undefined') {
 analysisModeStore.subscribe((mode) => {
   if (typeof window !== 'undefined') {
     localStorage.setItem('analysisMode', mode);
-    analyticsService.track('analysis_mode_changed', { mode });
+
+    // Only track if this is a real user change (not initial load)
+    if (previousMode !== null) {
+      analyticsService.track('analysis_mode_changed', {
+        mode,
+        previousMode
+      });
+    }
+
+    previousMode = mode;
   }
 });
 
