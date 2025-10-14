@@ -21,19 +21,48 @@
 
   let tableWrapper: HTMLElement;
   let hasHorizontalScroll = $state(false);
+  let canScrollLeft = $state(false);
+  let canScrollRight = $state(false);
 
-  // Check if table has horizontal scroll
+  // Check if table has horizontal scroll and which direction
   function checkScroll() {
     if (tableWrapper) {
       hasHorizontalScroll = tableWrapper.scrollWidth > tableWrapper.clientWidth;
+      canScrollLeft = tableWrapper.scrollLeft > 0;
+      canScrollRight = tableWrapper.scrollLeft < tableWrapper.scrollWidth - tableWrapper.clientWidth;
     }
+  }
+
+  // Scroll the table left or right
+  function scrollTable(direction: 'left' | 'right') {
+    if (!tableWrapper) return;
+    const scrollAmount = 300; // Scroll 300px at a time
+    const targetScroll = direction === 'left'
+      ? tableWrapper.scrollLeft - scrollAmount
+      : tableWrapper.scrollLeft + scrollAmount;
+
+    tableWrapper.scrollTo({
+      left: targetScroll,
+      behavior: 'smooth'
+    });
   }
 
   // Check scroll on mount and when results change
   onMount(() => {
     checkScroll();
     window.addEventListener('resize', checkScroll);
-    return () => window.removeEventListener('resize', checkScroll);
+
+    // Listen for scroll events to update button states
+    if (tableWrapper) {
+      tableWrapper.addEventListener('scroll', checkScroll);
+    }
+
+    return () => {
+      window.removeEventListener('resize', checkScroll);
+      if (tableWrapper) {
+        tableWrapper.removeEventListener('scroll', checkScroll);
+      }
+    };
   });
 
   // Recheck scroll when results change
@@ -362,6 +391,51 @@
     opacity: 1;
   }
 
+  /* Scroll buttons */
+  .scroll-button {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--bg-primary, #ffffff);
+    border: 2px solid var(--bg-tertiary, #e0e0e0);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s ease;
+    z-index: 20;
+    font-size: 1.2rem;
+    color: var(--text-primary, #333);
+  }
+
+  .scroll-button.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .scroll-button:hover {
+    background: var(--bg-secondary, #f5f5f5);
+    transform: translateY(-50%) scale(1.1);
+  }
+
+  .scroll-button:active {
+    transform: translateY(-50%) scale(0.95);
+  }
+
+  .scroll-button.left {
+    left: 10px;
+  }
+
+  .scroll-button.right {
+    right: 10px;
+  }
+
   /* Scroll hint */
   .scroll-hint {
     text-align: center;
@@ -573,6 +647,23 @@
     </div>
     <!-- Shadow gradient overlay - stays fixed at right edge -->
     <div class="scroll-shadow" class:visible={hasHorizontalScroll}></div>
+    <!-- Scroll buttons -->
+    <button
+      class="scroll-button left"
+      class:visible={canScrollLeft}
+      onclick={() => scrollTable('left')}
+      aria-label="Scroll left"
+    >
+      ◀
+    </button>
+    <button
+      class="scroll-button right"
+      class:visible={canScrollRight}
+      onclick={() => scrollTable('right')}
+      aria-label="Scroll right"
+    >
+      ▶
+    </button>
   </div>
   {:else}
     <!-- STANDARD MODE TABLE -->
