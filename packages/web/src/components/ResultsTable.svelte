@@ -57,6 +57,14 @@
     return 'warning';
   }
 
+  function getMicBleedOldClass(micBleed: any): string {
+    if (!micBleed?.old) return '';
+    // Check if detected using the same logic as the display text
+    const isDetected = (micBleed.old.leftChannelBleedDb > -60 || micBleed.old.rightChannelBleedDb > -60);
+    if (isDetected) return 'warning';
+    return 'success';
+  }
+
   function getNoiseFloorClass(noiseFloorDb: number | undefined): string {
     if (noiseFloorDb === undefined || noiseFloorDb === -Infinity) return '';
     // Excellent/Good: <= -60 dB
@@ -325,7 +333,7 @@
               <td>
                 {#if result.micBleed?.old}
                   <div>
-                    <span class="value-{getMicBleedClass(result.micBleed)}">
+                    <span class="value-{getMicBleedOldClass(result.micBleed)}">
                       {(result.micBleed.old.leftChannelBleedDb > -60 || result.micBleed.old.rightChannelBleedDb > -60) ? 'Detected' : 'Not detected'}
                     </span>
                     <span class="subtitle">
