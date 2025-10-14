@@ -149,12 +149,13 @@
   /**
    * Analyze a file using the shared analysis service
    */
-  async function analyzeFile(file: File): Promise<AudioResults> {
+  async function analyzeFile(file: File, isBatchMode: boolean = false): Promise<AudioResults> {
     return await analyzeAudioFile(file, {
       analysisMode: $analysisMode,
       preset: $currentPresetId ? availablePresets[$currentPresetId] : null,
       presetId: $currentPresetId,
-      criteria: $currentCriteria
+      criteria: $currentCriteria,
+      skipIndividualTracking: isBatchMode // Skip per-file events during batch to save Umami quota
     });
   }
 
@@ -323,8 +324,8 @@
                 });
               }
 
-              // Analyze file (pure function)
-              const result = await analyzeFile(file);
+              // Analyze file (pure function) - pass true for batch mode
+              const result = await analyzeFile(file, true);
 
               // Add external URL for Box files
               result.externalUrl = `https://app.box.com/file/${boxFile.id}`;

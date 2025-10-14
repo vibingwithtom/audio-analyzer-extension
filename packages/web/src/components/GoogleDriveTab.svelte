@@ -167,7 +167,7 @@
   /**
    * Analyze a file using the shared analysis service
    */
-  async function analyzeFile(file: File): Promise<AudioResults> {
+  async function analyzeFile(file: File, isBatchMode: boolean = false): Promise<AudioResults> {
     return await analyzeAudioFile(file, {
       analysisMode: $analysisMode,
       preset: $currentPresetId ? availablePresets[$currentPresetId] : null,
@@ -175,7 +175,8 @@
       criteria: $currentCriteria,
       // Pass Three Hour configuration if available
       scriptsList: scriptsList.length > 0 ? scriptsList : undefined,
-      speakerId: $threeHourSettings.speakerId || undefined
+      speakerId: $threeHourSettings.speakerId || undefined,
+      skipIndividualTracking: isBatchMode // Skip per-file events during batch to save Umami quota
     });
   }
 
@@ -285,8 +286,8 @@
                 });
               }
 
-              // Analyze file (pure function)
-              const result = await analyzeFile(file);
+              // Analyze file (pure function) - pass true for batch mode
+              const result = await analyzeFile(file, true);
 
               // Add external URL for Google Drive files
               result.externalUrl = `https://drive.google.com/file/d/${driveFile.id}/view`;

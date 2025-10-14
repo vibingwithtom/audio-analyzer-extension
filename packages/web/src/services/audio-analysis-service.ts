@@ -13,6 +13,8 @@ export interface AnalysisOptions {
   // Three Hour configuration (for script-match validation)
   scriptsList?: string[];
   speakerId?: string;
+  // Skip individual file tracking during batch operations (to save Umami events)
+  skipIndividualTracking?: boolean;
 }
 
 /**
@@ -34,15 +36,18 @@ export async function analyzeAudioFile(
   let result: AudioResults | null = null;
 
   try {
-    const { analysisMode: mode, preset, presetId, criteria, scriptsList, speakerId } = options;
+    const { analysisMode: mode, preset, presetId, criteria, scriptsList, speakerId, skipIndividualTracking } = options;
     const filename = file instanceof File ? file.name : 'unknown';
 
-    analyticsService.track('analysis_started', {
-      filename,
-      fileSize: file.size,
-      analysisMode: mode,
-      presetId,
-    });
+    // Only track individual files if not in batch mode (to save Umami events)
+    if (!skipIndividualTracking) {
+      analyticsService.track('analysis_started', {
+        filename,
+        fileSize: file.size,
+        analysisMode: mode,
+        presetId,
+      });
+    }
 
     // For empty files (filename-only mode with Google Drive metadata)
     if (file.size === 0) {
@@ -54,6 +59,7 @@ export async function analyzeAudioFile(
 
     return result;
   } catch (error) {
+    // Always track errors, even in batch mode
     analyticsService.track('analysis_error', {
       filename: file instanceof File ? file.name : 'unknown',
       error: error instanceof Error ? error.message : String(error),
@@ -64,7 +70,7 @@ export async function analyzeAudioFile(
     });
     throw error; // Re-throw the error to be handled by the caller
   } finally {
-    if (result) {
+    if (result && !skipIndividualTracking) {
       const processingTime = Date.now() - startTime;
       analyticsService.track('analysis_completed', {
         filename: result.filename,

@@ -223,7 +223,7 @@
         processedFiles = i + 1;
 
         try {
-          const result = await processSingleFile(file);
+          const result = await processSingleFile(file, true); // Pass true for batch mode
 
           // Create blob URL for audio playback in batch mode
           const blobUrl = URL.createObjectURL(file);
@@ -278,13 +278,14 @@
     }
   }
 
-  async function processSingleFile(file: File): Promise<AudioResults> {
+  async function processSingleFile(file: File, isBatchMode: boolean = false): Promise<AudioResults> {
     // Use shared analysis service
     return await analyzeAudioFile(file, {
       analysisMode: $analysisMode,
       preset: $currentPresetId ? availablePresets[$currentPresetId] : null,
       presetId: $currentPresetId,
-      criteria: $currentCriteria
+      criteria: $currentCriteria,
+      skipIndividualTracking: isBatchMode // Skip per-file events during batch to save Umami quota
     });
   }
 
