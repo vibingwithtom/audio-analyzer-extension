@@ -13,6 +13,7 @@
 import { writable, derived, type Readable } from 'svelte/store';
 import { availablePresets } from './settings';
 import type { AnalysisMode } from './analysisMode';
+import { analyticsService } from '../services/analytics-service';
 
 interface SimplifiedModeConfig {
   enabled: boolean;
@@ -61,6 +62,14 @@ export function initializeSimplifiedMode(): void {
     });
 
     console.log('[Simplified Mode] Enabled with preset:', preset, 'Analysis mode:', analysisMode);
+
+    // Track simplified mode activation
+    analyticsService.track('simplified_mode_activated', {
+      preset,
+      analysisMode,
+      presetName: presetConfig.name,
+      supportsFilenameValidation: presetConfig.supportsFilenameValidation || false,
+    });
   }
 }
 
