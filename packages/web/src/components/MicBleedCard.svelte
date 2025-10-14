@@ -9,19 +9,19 @@
 
   function getOldMethodClass(oldMicBleed: any): string {
     if (!oldMicBleed) return '';
-    // Check if any bleed samples were detected
-    const hasBleed = (oldMicBleed.leftBleedSamples > 0 || oldMicBleed.rightBleedSamples > 0);
+    // Use same threshold as ResultsTable: > -60 dB means detected
+    const isDetected = (oldMicBleed.leftChannelBleedDb > -60 || oldMicBleed.rightChannelBleedDb > -60);
 
-    if (hasBleed) return 'warning';
+    if (isDetected) return 'warning';
     return 'success';
   }
 
   function getOldMethodConclusion(oldMicBleed: any): string {
     if (!oldMicBleed) return 'No data';
-    // Check if any bleed samples were detected
-    const hasBleed = (oldMicBleed.leftBleedSamples > 0 || oldMicBleed.rightBleedSamples > 0);
+    // Use same threshold as ResultsTable: > -60 dB means detected
+    const isDetected = (oldMicBleed.leftChannelBleedDb > -60 || oldMicBleed.rightChannelBleedDb > -60);
 
-    if (hasBleed) return 'Detected';
+    if (isDetected) return 'Detected';
     return 'Not detected';
   }
 </script>
