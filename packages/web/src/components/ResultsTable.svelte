@@ -325,10 +325,14 @@
     margin-top: 0.15rem;
   }
 
+  /* Container for experimental table with gradient overlay */
+  .experimental-table-container {
+    position: relative;
+  }
+
   /* Experimental table should be scrollable horizontally if needed */
   .experimental-table-wrapper {
     overflow-x: auto;
-    position: relative;
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
@@ -338,6 +342,24 @@
     position: sticky;
     top: 0;
     z-index: 10;
+  }
+
+  /* Shadow gradient overlay - stays fixed at right edge */
+  .scroll-shadow {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 30px;
+    background: linear-gradient(to left, rgba(0, 0, 0, 0.1), transparent);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-radius: 0 8px 8px 0;
+  }
+
+  .scroll-shadow.visible {
+    opacity: 1;
   }
 
   /* Scroll hint */
@@ -395,8 +417,9 @@
         ← Scroll horizontally to see all columns →
       </div>
     {/if}
-    <div class="experimental-table-wrapper" bind:this={tableWrapper}>
-      <table class="results-table">
+    <div class="experimental-table-container">
+      <div class="experimental-table-wrapper" bind:this={tableWrapper}>
+        <table class="results-table">
         <thead>
           <tr>
             <th>Filename</th>
@@ -548,6 +571,9 @@
         </tbody>
       </table>
     </div>
+    <!-- Shadow gradient overlay - stays fixed at right edge -->
+    <div class="scroll-shadow" class:visible={hasHorizontalScroll}></div>
+  </div>
   {:else}
     <!-- STANDARD MODE TABLE -->
     <table class="results-table">
