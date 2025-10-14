@@ -6,6 +6,27 @@
     if (micBleed.percentageConfirmedBleed < 0.5) return 'success';
     return 'warning';
   }
+
+  function getOldMethodClass(oldMicBleed: any): string {
+    if (!oldMicBleed) return '';
+    // If bleed is detected (not -Infinity) and above -50 dB, it's concerning
+    const bleedThreshold = -50;
+    const hasLeftBleed = oldMicBleed.leftChannelBleedDb !== -Infinity && oldMicBleed.leftChannelBleedDb > bleedThreshold;
+    const hasRightBleed = oldMicBleed.rightChannelBleedDb !== -Infinity && oldMicBleed.rightChannelBleedDb > bleedThreshold;
+
+    if (hasLeftBleed || hasRightBleed) return 'warning';
+    return 'success';
+  }
+
+  function getOldMethodConclusion(oldMicBleed: any): string {
+    if (!oldMicBleed) return 'No data';
+    const bleedThreshold = -50;
+    const hasLeftBleed = oldMicBleed.leftChannelBleedDb !== -Infinity && oldMicBleed.leftChannelBleedDb > bleedThreshold;
+    const hasRightBleed = oldMicBleed.rightChannelBleedDb !== -Infinity && oldMicBleed.rightChannelBleedDb > bleedThreshold;
+
+    if (hasLeftBleed || hasRightBleed) return 'Mic bleed detected';
+    return 'Mic bleed not detected';
+  }
 </script>
 
 <style>
@@ -101,8 +122,8 @@
   {#if micBleed?.old}
     <div class="method-section">
       <h4 class="method-title">Old Method</h4>
-      <div class="conclusion success">
-        Not detected
+      <div class="conclusion {getOldMethodClass(micBleed.old)}">
+        {getOldMethodConclusion(micBleed.old)}
       </div>
       <div class="details">
         <div class="detail-item">
