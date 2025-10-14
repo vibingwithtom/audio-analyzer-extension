@@ -8,6 +8,7 @@
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
   import { isSimplifiedMode } from '../stores/simplifiedMode';
   import type { AudioResults, ValidationResults } from '../types';
+  import { analyticsService } from '../services/analytics-service';
 
   function goToSettings() {
     currentTab.setTab('settings');
@@ -190,6 +191,8 @@
   }
 
   async function processBatchFiles(files: File[]) {
+    const batchStartTime = Date.now();
+
     processing = true;
     error = '';
     batchResults = [];
@@ -200,48 +203,79 @@
     resultsStale = false;
     resultsMode = $analysisMode;
 
-    for (let i = 0; i < files.length; i++) {
-      // Check if cancel was requested
-      if (cancelRequested) {
-        error = 'Processing cancelled by user';
-        break;
-      }
+    // Track batch start
+    analyticsService.track('batch_processing_started', {
+      totalFiles: files.length,
+      analysisMode: $analysisMode,
+      presetId: $currentPresetId,
+      source: 'local',
+    });
 
-      const file = files[i];
-      processedFiles = i + 1;
+    try {
+      for (let i = 0; i < files.length; i++) {
+        // Check if cancel was requested
+        if (cancelRequested) {
+          error = 'Processing cancelled by user';
+          break;
+        }
 
-      try {
-        const result = await processSingleFile(file);
+        const file = files[i];
+        processedFiles = i + 1;
 
-        // Create blob URL for audio playback in batch mode
-        const blobUrl = URL.createObjectURL(file);
-        result.audioUrl = blobUrl;
+        try {
+          const result = await processSingleFile(file);
 
-        batchResults = [...batchResults, result];
-      } catch (err) {
-        // Add error result (separate from validation failures)
-        batchResults = [...batchResults, {
-          filename: file.name,
-          fileSize: file.size,
-          fileType: 'unknown',
-          channels: 0,
-          sampleRate: 0,
-          bitDepth: 0,
-          duration: 0,
-          status: 'error' as any,
-          validation: {
-            fileType: {
-              status: 'fail',
-              value: 'Error',
-              issue: err instanceof Error ? err.message : 'Unknown error'
+          // Create blob URL for audio playback in batch mode
+          const blobUrl = URL.createObjectURL(file);
+          result.audioUrl = blobUrl;
+
+          batchResults = [...batchResults, result];
+        } catch (err) {
+          // Add error result (separate from validation failures)
+          batchResults = [...batchResults, {
+            filename: file.name,
+            fileSize: file.size,
+            fileType: 'unknown',
+            channels: 0,
+            sampleRate: 0,
+            bitDepth: 0,
+            duration: 0,
+            status: 'error' as any,
+            validation: {
+              fileType: {
+                status: 'fail',
+                value: 'Error',
+                issue: err instanceof Error ? err.message : 'Unknown error'
+              }
             }
-          }
-        }];
+          }];
+        }
       }
-    }
+    } finally {
+      // Track batch completion
+      const batchTime = Date.now() - batchStartTime;
+      const passCount = batchResults.filter(r => r.status === 'pass').length;
+      const warnCount = batchResults.filter(r => r.status === 'warning').length;
+      const failCount = batchResults.filter(r => r.status === 'fail').length;
+      const errorCount = batchResults.filter(r => r.status === 'error').length;
+      const totalDuration = batchResults.reduce((sum, r) => sum + (r.duration || 0), 0);
 
-    processing = false;
-    cancelRequested = false;
+      analyticsService.track('batch_processing_completed', {
+        totalFiles: files.length,
+        processedFiles: batchResults.length,
+        passCount,
+        warnCount,
+        failCount,
+        errorCount,
+        batchProcessingTime: batchTime,
+        totalAudioDuration: totalDuration,
+        wasCancelled: cancelRequested,
+        source: 'local',
+      });
+
+      processing = false;
+      cancelRequested = false;
+    }
   }
 
   async function processSingleFile(file: File): Promise<AudioResults> {
@@ -255,6 +289,15 @@
   }
 
   async function handleReprocess() {
+    // Track reprocess action
+    analyticsService.track('reprocess_requested', {
+      previousMode: resultsMode,
+      newMode: $analysisMode,
+      source: 'local',
+      isBatch: isBatchMode,
+      fileCount: isBatchMode ? batchFiles.length : 1,
+    });
+
     if (isBatchMode && batchFiles.length > 0) {
       await processBatchFiles(batchFiles);
     } else if (currentFile) {
@@ -263,6 +306,16 @@
   }
 
   function handleCancelBatch() {
+    const cancelPercentage = totalFiles > 0 ? Math.round((processedFiles / totalFiles) * 100) : 0;
+
+    // Track batch cancellation
+    analyticsService.track('batch_processing_cancelled', {
+      source: 'local',
+      processedFiles,
+      totalFiles,
+      cancelledAt: cancelPercentage,
+    });
+
     cancelRequested = true;
   }
 </script>

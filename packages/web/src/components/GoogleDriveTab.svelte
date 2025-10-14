@@ -371,6 +371,16 @@
    * Cancel batch processing
    */
   function handleCancelBatch() {
+    const cancelPercentage = totalFiles > 0 ? Math.round((processedFiles / totalFiles) * 100) : 0;
+
+    // Track batch cancellation
+    analyticsService.track('batch_processing_cancelled', {
+      source: 'google_drive',
+      processedFiles,
+      totalFiles,
+      cancelledAt: cancelPercentage,
+    });
+
     batchCancelled = true;
   }
 
@@ -719,6 +729,15 @@
       error = 'Google Drive API not initialized. Please sign in again.';
       return;
     }
+
+    // Track reprocess action
+    analyticsService.track('reprocess_requested', {
+      previousMode: resultsMode,
+      newMode: $analysisMode,
+      source: 'google_drive',
+      isBatch: batchResults.length > 0,
+      fileCount: batchResults.length > 0 ? batchDriveFiles.length : 1,
+    });
 
     // Validate Three Hour configuration if required
     // This is crucial - mode might have changed from audio-only to full/filename-only

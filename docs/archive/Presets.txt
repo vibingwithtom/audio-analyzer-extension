@@ -1,0 +1,48 @@
+Auditions:
+  - File Type: WAV
+  - Sample Rate: 48kHz
+  - Bit Depth: 24-bit
+  - Channels: Mono (1)
+  - Min Duration: 2min
+
+  Character Recordings:
+  - File Type: WAV
+  - Sample Rate: 48kHz
+  - Bit Depth: 24-bit
+  - Channels: Mono (1)
+  - Min Duration: (no requirement)
+
+  P2B2 Pairs (Mono):
+  - File Type: WAV
+  - Sample Rate: 44kHz, 48kHz
+  - Bit Depth: 16-bit, 24-bit
+  - Channels: Mono (1)
+  - Min Duration: (no requirement)
+
+  P2B2 Pairs (Stereo):
+  - File Type: WAV
+  - Sample Rate: 44kHz, 48kHz
+  - Bit Depth: 16-bit, 24-bit
+  - Channels: Stereo (2)
+  - Min Duration: (no requirement)
+
+  P2B2 Pairs (Mixed):
+  - File Type: WAV
+  - Sample Rate: 44kHz, 48kHz
+  - Bit Depth: 16-bit, 24-bit
+  - Channels: Mono (1), Stereo (2)
+  - Min Duration: (no requirement)
+
+  Three Hour:
+  - File Type: WAV
+  - Sample Rate: 48kHz
+  - Bit Depth: 24-bit
+  - Channels: Mono (1)
+  - Min Duration: (no requirement)
+  
+    Bilingual Conversational
+  - File Type: WAV
+  - Sample Rate: 48kHz
+  - Bit Depth: 16-bit, 24-bit
+   - Channels: Stereo (2)
+  - Min Duration: (no requirement)

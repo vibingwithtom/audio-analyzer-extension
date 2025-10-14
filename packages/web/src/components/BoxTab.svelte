@@ -406,6 +406,16 @@
    * Cancel batch processing
    */
   function handleCancelBatch() {
+    const cancelPercentage = totalFiles > 0 ? Math.round((processedFiles / totalFiles) * 100) : 0;
+
+    // Track batch cancellation
+    analyticsService.track('batch_processing_cancelled', {
+      source: 'box',
+      processedFiles,
+      totalFiles,
+      cancelledAt: cancelPercentage,
+    });
+
     batchCancelled = true;
   }
 
@@ -414,6 +424,15 @@
       error = 'Box API not initialized. Please sign in again.';
       return;
     }
+
+    // Track reprocess action
+    analyticsService.track('reprocess_requested', {
+      previousMode: resultsMode,
+      newMode: $analysisMode,
+      source: 'box',
+      isBatch: batchResults.length > 0,
+      fileCount: batchResults.length > 0 ? batchBoxFiles.length : 1,
+    });
 
     // Check if this is batch reprocessing
     if (batchResults.length > 0 && batchBoxFiles.length > 0) {
