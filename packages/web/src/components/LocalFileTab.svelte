@@ -604,7 +604,7 @@
             />
             <div class="radio-content">
               <span class="radio-title">Experimental Analysis</span>
-              <span class="radio-description">Peak level, noise floor, reverb, silence detection</span>
+              <span class="radio-description">Peak level, noise floor, reverb, silence, conversational audio analysis</span>
             </div>
           </label>
 
@@ -636,7 +636,7 @@
             />
             <div class="radio-content">
               <span class="radio-title">Experimental Analysis</span>
-              <span class="radio-description">Peak level, noise floor, reverb, silence detection</span>
+              <span class="radio-description">Peak level, noise floor, reverb, silence, conversational audio analysis</span>
             </div>
           </label>
         {/if}
