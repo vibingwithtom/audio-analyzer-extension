@@ -34,11 +34,10 @@ export async function analyzeAudioFile(
 ): Promise<AudioResults> {
   const startTime = Date.now();
   let result: AudioResults | null = null;
+  const { analysisMode: mode, preset, presetId, criteria, scriptsList, speakerId, skipIndividualTracking } = options;
+  const filename = file instanceof File ? file.name : 'unknown';
 
   try {
-    const { analysisMode: mode, preset, presetId, criteria, scriptsList, speakerId, skipIndividualTracking } = options;
-    const filename = file instanceof File ? file.name : 'unknown';
-
     // Only track individual files if not in batch mode (to save Umami events)
     if (!skipIndividualTracking) {
       analyticsService.track('analysis_started', {
@@ -61,7 +60,7 @@ export async function analyzeAudioFile(
   } catch (error) {
     // Always track errors, even in batch mode
     analyticsService.track('analysis_error', {
-      filename: file instanceof File ? file.name : 'unknown',
+      filename,
       error: error instanceof Error ? error.message : String(error),
       analysisMode: options.analysisMode,
       presetId: options.presetId,
