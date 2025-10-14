@@ -24,19 +24,99 @@
   $: batchResults = isBatchMode ? results as AudioResults[] : [];
   $: singleResult = !isBatchMode && results ? results as AudioResults : null;
 
+  // Helper function to get experimental metric status
+  function getExperimentalStatus(result: AudioResults): 'pass' | 'warning' | 'fail' | 'error' {
+    const statuses: string[] = [];
+
+    // Check normalization
+    if (result.normalizationStatus) {
+      statuses.push(result.normalizationStatus.status === 'normalized' ? 'success' : 'warning');
+    }
+
+    // Check noise floor (old)
+    if (result.noiseFloorDb !== undefined && result.noiseFloorDb !== -Infinity) {
+      if (result.noiseFloorDb <= -60) statuses.push('success');
+      else if (result.noiseFloorDb <= -50) statuses.push('warning');
+      else statuses.push('error');
+    }
+
+    // Check noise floor (new/histogram)
+    if (result.noiseFloorDbHistogram !== undefined && result.noiseFloorDbHistogram !== -Infinity) {
+      if (result.noiseFloorDbHistogram <= -60) statuses.push('success');
+      else if (result.noiseFloorDbHistogram <= -50) statuses.push('warning');
+      else statuses.push('error');
+    }
+
+    // Check reverb
+    if (result.reverbInfo?.label) {
+      if (result.reverbInfo.label.includes('Excellent') || result.reverbInfo.label.includes('Good')) {
+        statuses.push('success');
+      } else if (result.reverbInfo.label.includes('Fair')) {
+        statuses.push('warning');
+      } else {
+        statuses.push('error');
+      }
+    }
+
+    // Check silence metrics
+    if (result.leadingSilence !== undefined) {
+      if (result.leadingSilence < 1) statuses.push('success');
+      else if (result.leadingSilence <= 3) statuses.push('warning');
+      else statuses.push('error');
+    }
+    if (result.trailingSilence !== undefined) {
+      if (result.trailingSilence < 1) statuses.push('success');
+      else if (result.trailingSilence <= 3) statuses.push('warning');
+      else statuses.push('error');
+    }
+    if (result.longestSilence !== undefined) {
+      if (result.longestSilence < 2) statuses.push('success');
+      else if (result.longestSilence <= 5) statuses.push('warning');
+      else statuses.push('error');
+    }
+
+    // Check mic bleed
+    if (result.micBleed) {
+      const oldDetected = result.micBleed.old &&
+        (result.micBleed.old.leftChannelBleedDb > -60 || result.micBleed.old.rightChannelBleedDb > -60);
+      const newDetected = result.micBleed.new &&
+        (result.micBleed.new.percentageConfirmedBleed > 0.5);
+
+      if (oldDetected || newDetected) {
+        statuses.push('warning');
+      } else {
+        statuses.push('success');
+      }
+    }
+
+    // Determine worst status
+    if (statuses.includes('error')) return 'fail';
+    if (statuses.includes('warning')) return 'warning';
+    return 'pass';
+  }
+
   // Calculate batch statistics
-  $: passCount = batchResults.filter(r => r.status === 'pass').length;
-  $: warningCount = batchResults.filter(r => r.status === 'warning').length;
-  $: failCount = batchResults.filter(r => r.status === 'fail').length;
+  $: passCount = $analysisMode === 'experimental'
+    ? batchResults.filter(r => r.status !== 'error' && getExperimentalStatus(r) === 'pass').length
+    : batchResults.filter(r => r.status === 'pass').length;
+
+  $: warningCount = $analysisMode === 'experimental'
+    ? batchResults.filter(r => r.status !== 'error' && getExperimentalStatus(r) === 'warning').length
+    : batchResults.filter(r => r.status === 'warning').length;
+
+  $: failCount = $analysisMode === 'experimental'
+    ? batchResults.filter(r => r.status !== 'error' && getExperimentalStatus(r) === 'fail').length
+    : batchResults.filter(r => r.status === 'fail').length;
+
   $: errorCount = batchResults.filter(r => r.status === 'error').length;
 
-  // Calculate total duration (only for pass and warning files)
+  // Calculate total duration (not shown in experimental mode)
   $: totalDuration = (() => {
-    if (!isBatchMode || $analysisMode === 'filename-only') return null;
+    if (!isBatchMode || $analysisMode === 'filename-only' || $analysisMode === 'experimental') return null;
 
-    const total = batchResults
-      .filter(r => r.status === 'pass' || r.status === 'warning')
-      .reduce((sum, r) => sum + (r.duration || 0), 0);
+    // Only for pass+warning files in standard modes
+    const filesToInclude = batchResults.filter(r => r.status === 'pass' || r.status === 'warning');
+    const total = filesToInclude.reduce((sum, r) => sum + (r.duration || 0), 0);
 
     const minutes = Math.floor(total / 60);
     const seconds = Math.floor(total % 60);

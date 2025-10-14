@@ -108,6 +108,22 @@
     return 'error';
   }
 
+  function getSilenceClass(seconds: number | undefined, type: 'lead-trail' | 'max'): string {
+    if (seconds === undefined || seconds === null) return '';
+
+    if (type === 'lead-trail') {
+      // Leading/Trailing silence thresholds
+      if (seconds < 1) return 'success';      // Good: < 1s
+      if (seconds <= 3) return 'warning';     // Warning: 1-3s
+      return 'error';                         // Issue: > 3s
+    } else {
+      // Max silence gap thresholds
+      if (seconds < 2) return 'success';      // Good: < 2s
+      if (seconds <= 5) return 'warning';     // Warning: 2-5s
+      return 'error';                         // Issue: > 5s
+    }
+  }
+
   function formatTime(seconds: number | undefined): string {
     if (seconds === undefined || seconds === null) return 'N/A';
     const mins = Math.floor(seconds / 60);
@@ -284,6 +300,10 @@
   .external-link-btn:active {
     transform: scale(0.95);
   }
+
+  .mic-bleed-cell {
+    cursor: help;
+  }
 </style>
 
 <div class="results-container">
@@ -299,9 +319,7 @@
             <th>Noise Floor (Old)</th>
             <th>Noise Floor (New)</th>
             <th>Reverb (RT60)</th>
-            <th>Leading Silence</th>
-            <th>Trailing Silence</th>
-            <th>Longest Silence</th>
+            <th>Silence</th>
             <th>Stereo Separation</th>
             <th>Mic Bleed</th>
           </tr>
@@ -351,9 +369,13 @@
                   N/A
                 {/if}
               </td>
-              <td>{formatTime(result.leadingSilence)}</td>
-              <td>{formatTime(result.trailingSilence)}</td>
-              <td>{formatTime(result.longestSilence)}</td>
+              <td>
+                <div>
+                  <span class="subtitle">Lead: <span class="value-{getSilenceClass(result.leadingSilence, 'lead-trail')}">{formatTime(result.leadingSilence)}</span></span>
+                  <span class="subtitle">Trail: <span class="value-{getSilenceClass(result.trailingSilence, 'lead-trail')}">{formatTime(result.trailingSilence)}</span></span>
+                  <span class="subtitle">Max: <span class="value-{getSilenceClass(result.longestSilence, 'max')}">{formatTime(result.longestSilence)}</span></span>
+                </div>
+              </td>
               <td>
                 {#if result.stereoSeparation}
                   {result.stereoSeparation.stereoType}
@@ -362,26 +384,26 @@
                   Mono file
                 {/if}
               </td>
-              <td>
+              <td
+                class="mic-bleed-cell"
+                title={result.micBleed ? (() => {
+                  let tooltip = '';
+                  if (result.micBleed.old) {
+                    tooltip += `Bleed Level: L: ${result.micBleed.old.leftChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.leftChannelBleedDb.toFixed(1)} dB, R: ${result.micBleed.old.rightChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.rightChannelBleedDb.toFixed(1)} dB`;
+                  }
+                  if (result.micBleed.old && result.micBleed.new) {
+                    tooltip += '\n';
+                  }
+                  if (result.micBleed.new) {
+                    tooltip += `Channel Separation: Median: ${result.micBleed.new.medianSeparation.toFixed(1)} dB, Worst 10%: ${result.micBleed.new.p10Separation.toFixed(1)} dB`;
+                  }
+                  return tooltip;
+                })() : 'Mic bleed analysis only runs for Conversational Stereo files'}
+              >
                 {#if result.micBleed}
-                  <div>
-                    <span class="value-{getUnifiedMicBleedClass(result.micBleed)}">
-                      {getUnifiedMicBleedLabel(result.micBleed)}
-                    </span>
-                    {#if result.micBleed.old || result.micBleed.new}
-                      <span class="subtitle">
-                        {#if result.micBleed.old}
-                          Old: L: {result.micBleed.old.leftChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.leftChannelBleedDb.toFixed(1)} dB,
-                          R: {result.micBleed.old.rightChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.rightChannelBleedDb.toFixed(1)} dB
-                        {/if}
-                        {#if result.micBleed.old && result.micBleed.new} | {/if}
-                        {#if result.micBleed.new}
-                          New: {result.micBleed.new.medianSeparation.toFixed(1)} dB median,
-                          {result.micBleed.new.p10Separation.toFixed(1)} dB worst 10%
-                        {/if}
-                      </span>
-                    {/if}
-                  </div>
+                  <span class="value-{getUnifiedMicBleedClass(result.micBleed)}">
+                    {getUnifiedMicBleedLabel(result.micBleed)}
+                  </span>
                 {:else}
                   N/A
                 {/if}
