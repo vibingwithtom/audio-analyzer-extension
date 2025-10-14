@@ -65,6 +65,39 @@
     return 'success';
   }
 
+  // Unified mic bleed detection using OR logic (either method detects = possible bleed)
+  function getUnifiedMicBleedClass(micBleed: any): string {
+    if (!micBleed) return '';
+
+    // Check OLD method: > -60 dB means detected
+    const oldDetected = micBleed.old &&
+      (micBleed.old.leftChannelBleedDb > -60 || micBleed.old.rightChannelBleedDb > -60);
+
+    // Check NEW method: > 0.5% confirmed bleed means detected
+    const newDetected = micBleed.new &&
+      (micBleed.new.percentageConfirmedBleed > 0.5);
+
+    // OR logic: if either detects, show warning
+    if (oldDetected || newDetected) return 'warning';
+    return 'success';
+  }
+
+  function getUnifiedMicBleedLabel(micBleed: any): string {
+    if (!micBleed) return 'N/A';
+
+    // Check OLD method
+    const oldDetected = micBleed.old &&
+      (micBleed.old.leftChannelBleedDb > -60 || micBleed.old.rightChannelBleedDb > -60);
+
+    // Check NEW method
+    const newDetected = micBleed.new &&
+      (micBleed.new.percentageConfirmedBleed > 0.5);
+
+    // OR logic
+    if (oldDetected || newDetected) return 'Possible bleed';
+    return 'Not detected';
+  }
+
   function getNoiseFloorClass(noiseFloorDb: number | undefined): string {
     if (noiseFloorDb === undefined || noiseFloorDb === -Infinity) return '';
     // Excellent/Good: <= -60 dB
@@ -270,8 +303,7 @@
             <th>Trailing Silence</th>
             <th>Longest Silence</th>
             <th>Stereo Separation</th>
-            <th>Mic Bleed (Old)</th>
-            <th>Mic Bleed (New)</th>
+            <th>Mic Bleed</th>
           </tr>
         </thead>
         <tbody>
@@ -331,30 +363,24 @@
                 {/if}
               </td>
               <td>
-                {#if result.micBleed?.old}
+                {#if result.micBleed}
                   <div>
-                    <span class="value-{getMicBleedOldClass(result.micBleed)}">
-                      {(result.micBleed.old.leftChannelBleedDb > -60 || result.micBleed.old.rightChannelBleedDb > -60) ? 'Detected' : 'Not detected'}
+                    <span class="value-{getUnifiedMicBleedClass(result.micBleed)}">
+                      {getUnifiedMicBleedLabel(result.micBleed)}
                     </span>
-                    <span class="subtitle">
-                      L: {result.micBleed.old.leftChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.leftChannelBleedDb.toFixed(1)} dB,
-                      R: {result.micBleed.old.rightChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.rightChannelBleedDb.toFixed(1)} dB
-                    </span>
-                  </div>
-                {:else}
-                  N/A
-                {/if}
-              </td>
-              <td>
-                {#if result.micBleed?.new}
-                  <div>
-                    <span class="value-{getMicBleedClass(result.micBleed)}">
-                      {result.micBleed.new.percentageConfirmedBleed > 0.5 ? 'Detected' : 'Not detected'}
-                    </span>
-                    <span class="subtitle">
-                      Median: {result.micBleed.new.medianSeparation.toFixed(1)} dB,
-                      Worst 10%: {result.micBleed.new.p10Separation.toFixed(1)} dB
-                    </span>
+                    {#if result.micBleed.old || result.micBleed.new}
+                      <span class="subtitle">
+                        {#if result.micBleed.old}
+                          Old: L: {result.micBleed.old.leftChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.leftChannelBleedDb.toFixed(1)} dB,
+                          R: {result.micBleed.old.rightChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.rightChannelBleedDb.toFixed(1)} dB
+                        {/if}
+                        {#if result.micBleed.old && result.micBleed.new} | {/if}
+                        {#if result.micBleed.new}
+                          New: {result.micBleed.new.medianSeparation.toFixed(1)} dB median,
+                          {result.micBleed.new.p10Separation.toFixed(1)} dB worst 10%
+                        {/if}
+                      </span>
+                    {/if}
                   </div>
                 {:else}
                   N/A
