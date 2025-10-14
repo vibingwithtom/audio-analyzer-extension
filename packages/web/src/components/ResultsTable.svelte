@@ -451,18 +451,6 @@
     background: linear-gradient(to left, rgba(50, 50, 50, 0.98), rgba(50, 50, 50, 0.8));
   }
 
-  /* Scroll hint */
-  .scroll-hint {
-    text-align: center;
-    color: var(--text-secondary, #666);
-    font-size: 0.875rem;
-    margin-bottom: 0.5rem;
-    padding: 0.5rem;
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(139, 92, 246, 0.1) 100%);
-    border: 1px solid rgba(139, 92, 246, 0.2);
-    border-radius: 6px;
-  }
-
   .external-link-btn {
     display: inline-flex;
     align-items: center;
@@ -501,11 +489,6 @@
 <div class="results-container">
   {#if experimentalMode}
     <!-- EXPERIMENTAL MODE TABLE -->
-    {#if hasHorizontalScroll}
-      <div class="scroll-hint">
-        ← Scroll horizontally to see all columns →
-      </div>
-    {/if}
     <div class="experimental-table-container">
       <div class="experimental-table-wrapper" bind:this={tableWrapper}>
         <table class="results-table">
