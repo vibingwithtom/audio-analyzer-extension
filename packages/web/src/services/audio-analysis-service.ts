@@ -57,6 +57,10 @@ export async function analyzeAudioFile(
     analyticsService.track('analysis_error', {
       filename: file instanceof File ? file.name : 'unknown',
       error: error instanceof Error ? error.message : String(error),
+      analysisMode: options.analysisMode,
+      presetId: options.presetId,
+      fileSize: file.size,
+      fileType: file instanceof File ? file.name.split('.').pop()?.toLowerCase() : 'unknown',
     });
     throw error; // Re-throw the error to be handled by the caller
   } finally {
@@ -149,6 +153,16 @@ async function analyzeFullFile(
     const arrayBuffer = await file.arrayBuffer();
     const advancedResults = await analyzeExperimental(arrayBuffer);
     result = { ...result, ...advancedResults };
+
+    // Track experimental feature usage
+    analyticsService.track('experimental_analysis_used', {
+      hasStereoSeparation: !!advancedResults.stereoSeparation,
+      stereoType: advancedResults.stereoSeparation?.stereoType,
+      hasMicBleed: !!advancedResults.micBleed,
+      hasReverb: !!advancedResults.reverbInfo,
+      hasNoiseFloor: advancedResults.noiseFloorDb !== undefined,
+      hasSilenceDetection: !!advancedResults.silenceInfo,
+    });
   }
 
   // Validation against preset criteria

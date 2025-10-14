@@ -270,6 +270,8 @@
    * @param boxFiles - Array of Box file metadata to process
    */
   async function processBatchFiles(boxFiles: any[]) {
+    const batchStartTime = Date.now();
+
     batchProcessing = true;
     totalFiles = boxFiles.length;
     processedFiles = 0;
@@ -278,6 +280,14 @@
     batchBoxFiles = boxFiles; // Store for reprocessing
     error = '';
     resultsMode = $analysisMode;
+
+    // Track batch start
+    analyticsService.track('batch_processing_started', {
+      totalFiles: boxFiles.length,
+      analysisMode: $analysisMode,
+      presetId: $currentPresetId,
+      source: 'box',
+    });
 
     const concurrency = 3; // Process 3 files at once
     let index = 0;
@@ -367,6 +377,27 @@
         error = err instanceof Error ? err.message : 'Batch processing failed';
       }
     } finally {
+      const batchTime = Date.now() - batchStartTime;
+      const passCount = batchResults.filter(r => r.status === 'pass').length;
+      const warnCount = batchResults.filter(r => r.status === 'warning').length;
+      const failCount = batchResults.filter(r => r.status === 'fail').length;
+      const errorCount = batchResults.filter(r => r.status === 'error').length;
+      const totalDuration = batchResults.reduce((sum, r) => sum + (r.duration || 0), 0);
+
+      // Track batch completion
+      analyticsService.track('batch_processing_completed', {
+        totalFiles: boxFiles.length,
+        processedFiles: batchResults.length,
+        passCount,
+        warnCount,
+        failCount,
+        errorCount,
+        batchProcessingTime: batchTime,
+        totalAudioDuration: totalDuration,
+        wasCancelled: batchCancelled,
+        source: 'box',
+      });
+
       batchProcessing = false;
     }
   }

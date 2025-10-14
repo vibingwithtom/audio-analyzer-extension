@@ -231,6 +231,8 @@
    * @param driveFiles - Array of Drive file metadata to process
    */
   async function processBatchFiles(driveFiles: DriveFileMetadata[]) {
+    const batchStartTime = Date.now();
+
     batchProcessing = true;
     totalFiles = driveFiles.length;
     processedFiles = 0;
@@ -240,6 +242,14 @@
     error = '';
     // Don't reset resultsStale - let reactive statement handle staleness detection
     resultsMode = $analysisMode;
+
+    // Track batch start
+    analyticsService.track('batch_processing_started', {
+      totalFiles: driveFiles.length,
+      analysisMode: $analysisMode,
+      presetId: $currentPresetId,
+      source: 'google_drive',
+    });
 
     const concurrency = 3; // Process 3 files at once
     let index = 0;
@@ -332,6 +342,27 @@
         error = err instanceof Error ? err.message : 'Batch processing failed';
       }
     } finally {
+      const batchTime = Date.now() - batchStartTime;
+      const passCount = batchResults.filter(r => r.status === 'pass').length;
+      const warnCount = batchResults.filter(r => r.status === 'warning').length;
+      const failCount = batchResults.filter(r => r.status === 'fail').length;
+      const errorCount = batchResults.filter(r => r.status === 'error').length;
+      const totalDuration = batchResults.reduce((sum, r) => sum + (r.duration || 0), 0);
+
+      // Track batch completion
+      analyticsService.track('batch_processing_completed', {
+        totalFiles: driveFiles.length,
+        processedFiles: batchResults.length,
+        passCount,
+        warnCount,
+        failCount,
+        errorCount,
+        batchProcessingTime: batchTime,
+        totalAudioDuration: totalDuration,
+        wasCancelled: batchCancelled,
+        source: 'google_drive',
+      });
+
       batchProcessing = false;
     }
   }
