@@ -326,6 +326,10 @@
   .mic-bleed-cell {
     cursor: help;
   }
+
+  .conversational-cell {
+    cursor: help;
+  }
 </style>
 
 <div class="results-container">
@@ -411,6 +415,7 @@
               </td>
               <!-- Speech Overlap -->
               <td
+                class="conversational-cell"
                 title={result.conversationalAnalysis?.overlap ? `Detects when both channels have active speech simultaneously. Based on noise floor + 20 dB threshold.` : 'Speech overlap analysis only runs for Conversational Stereo files'}
               >
                 {#if result.conversationalAnalysis?.overlap}
@@ -423,6 +428,7 @@
               </td>
               <!-- Channel Consistency -->
               <td
+                class="conversational-cell"
                 title={result.conversationalAnalysis?.consistency ? `Verifies speakers remain in same channels throughout. Detects mid-recording channel swaps.` : 'Channel consistency analysis only runs for Conversational Stereo files'}
               >
                 {#if result.conversationalAnalysis?.consistency}
@@ -439,6 +445,7 @@
               </td>
               <!-- Channel Sync -->
               <td
+                class="conversational-cell"
                 title={result.conversationalAnalysis?.sync ? `Detects timing misalignment between channels. Start: ${result.conversationalAnalysis.sync.startDiffMs.toFixed(0)}ms, End: ${result.conversationalAnalysis.sync.endDiffMs.toFixed(0)}ms` : 'Channel sync analysis only runs for Conversational Stereo files'}
               >
                 {#if result.conversationalAnalysis?.sync}
