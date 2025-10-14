@@ -97,8 +97,8 @@ export class FilenameValidator {
     // Remove any extension for parsing
     const nameWithoutExt = filename.replace(/\.\w+$/i, '');
 
-    // Check if this is a spontaneous recording
-    const isSpontaneous = nameWithoutExt.startsWith('SPONTANEOUS_');
+    // Check if this is a spontaneous recording (case-insensitive to catch capitalization errors)
+    const isSpontaneous = nameWithoutExt.toUpperCase().startsWith('SPONTANEOUS_');
 
     if (isSpontaneous) {
       return this.validateSpontaneousBilingual(nameWithoutExt, issues);
