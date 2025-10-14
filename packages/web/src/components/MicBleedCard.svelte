@@ -9,23 +9,20 @@
 
   function getOldMethodClass(oldMicBleed: any): string {
     if (!oldMicBleed) return '';
-    // If bleed is detected (not -Infinity) and above -50 dB, it's concerning
-    const bleedThreshold = -50;
-    const hasLeftBleed = oldMicBleed.leftChannelBleedDb !== -Infinity && oldMicBleed.leftChannelBleedDb > bleedThreshold;
-    const hasRightBleed = oldMicBleed.rightChannelBleedDb !== -Infinity && oldMicBleed.rightChannelBleedDb > bleedThreshold;
+    // Check if any bleed samples were detected
+    const hasBleed = (oldMicBleed.leftBleedSamples > 0 || oldMicBleed.rightBleedSamples > 0);
 
-    if (hasLeftBleed || hasRightBleed) return 'warning';
+    if (hasBleed) return 'warning';
     return 'success';
   }
 
   function getOldMethodConclusion(oldMicBleed: any): string {
     if (!oldMicBleed) return 'No data';
-    const bleedThreshold = -50;
-    const hasLeftBleed = oldMicBleed.leftChannelBleedDb !== -Infinity && oldMicBleed.leftChannelBleedDb > bleedThreshold;
-    const hasRightBleed = oldMicBleed.rightChannelBleedDb !== -Infinity && oldMicBleed.rightChannelBleedDb > bleedThreshold;
+    // Check if any bleed samples were detected
+    const hasBleed = (oldMicBleed.leftBleedSamples > 0 || oldMicBleed.rightBleedSamples > 0);
 
-    if (hasLeftBleed || hasRightBleed) return 'Mic bleed detected';
-    return 'Mic bleed not detected';
+    if (hasBleed) return 'Detected';
+    return 'Not detected';
   }
 </script>
 
