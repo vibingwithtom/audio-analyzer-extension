@@ -3,12 +3,36 @@
   import { formatSampleRate, formatDuration, formatBitDepth, formatChannels, formatBytes } from '../utils/format-utils';
   import type { AudioResults, ValidationResults } from '../types';
 
+  import { onMount } from 'svelte';
+
   export let results: AudioResults[] = [];
   export let mode: 'single' | 'batch' = 'single';
   export let metadataOnly = false;
   export let experimentalMode = false;
 
   $: isSingleFile = mode === 'single';
+
+  let tableWrapper: HTMLElement;
+  let hasHorizontalScroll = $state(false);
+
+  // Check if table has horizontal scroll
+  function checkScroll() {
+    if (tableWrapper) {
+      hasHorizontalScroll = tableWrapper.scrollWidth > tableWrapper.clientWidth;
+    }
+  }
+
+  // Check scroll on mount and when results change
+  onMount(() => {
+    checkScroll();
+    window.addEventListener('resize', checkScroll);
+    return () => window.removeEventListener('resize', checkScroll);
+  });
+
+  $: if (results) {
+    // Recheck scroll when results change
+    setTimeout(checkScroll, 100);
+  }
 
   function getValidationStatus(result: AudioResults, field: string): 'pass' | 'warning' | 'fail' | null {
     if (!result.validation) return null;
@@ -295,6 +319,46 @@
   /* Experimental table should be scrollable horizontally if needed */
   .experimental-table-wrapper {
     overflow-x: auto;
+    position: relative;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Sticky header for experimental table */
+  .experimental-table-wrapper thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  /* Shadow indicator when there's more content to scroll */
+  .experimental-table-wrapper::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 30px;
+    background: linear-gradient(to left, rgba(0, 0, 0, 0.1), transparent);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .experimental-table-wrapper.has-scroll::after {
+    opacity: 1;
+  }
+
+  /* Scroll hint */
+  .scroll-hint {
+    text-align: center;
+    color: var(--text-secondary, #666);
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(139, 92, 246, 0.1) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 6px;
   }
 
   .external-link-btn {
@@ -335,7 +399,12 @@
 <div class="results-container">
   {#if experimentalMode}
     <!-- EXPERIMENTAL MODE TABLE -->
-    <div class="experimental-table-wrapper">
+    {#if hasHorizontalScroll}
+      <div class="scroll-hint">
+        ← Scroll horizontally to see all columns →
+      </div>
+    {/if}
+    <div class="experimental-table-wrapper" class:has-scroll={hasHorizontalScroll} bind:this={tableWrapper}>
       <table class="results-table">
         <thead>
           <tr>
