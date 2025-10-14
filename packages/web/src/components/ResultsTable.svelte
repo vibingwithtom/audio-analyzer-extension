@@ -394,14 +394,11 @@
   /* Scroll buttons */
   .scroll-button {
     position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--bg-primary, #ffffff);
-    border: 2px solid var(--bg-tertiary, #e0e0e0);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    top: 0;
+    bottom: 0;
+    width: 50px;
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.7));
+    border: none;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -410,8 +407,12 @@
     pointer-events: none;
     transition: all 0.3s ease;
     z-index: 20;
-    font-size: 1.2rem;
+    font-size: 1.5rem;
     color: var(--text-primary, #333);
+  }
+
+  :global([data-theme="dark"]) .scroll-button {
+    background: linear-gradient(to right, rgba(30, 30, 30, 0.95), rgba(30, 30, 30, 0.7));
   }
 
   .scroll-button.visible {
@@ -420,20 +421,34 @@
   }
 
   .scroll-button:hover {
-    background: var(--bg-secondary, #f5f5f5);
-    transform: translateY(-50%) scale(1.1);
+    background: linear-gradient(to right, rgba(245, 245, 245, 0.98), rgba(245, 245, 245, 0.8));
   }
 
-  .scroll-button:active {
-    transform: translateY(-50%) scale(0.95);
+  :global([data-theme="dark"]) .scroll-button:hover {
+    background: linear-gradient(to right, rgba(50, 50, 50, 0.98), rgba(50, 50, 50, 0.8));
   }
 
   .scroll-button.left {
-    left: 10px;
+    left: 0;
+    border-radius: 8px 0 0 8px;
   }
 
   .scroll-button.right {
-    right: 10px;
+    right: 0;
+    border-radius: 0 8px 8px 0;
+    background: linear-gradient(to left, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.7));
+  }
+
+  :global([data-theme="dark"]) .scroll-button.right {
+    background: linear-gradient(to left, rgba(30, 30, 30, 0.95), rgba(30, 30, 30, 0.7));
+  }
+
+  .scroll-button.right:hover {
+    background: linear-gradient(to left, rgba(245, 245, 245, 0.98), rgba(245, 245, 245, 0.8));
+  }
+
+  :global([data-theme="dark"]) .scroll-button.right:hover {
+    background: linear-gradient(to left, rgba(50, 50, 50, 0.98), rgba(50, 50, 50, 0.8));
   }
 
   /* Scroll hint */
