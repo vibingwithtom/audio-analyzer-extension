@@ -5,12 +5,19 @@
 
   import { onMount } from 'svelte';
 
-  export let results: AudioResults[] = [];
-  export let mode: 'single' | 'batch' = 'single';
-  export let metadataOnly = false;
-  export let experimentalMode = false;
+  const {
+    results = [],
+    mode = 'single',
+    metadataOnly = false,
+    experimentalMode = false
+  }: {
+    results?: AudioResults[];
+    mode?: 'single' | 'batch';
+    metadataOnly?: boolean;
+    experimentalMode?: boolean;
+  } = $props();
 
-  $: isSingleFile = mode === 'single';
+  const isSingleFile = $derived(mode === 'single');
 
   let tableWrapper: HTMLElement;
   let hasHorizontalScroll = $state(false);
@@ -29,10 +36,12 @@
     return () => window.removeEventListener('resize', checkScroll);
   });
 
-  $: if (results) {
-    // Recheck scroll when results change
-    setTimeout(checkScroll, 100);
-  }
+  // Recheck scroll when results change
+  $effect(() => {
+    if (results.length > 0) {
+      setTimeout(checkScroll, 100);
+    }
+  });
 
   function getValidationStatus(result: AudioResults, field: string): 'pass' | 'warning' | 'fail' | null {
     if (!result.validation) return null;
