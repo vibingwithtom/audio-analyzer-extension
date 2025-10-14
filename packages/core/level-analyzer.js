@@ -730,4 +730,289 @@ export class LevelAnalyzer {
     // Return absolute correlation (we care about correlation regardless of phase)
     return Math.abs(numerator / denominator);
   }
+
+  /**
+   * Unified conversational audio analysis (single-pass optimization).
+   * Analyzes overlapping speech, channel consistency, and channel sync.
+   * @param {AudioBuffer} audioBuffer The audio buffer to analyze.
+   * @param {number} noiseFloorDb Noise floor in dB.
+   * @param {number} peakDb Peak level in dB.
+   * @returns {object|null} Combined analysis results, or null if not stereo.
+   */
+  analyzeConversationalAudio(audioBuffer, noiseFloorDb, peakDb) {
+    // Validate inputs
+    if (!audioBuffer || audioBuffer.numberOfChannels !== 2) {
+      return null;
+    }
+
+    const leftChannel = audioBuffer.getChannelData(0);
+    const rightChannel = audioBuffer.getChannelData(1);
+    const sampleRate = audioBuffer.sampleRate;
+    const length = audioBuffer.length;
+
+    // Skip very short files (< 1 second)
+    if (length < sampleRate) {
+      return null;
+    }
+
+    // Single pass: calculate RMS blocks once for efficiency
+    const blockSize = Math.floor(sampleRate * 0.25); // 250ms blocks
+    const rmsBlocks = [];
+
+    for (let i = 0; i < length; i += blockSize) {
+      const blockEnd = Math.min(i + blockSize, length);
+      const currentBlockSize = blockEnd - i;
+
+      let sumSquaresLeft = 0;
+      let sumSquaresRight = 0;
+
+      for (let j = i; j < blockEnd; j++) {
+        sumSquaresLeft += leftChannel[j] * leftChannel[j];
+        sumSquaresRight += rightChannel[j] * rightChannel[j];
+      }
+
+      const rmsLeft = Math.sqrt(sumSquaresLeft / currentBlockSize);
+      const rmsRight = Math.sqrt(sumSquaresRight / currentBlockSize);
+
+      rmsBlocks.push({ rmsLeft, rmsRight, startSample: i, endSample: blockEnd });
+    }
+
+    // Run all three analyses using the same RMS data
+    const overlap = this.analyzeOverlappingSpeech(noiseFloorDb, rmsBlocks);
+    const consistency = this.analyzeChannelConsistency(rmsBlocks);
+    const sync = this.analyzeChannelSync(leftChannel, rightChannel, sampleRate, noiseFloorDb, peakDb);
+
+    return {
+      overlap,
+      consistency,
+      sync
+    };
+  }
+
+  /**
+   * Analyzes overlapping speech in conversational stereo audio.
+   * @param {number} noiseFloorDb Noise floor in dB.
+   * @param {Array} rmsBlocks Pre-calculated RMS blocks.
+   * @returns {object} Overlap analysis results.
+   */
+  analyzeOverlappingSpeech(noiseFloorDb, rmsBlocks) {
+    // Speech threshold: noise floor + 20 dB (active speech level)
+    const speechThresholdDb = noiseFloorDb + 20;
+    const speechThresholdLinear = Math.pow(10, speechThresholdDb / 20);
+
+    let totalActiveBlocks = 0;
+    let overlapBlocks = 0;
+
+    for (const block of rmsBlocks) {
+      const { rmsLeft, rmsRight } = block;
+
+      // Check if BOTH channels have active speech
+      const leftActive = rmsLeft > speechThresholdLinear;
+      const rightActive = rmsRight > speechThresholdLinear;
+
+      if (leftActive || rightActive) {
+        totalActiveBlocks++;
+
+        if (leftActive && rightActive) {
+          overlapBlocks++;
+        }
+      }
+    }
+
+    const overlapPercentage = totalActiveBlocks > 0
+      ? (overlapBlocks / totalActiveBlocks) * 100
+      : 0;
+
+    return {
+      totalActiveBlocks,
+      overlapBlocks,
+      overlapPercentage,
+      speechThresholdDb
+    };
+  }
+
+  /**
+   * Analyzes channel consistency (detects channel swapping).
+   * @param {Array} rmsBlocks Pre-calculated RMS blocks.
+   * @returns {object} Consistency analysis results.
+   */
+  analyzeChannelConsistency(rmsBlocks) {
+    const dominanceRatioThreshold = 2.5; // 2.5x louder = dominant (conservative)
+    const silenceThreshold = 0.001;
+
+    // Track dominance patterns in 10-second segments
+    const segmentBlocks = 40; // 40 blocks × 250ms = 10 seconds
+    let segments = [];
+    let currentSegment = { leftDominant: 0, rightDominant: 0, balanced: 0 };
+    let blockCount = 0;
+
+    for (const block of rmsBlocks) {
+      const { rmsLeft, rmsRight } = block;
+
+      // Skip silent blocks
+      if (rmsLeft < silenceThreshold && rmsRight < silenceThreshold) {
+        continue;
+      }
+
+      // Guard against division by zero
+      if (rmsRight === 0 && rmsLeft === 0) {
+        continue;
+      }
+
+      const ratio = rmsRight > 0 ? rmsLeft / rmsRight : (rmsLeft > 0 ? Infinity : 1);
+
+      if (ratio > dominanceRatioThreshold) {
+        currentSegment.leftDominant++;
+      } else if (ratio < 1 / dominanceRatioThreshold) {
+        currentSegment.rightDominant++;
+      } else {
+        currentSegment.balanced++;
+      }
+
+      blockCount++;
+
+      // End of segment
+      if (blockCount >= segmentBlocks) {
+        segments.push({ ...currentSegment });
+        currentSegment = { leftDominant: 0, rightDominant: 0, balanced: 0 };
+        blockCount = 0;
+      }
+    }
+
+    // Add final partial segment
+    if (blockCount > 0) {
+      segments.push(currentSegment);
+    }
+
+    // Analyze consistency: check if dominance patterns flip
+    let inconsistentSegments = 0;
+    let expectedPattern = null;
+
+    for (const segment of segments) {
+      const total = segment.leftDominant + segment.rightDominant + segment.balanced;
+      if (total === 0) continue;
+
+      // Determine this segment's dominant pattern
+      let pattern = 'balanced';
+      if (segment.leftDominant > segment.rightDominant && segment.leftDominant > segment.balanced) {
+        pattern = 'left';
+      } else if (segment.rightDominant > segment.leftDominant && segment.rightDominant > segment.balanced) {
+        pattern = 'right';
+      }
+
+      // Set initial expected pattern
+      if (expectedPattern === null && pattern !== 'balanced') {
+        expectedPattern = pattern;
+      }
+
+      // Check for inconsistency (pattern flips from left to right or vice versa)
+      if (expectedPattern !== null && pattern !== 'balanced' && pattern !== expectedPattern) {
+        inconsistentSegments++;
+      }
+    }
+
+    const isConsistent = inconsistentSegments === 0;
+    const consistencyPercentage = segments.length > 0
+      ? ((segments.length - inconsistentSegments) / segments.length) * 100
+      : 100;
+
+    return {
+      isConsistent,
+      consistencyPercentage,
+      totalSegments: segments.length,
+      inconsistentSegments,
+      expectedPattern
+    };
+  }
+
+  /**
+   * Analyzes channel time-sync (detects timing misalignment).
+   * @param {Float32Array} leftChannel Left channel audio data.
+   * @param {Float32Array} rightChannel Right channel audio data.
+   * @param {number} sampleRate Sample rate.
+   * @param {number} noiseFloorDb Noise floor in dB.
+   * @param {number} peakDb Peak level in dB.
+   * @returns {object} Sync analysis results.
+   */
+  analyzeChannelSync(leftChannel, rightChannel, sampleRate, noiseFloorDb, peakDb) {
+    const length = leftChannel.length;
+
+    // Calculate silence threshold: noise floor + 25% of dynamic range
+    const dynamicRange = peakDb - noiseFloorDb;
+    const effectiveDynamicRange = Math.max(0, dynamicRange);
+    const silenceThresholdDb = noiseFloorDb + (effectiveDynamicRange * 0.25);
+    const silenceThresholdLinear = Math.pow(10, silenceThresholdDb / 20);
+
+    const windowSize = Math.floor(sampleRate * 0.05); // 50ms windows
+
+    // Find first and last active samples in each channel
+    let leftFirstActive = -1;
+    let leftLastActive = -1;
+    let rightFirstActive = -1;
+    let rightLastActive = -1;
+
+    for (let i = 0; i < length; i += windowSize) {
+      const end = Math.min(i + windowSize, length);
+
+      let maxLeft = 0;
+      let maxRight = 0;
+
+      for (let j = i; j < end; j++) {
+        maxLeft = Math.max(maxLeft, Math.abs(leftChannel[j]));
+        maxRight = Math.max(maxRight, Math.abs(rightChannel[j]));
+      }
+
+      if (maxLeft > silenceThresholdLinear) {
+        if (leftFirstActive === -1) leftFirstActive = i;
+        leftLastActive = i;
+      }
+
+      if (maxRight > silenceThresholdLinear) {
+        if (rightFirstActive === -1) rightFirstActive = i;
+        rightLastActive = i;
+      }
+    }
+
+    // Handle case where no active audio found
+    if (leftFirstActive === -1 || rightFirstActive === -1) {
+      return {
+        syncStatus: 'In Sync',
+        startDiffMs: 0,
+        endDiffMs: 0,
+        maxDiffMs: 0,
+        leftFirstActive: 0,
+        rightFirstActive: 0,
+        leftLastActive: 0,
+        rightLastActive: 0
+      };
+    }
+
+    // Calculate timing differences
+    const startDiffSamples = Math.abs(leftFirstActive - rightFirstActive);
+    const endDiffSamples = Math.abs(leftLastActive - rightLastActive);
+
+    const startDiffMs = (startDiffSamples / sampleRate) * 1000;
+    const endDiffMs = (endDiffSamples / sampleRate) * 1000;
+
+    const maxDiffMs = Math.max(startDiffMs, endDiffMs);
+
+    // Sync status
+    let syncStatus = 'In Sync';
+    if (maxDiffMs > 100) {
+      syncStatus = 'Out of Sync';
+    } else if (maxDiffMs > 50) {
+      syncStatus = 'Slight Offset';
+    }
+
+    return {
+      syncStatus,
+      startDiffMs,
+      endDiffMs,
+      maxDiffMs,
+      leftFirstActive: leftFirstActive / sampleRate,
+      rightFirstActive: rightFirstActive / sampleRate,
+      leftLastActive: leftLastActive / sampleRate,
+      rightLastActive: rightLastActive / sampleRate
+    };
+  }
 }

@@ -128,6 +128,13 @@ export class VersionCheckService {
   }
 
   /**
+   * Get the current version info
+   */
+  getCurrentVersion(): VersionInfo | null {
+    return this.currentVersion;
+  }
+
+  /**
    * Reload the page to get the new version
    * Forces a hard reload to bypass cache
    */

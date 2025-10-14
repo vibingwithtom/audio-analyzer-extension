@@ -13,6 +13,26 @@
   import { setAnalysisMode } from '../stores/analysisMode';
 
   let updateAvailable = false;
+  let buildInfo = $state('Audio Analyzer');
+
+  /**
+   * Format build time as readable string
+   */
+  function formatBuildInfo(version: any): string {
+    if (!version || !version.version) {
+      return 'Audio Analyzer';
+    }
+
+    // Parse ISO string to get date
+    const date = new Date(version.version);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+
+    return `Audio Analyzer build-${year}.${month}.${day}-${hours}${minutes}`;
+  }
 
   /**
    * Toggle dark mode
@@ -86,6 +106,10 @@
 
     // Initialize version checking
     versionCheckService.initialize().then(() => {
+      // Update build info with current version
+      const version = versionCheckService.getCurrentVersion();
+      buildInfo = formatBuildInfo(version);
+
       // Start checking for updates every 30 minutes
       versionCheckService.startPeriodicCheck(30);
 
@@ -249,7 +273,7 @@
   <!-- Footer -->
   <footer class="footer">
     <div class="container">
-      <p id="buildInfo">Audio Analyzer build-2025.10.12-2355</p>
+      <p id="buildInfo">{buildInfo}</p>
     </div>
   </footer>
 </div>

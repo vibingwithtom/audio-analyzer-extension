@@ -130,6 +130,28 @@
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
+
+  // Helper functions for conversational audio analysis
+  function getOverlapClass(overlapPercentage: number | undefined): string {
+    if (overlapPercentage === undefined) return '';
+    if (overlapPercentage < 5) return 'success';      // Good: < 5%
+    if (overlapPercentage <= 15) return 'warning';    // Warning: 5-15%
+    return 'error';                                    // Issue: > 15%
+  }
+
+  function getConsistencyClass(consistencyPercentage: number | undefined): string {
+    if (consistencyPercentage === undefined) return '';
+    if (consistencyPercentage >= 100) return 'success';     // Perfect: 100%
+    if (consistencyPercentage >= 90) return 'warning';      // Warning: 90-99%
+    return 'error';                                          // Issue: < 90%
+  }
+
+  function getSyncClass(maxDiffMs: number | undefined): string {
+    if (maxDiffMs === undefined) return '';
+    if (maxDiffMs < 50) return 'success';       // Good: < 50ms
+    if (maxDiffMs <= 100) return 'warning';     // Warning: 50-100ms
+    return 'error';                              // Issue: > 100ms
+  }
 </script>
 
 <style>
@@ -321,6 +343,9 @@
             <th>Reverb (RT60)</th>
             <th>Silence</th>
             <th>Stereo Separation</th>
+            <th>Speech Overlap</th>
+            <th>Channel Consistency</th>
+            <th>Channel Sync</th>
             <th>Mic Bleed</th>
           </tr>
         </thead>
@@ -382,6 +407,49 @@
                   <span class="subtitle">{Math.round(result.stereoSeparation.stereoConfidence * 100)}% conf</span>
                 {:else}
                   Mono file
+                {/if}
+              </td>
+              <!-- Speech Overlap -->
+              <td
+                title={result.conversationalAnalysis?.overlap ? `Detects when both channels have active speech simultaneously. Based on noise floor + 20 dB threshold.` : 'Speech overlap analysis only runs for Conversational Stereo files'}
+              >
+                {#if result.conversationalAnalysis?.overlap}
+                  <span class="value-{getOverlapClass(result.conversationalAnalysis.overlap.overlapPercentage)}">
+                    {result.conversationalAnalysis.overlap.overlapPercentage.toFixed(1)}%
+                  </span>
+                {:else}
+                  N/A
+                {/if}
+              </td>
+              <!-- Channel Consistency -->
+              <td
+                title={result.conversationalAnalysis?.consistency ? `Verifies speakers remain in same channels throughout. Detects mid-recording channel swaps.` : 'Channel consistency analysis only runs for Conversational Stereo files'}
+              >
+                {#if result.conversationalAnalysis?.consistency}
+                  {#if result.conversationalAnalysis.consistency.isConsistent}
+                    <span class="value-success">Consistent</span>
+                  {:else}
+                    <span class="value-{getConsistencyClass(result.conversationalAnalysis.consistency.consistencyPercentage)}">
+                      Inconsistent ({result.conversationalAnalysis.consistency.consistencyPercentage.toFixed(0)}%)
+                    </span>
+                  {/if}
+                {:else}
+                  N/A
+                {/if}
+              </td>
+              <!-- Channel Sync -->
+              <td
+                title={result.conversationalAnalysis?.sync ? `Detects timing misalignment between channels. Start: ${result.conversationalAnalysis.sync.startDiffMs.toFixed(0)}ms, End: ${result.conversationalAnalysis.sync.endDiffMs.toFixed(0)}ms` : 'Channel sync analysis only runs for Conversational Stereo files'}
+              >
+                {#if result.conversationalAnalysis?.sync}
+                  <span class="value-{getSyncClass(result.conversationalAnalysis.sync.maxDiffMs)}">
+                    {result.conversationalAnalysis.sync.syncStatus}
+                  </span>
+                  {#if result.conversationalAnalysis.sync.maxDiffMs > 0}
+                    <span class="subtitle">({result.conversationalAnalysis.sync.maxDiffMs.toFixed(0)}ms)</span>
+                  {/if}
+                {:else}
+                  N/A
                 {/if}
               </td>
               <td
