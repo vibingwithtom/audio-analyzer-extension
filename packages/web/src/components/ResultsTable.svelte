@@ -340,24 +340,6 @@
     z-index: 10;
   }
 
-  /* Shadow indicator when there's more content to scroll */
-  .experimental-table-wrapper::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 30px;
-    background: linear-gradient(to left, rgba(0, 0, 0, 0.1), transparent);
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-  }
-
-  .experimental-table-wrapper.has-scroll::after {
-    opacity: 1;
-  }
-
   /* Scroll hint */
   .scroll-hint {
     text-align: center;
@@ -413,7 +395,7 @@
         ← Scroll horizontally to see all columns →
       </div>
     {/if}
-    <div class="experimental-table-wrapper" class:has-scroll={hasHorizontalScroll} bind:this={tableWrapper}>
+    <div class="experimental-table-wrapper" bind:this={tableWrapper}>
       <table class="results-table">
         <thead>
           <tr>
