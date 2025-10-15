@@ -1211,9 +1211,10 @@ export class LevelAnalyzer {
     const maxGapSamples = 3; // Allow up to 3 samples below threshold in a region
 
     // Thresholds
-    // Hard clipping: >= 0.9999 (accounts for floating-point precision near 1.0)
-    // This is approximately -0.0087 dB from full scale
-    const hardClippingThreshold = 0.9999;
+    // Hard clipping: >= 0.985 (catches severe distortion from over-driven recordings)
+    // This is approximately -0.13 dB from full scale
+    // Catches clipped audio that was normalized/limited slightly below 0 dB
+    const hardClippingThreshold = 0.985;
     const nearClippingThreshold = 0.98;
 
     // Safety limit: Cap number of regions to prevent memory issues
