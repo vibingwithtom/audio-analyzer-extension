@@ -28,6 +28,11 @@ export class VersionCheckService {
    * Initialize the version checker with the current build version
    */
   async initialize(): Promise<void> {
+    // Skip version checking in development mode
+    if (import.meta.env.DEV) {
+      return;
+    }
+
     try {
       const basePath = this.getBasePath();
       // Fetch the current version.json to establish baseline
