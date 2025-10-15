@@ -605,11 +605,38 @@
                   N/A
                 {/if}
               </td>
-              <td>
+              <td
+                class="conversational-cell"
+                title={result.noiseFloorPerChannel ? (() => {
+                  let tooltip = 'Noise Floor Analysis\n━━━━━━━━━━━━━━━━━\nMeasures the background noise level using histogram analysis.';
+
+                  tooltip += `\n\nOverall: ${result.noiseFloorDb === -Infinity ? '-∞' : result.noiseFloorDb.toFixed(1)} dB`;
+
+                  if (result.noiseFloorPerChannel?.length > 0) {
+                    tooltip += '\n\nPer-Channel Breakdown:';
+                    result.noiseFloorPerChannel.forEach(ch => {
+                      tooltip += `\n• ${ch.channelName}: ${ch.noiseFloorDb === -Infinity ? '-∞' : ch.noiseFloorDb.toFixed(1)} dB`;
+                    });
+                  }
+
+                  tooltip += '\n\nTip: Lower values indicate cleaner recordings with less background noise.';
+
+                  return tooltip;
+                })() : 'Noise floor analysis data not available'}
+              >
                 {#if result.noiseFloorDb !== undefined}
                   <span class="value-{getNoiseFloorClass(result.noiseFloorDb)}">
                     {result.noiseFloorDb === -Infinity ? '-∞' : result.noiseFloorDb.toFixed(1)} dB
                   </span>
+                  {#if result.noiseFloorPerChannel?.length > 1}
+                    <span class="subtitle">
+                      {#if result.noiseFloorPerChannel.every(ch => Math.abs(ch.noiseFloorDb - result.noiseFloorDb) < 2)}
+                        Consistent across channels
+                      {:else}
+                        Varies by channel
+                      {/if}
+                    </span>
+                  {/if}
                 {:else}
                   N/A
                 {/if}

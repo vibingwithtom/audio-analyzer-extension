@@ -65,7 +65,7 @@ export class LevelAnalyzer {
 
       // 2. Noise Floor Analysis (histogram-based, always included)
       if (progressCallback) progressCallback('Analyzing noise floor...', 0.5);
-      const noiseFloorDb = await this.analyzeNoiseFloor(channelData, channels, length);
+      const noiseFloorAnalysis = await this.analyzeNoiseFloor(channelData, channels, length);
 
       // 3. Normalization Check
       if (progressCallback) progressCallback('Checking normalization...', 0.9);
@@ -74,7 +74,8 @@ export class LevelAnalyzer {
       // Base results (always included)
       const results = {
         peakDb: peakDb,
-        noiseFloorDb: noiseFloorDb,
+        noiseFloorDb: noiseFloorAnalysis.overall,
+        noiseFloorPerChannel: noiseFloorAnalysis.perChannel,
         normalizationStatus: normalizationStatus
       };
 
@@ -82,12 +83,12 @@ export class LevelAnalyzer {
       if (includeExperimental) {
         // Reverb Estimation
         if (progressCallback) progressCallback('Estimating reverb...', 0.93);
-        const reverbAnalysisResults = await this.estimateReverb(channelData, channels, length, sampleRate, noiseFloorDb);
+        const reverbAnalysisResults = await this.estimateReverb(channelData, channels, length, sampleRate, noiseFloorAnalysis.overall);
         const reverbInfo = this.interpretReverb(reverbAnalysisResults.overallMedianRt60);
 
         // Silence Analysis
         if (progressCallback) progressCallback('Analyzing silence...', 0.95);
-        const { leadingSilence, trailingSilence, longestSilence, silenceSegments } = this.analyzeSilence(channelData, channels, length, sampleRate, noiseFloorDb, peakDb);
+        const { leadingSilence, trailingSilence, longestSilence, silenceSegments } = this.analyzeSilence(channelData, channels, length, sampleRate, noiseFloorAnalysis.overall, peakDb);
 
         // Clipping Analysis
         if (progressCallback) progressCallback('Detecting clipping...', 0.97);
@@ -399,14 +400,21 @@ export class LevelAnalyzer {
     // Uses a histogram to find the most common quiet level (modal noise floor).
     // This is more robust than RMS-based methods as it's less affected by outliers.
     const numBins = 200; // Bins for levels from -100dB to 0dB (0.5 dB resolution)
-    const histogram = new Array(numBins).fill(0);
     const minDb = -100.0;
     const dbRange = 100.0;
-
     const windowSize = Math.floor(44100 * 0.05); // 50ms windows, assuming at least 44.1kHz
+
+    // Overall histogram (all channels combined)
+    const overallHistogram = new Array(numBins).fill(0);
+
+    // Per-channel histograms and results
+    const perChannelResults = [];
+    const channelNames = ['left', 'right', 'center', 'LFE', 'surroundLeft', 'surroundRight'];
 
     for (let channel = 0; channel < channels; channel++) {
       const data = channelData[channel];
+      const channelHistogram = new Array(numBins).fill(0);
+
       for (let i = 0; i < length; i += windowSize) {
         const end = Math.min(i + windowSize, length);
         let sumSquares = 0;
@@ -421,28 +429,51 @@ export class LevelAnalyzer {
             Math.floor(((db - minDb) / dbRange) * numBins),
             numBins - 1
           );
-          histogram[bin]++;
+          channelHistogram[bin]++;
+          overallHistogram[bin]++;
         }
       }
+
+      // Find the peak for this channel
+      let channelModeBin = -1;
+      let channelMaxCount = 0;
+      for (let i = 0; i < numBins; i++) {
+        if (channelHistogram[i] > channelMaxCount) {
+          channelMaxCount = channelHistogram[i];
+          channelModeBin = i;
+        }
+      }
+
+      const channelNoiseFloor = channelModeBin === -1
+        ? -Infinity
+        : channelModeBin * (dbRange / numBins) + minDb;
+
+      perChannelResults.push({
+        channelIndex: channel,
+        channelName: channelNames[channel] || `channel ${channel}`,
+        noiseFloorDb: channelNoiseFloor
+      });
     }
 
-    // Find the peak of the histogram (the mode)
-    let modeBin = -1;
-    let maxCount = 0;
+    // Find the peak of the overall histogram (the mode)
+    let overallModeBin = -1;
+    let overallMaxCount = 0;
     for (let i = 0; i < numBins; i++) {
-      if (histogram[i] > maxCount) {
-        maxCount = histogram[i];
-        modeBin = i;
+      if (overallHistogram[i] > overallMaxCount) {
+        overallMaxCount = overallHistogram[i];
+        overallModeBin = i;
       }
     }
 
-    if (modeBin === -1) {
-      return -Infinity;
-    }
+    const overallNoiseFloor = overallModeBin === -1
+      ? -Infinity
+      : overallModeBin * (dbRange / numBins) + minDb;
 
-    // Convert the bin index back to a dB value
-    const noiseFloor = modeBin * (dbRange / numBins) + minDb;
-    return noiseFloor;
+    // Return object with overall and per-channel data
+    return {
+      overall: overallNoiseFloor,
+      perChannel: perChannelResults
+    };
   }
 
   checkNormalization(peakDb) {
