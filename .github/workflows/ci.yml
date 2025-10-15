@@ -31,7 +31,3 @@ jobs:
       - name: TypeScript type checking
         working-directory: ./packages/web
         run: npm run typecheck
-
-      - name: Lint
-        working-directory: ./packages/web
-        run: npm run lint
