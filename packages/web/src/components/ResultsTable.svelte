@@ -624,7 +624,25 @@
                   N/A
                 {/if}
               </td>
-              <td>
+              <td
+                class="conversational-cell"
+                title={result.reverbAnalysis ? (() => {
+                  let tooltip = 'Reverb (RT60) Estimation\n━━━━━━━━━━━━━━━━━\nEstimates the reverberation time (RT60) of the audio, indicating how long sound persists in a space.';
+
+                  tooltip += `\n\nOverall Median RT60: ~${result.reverbInfo.time.toFixed(2)} s`;
+
+                  if (result.reverbAnalysis.perChannelRt60?.length > 0) {
+                    tooltip += '\n\nPer-Channel RT60:';
+                    result.reverbAnalysis.perChannelRt60.forEach(ch => {
+                      tooltip += `\n• ${ch.channelName}: ~${ch.medianRt60.toFixed(2)} s`;
+                    });
+                  }
+
+                  tooltip += '\n\nTip: Shorter RT60 values indicate a drier, less reverberant space (e.g., vocal booth).';
+
+                  return tooltip;
+                })() : 'Reverb analysis data not available'}
+              >
                 {#if result.reverbInfo}
                   <span class="value-{getReverbClass(result.reverbInfo.label)}">
                     ~{result.reverbInfo.time.toFixed(2)} s

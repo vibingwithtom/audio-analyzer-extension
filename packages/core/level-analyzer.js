@@ -25,6 +25,7 @@ export class LevelAnalyzer {
       // 1. Peak Level Analysis
       if (progressCallback) progressCallback('Analyzing peak levels...', 0);
       let globalPeak = 0;
+      let peakFound = false; // Flag to break outer loop
 
       for (let channel = 0; channel < channels; channel++) {
         const data = channelData[channel];
@@ -38,6 +39,12 @@ export class LevelAnalyzer {
             globalPeak = sample;
           }
 
+          // EMERGENCY BRAKE: If peak is already 1.0, no need to scan further.
+          if (globalPeak >= 0.99999) { // Use a very close value to 1.0 for float precision
+            peakFound = true;
+            break; // Break inner loop
+          }
+
           // Update progress every 10000 samples
           if (i % 10000 === 0) {
             const progress = (channel * length + i) / (channels * length) * 0.5; // First 50% for peak
@@ -48,6 +55,9 @@ export class LevelAnalyzer {
               await new Promise(resolve => setTimeout(resolve, 1));
             }
           }
+        }
+        if (peakFound) { // Break outer loop if peak found
+          break;
         }
       }
 
@@ -75,8 +85,8 @@ export class LevelAnalyzer {
 
         // Reverb Estimation
         if (progressCallback) progressCallback('Estimating reverb...', 0.93);
-        const reverbTime = await this.estimateReverb(channelData, channels, length, sampleRate, noiseFloorDbHistogram);
-        const reverbInfo = this.interpretReverb(reverbTime);
+        const reverbAnalysisResults = await this.estimateReverb(channelData, channels, length, sampleRate, noiseFloorDbHistogram);
+        const reverbInfo = this.interpretReverb(reverbAnalysisResults.overallMedianRt60);
 
         // Silence Analysis
         if (progressCallback) progressCallback('Analyzing silence...', 0.95);
@@ -88,7 +98,8 @@ export class LevelAnalyzer {
 
         // Add experimental results
         results.noiseFloorDbHistogram = noiseFloorDbHistogram;
-        results.reverbInfo = reverbInfo;
+        results.reverbInfo = reverbInfo; // This is the interpreted text
+        results.reverbAnalysis = reverbAnalysisResults; // This is the raw data including per-channel
         results.leadingSilence = leadingSilence;
         results.trailingSilence = trailingSilence;
         results.longestSilence = longestSilence;
@@ -277,18 +288,20 @@ export class LevelAnalyzer {
     };
   }
 
-  async estimateReverb(channelData, channels, length, sampleRate, noiseFloorDb) {
+  async estimateReverb(channelDataArray, channels, length, sampleRate, noiseFloorDb) { // Renamed channelData to channelDataArray
     const minDbAboveNoise = 10;
     const onsetThreshold = 1.5;
     const onsetWindowSize = 1024;
     const decayWindowSize = Math.floor(sampleRate * 0.02); // 20ms windows for decay
     const decayThresholdDb = -25;
 
-    let decayTimes = [];
-    const data = channelData[0];
-
-    let prevRms = 0;
-
+            let allDecayTimes = []; // Collect decay times from all channels for overall median
+            let perChannelResults = []; // Collect per-channel results
+    
+            for (let channelIndex = 0; channelIndex < channels; channelIndex++) { // Loop through all channels
+              const data = channelDataArray[channelIndex]; // Get data for current channel
+              let decayTimesForChannel = []; // Collect decay times for this specific channel
+              let prevRms = 0; // Reset prevRms for each channel
     for (let i = 0; i < length - onsetWindowSize; i += onsetWindowSize) {
       let sumSquares = 0;
       for (let j = i; j < i + onsetWindowSize; j++) {
@@ -310,15 +323,25 @@ export class LevelAnalyzer {
 
         if (peakDb > noiseFloorDb + minDbAboveNoise) {
           let decayEndSample = -1;
+          const MAX_DECAY_LOOP_ITERATIONS = 1000; // Emergency brake
+          let decayLoopCount = 0; // New counter
 
           // New decay logic: Use RMS windows instead of raw samples
           for (let j = peakIndex; j < length - decayWindowSize; j += decayWindowSize) {
+            if (decayLoopCount++ > MAX_DECAY_LOOP_ITERATIONS) {
+              break; // Emergency brake
+            }
             let decaySumSquares = 0;
             for (let k = j; k < j + decayWindowSize; k++) {
               decaySumSquares += data[k] * data[k];
             }
             const decayRms = Math.sqrt(decaySumSquares / decayWindowSize);
             const currentDecayDb = decayRms > 0 ? 20 * Math.log10(decayRms) : -120;
+
+            // Allow UI to update in this deep loop
+            if (j % 100000 === 0) { // Yield every 100K samples
+              await new Promise(resolve => setTimeout(resolve, 1));
+            }
 
             if (currentDecayDb < peakDb + decayThresholdDb) {
               decayEndSample = j;
@@ -330,25 +353,50 @@ export class LevelAnalyzer {
             const decayDurationSeconds = (decayEndSample - peakIndex) / sampleRate;
             if (decayDurationSeconds > 0) {
               const rt60 = decayDurationSeconds * (60 / Math.abs(decayThresholdDb));
-              decayTimes.push(rt60);
+              decayTimesForChannel.push(rt60); // Push to this channel's decay times
             }
           }
         }
       }
       prevRms = currentRms;
-    }
 
-    if (decayTimes.length < 1) {
+          // Allow UI to update
+          if (i % 100000 === 0) { // Yield every 100K samples
+            await new Promise(resolve => setTimeout(resolve, 1));
+          }
+        }
+
+        // Calculate median RT60 for the current channel
+        let medianRt60ForChannel = 0;
+        if (decayTimesForChannel.length > 0) {
+          decayTimesForChannel.sort((a, b) => a - b);
+          const mid = Math.floor(decayTimesForChannel.length / 2);
+          medianRt60ForChannel = decayTimesForChannel.length % 2 !== 0
+            ? decayTimesForChannel[mid]
+            : (decayTimesForChannel[mid - 1] + decayTimesForChannel[mid]) / 2;
+        }
+        perChannelResults.push({
+          channelIndex,
+          channelName: ['left', 'right'][channelIndex] || `channel ${channelIndex}`,
+          medianRt60: medianRt60ForChannel
+        });
+        allDecayTimes.push(...decayTimesForChannel); // Aggregate for overall median
+      } // Close the outer loop for channels
+
+    if (allDecayTimes.length < 1) {
       return 0;
     }
 
-    decayTimes.sort((a, b) => a - b);
-    const mid = Math.floor(decayTimes.length / 2);
-    const medianRt60 = decayTimes.length % 2 !== 0
-      ? decayTimes[mid]
-      : (decayTimes[mid - 1] + decayTimes[mid]) / 2;
+    allDecayTimes.sort((a, b) => a - b);
+    const mid = Math.floor(allDecayTimes.length / 2);
+    const medianRt60 = allDecayTimes.length % 2 !== 0
+      ? allDecayTimes[mid]
+      : (allDecayTimes[mid - 1] + allDecayTimes[mid]) / 2;
 
-    return medianRt60;
+    return {
+      overallMedianRt60: medianRt60,
+      perChannelRt60: perChannelResults
+    };
   }
 
   async analyzeNoiseFloorHistogram(channelData, channels, length) {
@@ -1220,6 +1268,7 @@ export class LevelAnalyzer {
     // Safety limit: Cap number of regions to prevent memory issues
     const MAX_REGIONS_PER_CHANNEL = 5000; // Reasonable limit for even extreme cases
     const MAX_TOTAL_REGIONS = 10000; // Total regions across all channels
+    const MAX_CLIPPED_SAMPLES_PER_CHANNEL = 20000000; // Emergency brake for extreme files
 
     // Channel names
     const channelNames = ['left', 'right', 'center', 'LFE', 'surroundLeft', 'surroundRight'];
@@ -1281,6 +1330,12 @@ export class LevelAnalyzer {
             gapCounter = 0; // Reset gap counter
           }
           channelClippedSamples++;
+
+          // EMERGENCY BRAKE: Bail out if a channel has an excessive number of clipped samples.
+          if (channelClippedSamples > MAX_CLIPPED_SAMPLES_PER_CHANNEL) {
+            regionsLimitReached = true;
+            break;
+          }
         } else if (currentHardRegion !== null) {
           // We're in a region but this sample isn't clipped
           gapCounter++;
@@ -1328,6 +1383,12 @@ export class LevelAnalyzer {
             currentNearRegion.peakSample = Math.max(currentNearRegion.peakSample, absSample);
           }
           channelNearClippingSamples++;
+
+          // EMERGENCY BRAKE: Bail out for excessive near-clipping as well.
+          if (channelNearClippingSamples > MAX_CLIPPED_SAMPLES_PER_CHANNEL) {
+            regionsLimitReached = true;
+            break;
+          }
         } else if (currentNearRegion !== null && absSample < nearClippingThreshold) {
           // End near-clipping region (no gap tolerance for near-clipping)
           if (currentNearRegion.sampleCount >= minConsecutiveSamples) {
@@ -1345,6 +1406,11 @@ export class LevelAnalyzer {
 
         // Progress updates
         if (i % 10000 === 0) {
+          // OPTIMIZATION: Bail out early if the region limit is hit.
+          if (regionsLimitReached) {
+            break;
+          }
+
           const progress = (channel * length + i) / (channels * length);
           if (progressCallback) {
             progressCallback('Detecting clipping...', progress);
@@ -1433,9 +1499,7 @@ export class LevelAnalyzer {
     const clippingEventCount = perChannelStats.reduce((sum, ch) => sum + ch.hardClippingRegions, 0);
     const nearClippingEventCount = perChannelStats.reduce((sum, ch) => sum + ch.nearClippingRegions, 0);
 
-    const maxConsecutiveClipped = hardClippingRegions.length > 0
-      ? Math.max(...hardClippingRegions.map(r => r.sampleCount))
-      : 0;
+    const maxConsecutiveClipped = hardClippingRegions.reduce((max, r) => Math.max(max, r.sampleCount), 0);
 
     const avgClippingDuration = hardClippingRegions.length > 0
       ? hardClippingRegions.reduce((sum, r) => sum + r.duration, 0) / hardClippingRegions.length
