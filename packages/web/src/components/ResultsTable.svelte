@@ -608,7 +608,7 @@
               <td
                 class="conversational-cell"
                 title={result.noiseFloorPerChannel ? (() => {
-                  let tooltip = 'Noise Floor Analysis\n━━━━━━━━━━━━━━━━━\nMeasures the background noise level using histogram analysis.';
+                  let tooltip = 'Noise Floor Analysis\n━━━━━━━━━━━━━━━━━\nMeasures the background noise level using histogram analysis of the quietest 30% of windows.';
 
                   tooltip += `\n\nOverall: ${result.noiseFloorDb === -Infinity ? '-∞' : result.noiseFloorDb.toFixed(1)} dB`;
 
@@ -617,6 +617,11 @@
                     result.noiseFloorPerChannel.forEach(ch => {
                       tooltip += `\n• ${ch.channelName}: ${ch.noiseFloorDb === -Infinity ? '-∞' : ch.noiseFloorDb.toFixed(1)} dB`;
                     });
+                  }
+
+                  if (result.hasDigitalSilence) {
+                    tooltip += `\n\nDigital Silence Detected: ${result.digitalSilencePercentage.toFixed(1)}% of windows`;
+                    tooltip += '\n(True silence where all samples = 0.0)';
                   }
 
                   tooltip += '\n\nTip: Lower values indicate cleaner recordings with less background noise.';
@@ -628,7 +633,9 @@
                   <span class="value-{getNoiseFloorClass(result.noiseFloorDb)}">
                     {result.noiseFloorDb === -Infinity ? '-∞' : result.noiseFloorDb.toFixed(1)} dB
                   </span>
-                  {#if result.noiseFloorPerChannel?.length > 1}
+                  {#if result.hasDigitalSilence}
+                    <span class="subtitle">Contains digital silence ({result.digitalSilencePercentage.toFixed(1)}%)</span>
+                  {:else if result.noiseFloorPerChannel?.length > 1}
                     <span class="subtitle">
                       {#if result.noiseFloorPerChannel.every(ch => Math.abs(ch.noiseFloorDb - result.noiseFloorDb) < 2)}
                         Consistent across channels

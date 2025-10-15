@@ -76,6 +76,8 @@ export class LevelAnalyzer {
         peakDb: peakDb,
         noiseFloorDb: noiseFloorAnalysis.overall,
         noiseFloorPerChannel: noiseFloorAnalysis.perChannel,
+        hasDigitalSilence: noiseFloorAnalysis.hasDigitalSilence,
+        digitalSilencePercentage: noiseFloorAnalysis.digitalSilencePercentage,
         normalizationStatus: normalizationStatus
       };
 
@@ -397,51 +399,89 @@ export class LevelAnalyzer {
   }
 
   async analyzeNoiseFloor(channelData, channels, length) {
-    // Uses a histogram to find the most common quiet level (modal noise floor).
-    // This is more robust than RMS-based methods as it's less affected by outliers.
+    // Hybrid approach: Uses histogram on the quietest 30% of windows to find noise floor.
+    // Excludes speech/loud content while capturing actual background noise level.
     const numBins = 200; // Bins for levels from -100dB to 0dB (0.5 dB resolution)
     const minDb = -100.0;
     const dbRange = 100.0;
-    const windowSize = Math.floor(44100 * 0.05); // 50ms windows, assuming at least 44.1kHz
+    const windowSize = Math.floor(44100 * 0.05); // 50ms windows
+    const quietestPercentile = 0.30; // Use quietest 30% of non-silent windows
 
-    // Overall histogram (all channels combined)
-    const overallHistogram = new Array(numBins).fill(0);
+    // Track digital silence across all channels
+    const numWindows = Math.ceil(length / windowSize);
+    let digitalSilenceWindows = 0;
 
-    // Per-channel histograms and results
-    const perChannelResults = [];
+    // Collect RMS values for all windows (per-channel and overall)
+    const overallRmsValues = [];
+    const perChannelRmsValues = [];
     const channelNames = ['left', 'right', 'center', 'LFE', 'surroundLeft', 'surroundRight'];
 
+    // Initialize per-channel arrays
     for (let channel = 0; channel < channels; channel++) {
-      const data = channelData[channel];
-      const channelHistogram = new Array(numBins).fill(0);
+      perChannelRmsValues.push([]);
+    }
 
-      for (let i = 0; i < length; i += windowSize) {
-        const end = Math.min(i + windowSize, length);
+    // Pass 1: Calculate RMS for all windows and detect digital silence
+    for (let i = 0; i < length; i += windowSize) {
+      const end = Math.min(i + windowSize, length);
+      let allChannelsSilent = true;
+
+      for (let channel = 0; channel < channels; channel++) {
+        const data = channelData[channel];
         let sumSquares = 0;
         for (let j = i; j < end; j++) {
           sumSquares += data[j] * data[j];
         }
         const rms = Math.sqrt(sumSquares / (end - i));
 
-        // Skip true silence (RMS = 0) - this should be treated as -Infinity, not added to histogram
-        if (rms === 0) {
-          continue;
+        if (rms > 0) {
+          allChannelsSilent = false;
+          perChannelRmsValues[channel].push(rms);
+          overallRmsValues.push(rms);
         }
+      }
 
+      // Track windows where ALL channels are digital silence
+      if (allChannelsSilent) {
+        digitalSilenceWindows++;
+      }
+    }
+
+    // Pass 2: Build histograms from quietest windows
+    const perChannelResults = [];
+
+    for (let channel = 0; channel < channels; channel++) {
+      const channelRms = perChannelRmsValues[channel];
+
+      if (channelRms.length === 0) {
+        // All windows were silence
+        perChannelResults.push({
+          channelIndex: channel,
+          channelName: channelNames[channel] || `channel ${channel}`,
+          noiseFloorDb: -Infinity
+        });
+        continue;
+      }
+
+      // Sort and take quietest percentile
+      const sortedRms = [...channelRms].sort((a, b) => a - b);
+      const cutoffIndex = Math.ceil(sortedRms.length * quietestPercentile);
+      const quietestRms = sortedRms.slice(0, cutoffIndex);
+
+      // Build histogram from quietest windows only
+      const channelHistogram = new Array(numBins).fill(0);
+      for (const rms of quietestRms) {
         const db = 20 * Math.log10(rms);
-
-        // Only add to histogram if within our measurement range
         if (db >= minDb) {
           const bin = Math.min(
             Math.floor(((db - minDb) / dbRange) * numBins),
             numBins - 1
           );
           channelHistogram[bin]++;
-          overallHistogram[bin]++;
         }
       }
 
-      // Find the peak for this channel
+      // Find the modal bin (peak of histogram)
       let channelModeBin = -1;
       let channelMaxCount = 0;
       for (let i = 0; i < numBins; i++) {
@@ -462,24 +502,49 @@ export class LevelAnalyzer {
       });
     }
 
-    // Find the peak of the overall histogram (the mode)
-    let overallModeBin = -1;
-    let overallMaxCount = 0;
-    for (let i = 0; i < numBins; i++) {
-      if (overallHistogram[i] > overallMaxCount) {
-        overallMaxCount = overallHistogram[i];
-        overallModeBin = i;
+    // Overall noise floor calculation
+    let overallNoiseFloor = -Infinity;
+    if (overallRmsValues.length > 0) {
+      const sortedRms = [...overallRmsValues].sort((a, b) => a - b);
+      const cutoffIndex = Math.ceil(sortedRms.length * quietestPercentile);
+      const quietestRms = sortedRms.slice(0, cutoffIndex);
+
+      const overallHistogram = new Array(numBins).fill(0);
+      for (const rms of quietestRms) {
+        const db = 20 * Math.log10(rms);
+        if (db >= minDb) {
+          const bin = Math.min(
+            Math.floor(((db - minDb) / dbRange) * numBins),
+            numBins - 1
+          );
+          overallHistogram[bin]++;
+        }
       }
+
+      let overallModeBin = -1;
+      let overallMaxCount = 0;
+      for (let i = 0; i < numBins; i++) {
+        if (overallHistogram[i] > overallMaxCount) {
+          overallMaxCount = overallHistogram[i];
+          overallModeBin = i;
+        }
+      }
+
+      overallNoiseFloor = overallModeBin === -1
+        ? -Infinity
+        : overallModeBin * (dbRange / numBins) + minDb;
     }
 
-    const overallNoiseFloor = overallModeBin === -1
-      ? -Infinity
-      : overallModeBin * (dbRange / numBins) + minDb;
+    // Calculate digital silence percentage
+    const digitalSilencePercentage = numWindows > 0
+      ? (digitalSilenceWindows / numWindows) * 100
+      : 0;
 
-    // Return object with overall and per-channel data
     return {
       overall: overallNoiseFloor,
-      perChannel: perChannelResults
+      perChannel: perChannelResults,
+      hasDigitalSilence: digitalSilenceWindows > 0,
+      digitalSilencePercentage: digitalSilencePercentage
     };
   }
 
