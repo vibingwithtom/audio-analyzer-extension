@@ -422,8 +422,15 @@ export class LevelAnalyzer {
           sumSquares += data[j] * data[j];
         }
         const rms = Math.sqrt(sumSquares / (end - i));
-        const db = rms > 0 ? 20 * Math.log10(rms) : minDb;
 
+        // Skip true silence (RMS = 0) - this should be treated as -Infinity, not added to histogram
+        if (rms === 0) {
+          continue;
+        }
+
+        const db = 20 * Math.log10(rms);
+
+        // Only add to histogram if within our measurement range
         if (db >= minDb) {
           const bin = Math.min(
             Math.floor(((db - minDb) / dbRange) * numBins),
