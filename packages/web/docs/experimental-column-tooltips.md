@@ -31,9 +31,6 @@ Recommended tooltip text for each column header in the experimental analysis tab
 ### Channel Consistency
 **Tooltip:** "Verifies speakers stay in same channels throughout recording. Detects if speakers switch channels mid-recording. Only applies to Conversational Stereo files."
 
-### Channel Sync
-**Tooltip:** "Detects timing misalignment between left and right channels. Checks if audio starts/ends at the same time in both channels. Only applies to Conversational Stereo files."
-
 ### Mic Bleed
 **Tooltip:** "Detects audio leakage from one microphone into another. Only meaningful for Conversational Stereo recordings. Lower separation values indicate more bleed."
 

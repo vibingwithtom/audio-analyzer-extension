@@ -175,14 +175,14 @@
 
     if (type === 'lead-trail') {
       // Leading/Trailing silence thresholds
-      if (seconds < 1) return 'success';      // Good: < 1s
-      if (seconds <= 3) return 'warning';     // Warning: 1-3s
-      return 'error';                         // Issue: > 3s
+      if (seconds < 5) return 'success';      // Good: < 5s
+      if (seconds < 10) return 'warning';     // Warning: 5-9s
+      return 'error';                         // Issue: >= 10s
     } else {
       // Max silence gap thresholds
-      if (seconds < 2) return 'success';      // Good: < 2s
-      if (seconds <= 5) return 'warning';     // Warning: 2-5s
-      return 'error';                         // Issue: > 5s
+      if (seconds < 5) return 'success';      // Good: < 5s
+      if (seconds < 10) return 'warning';     // Warning: 5-9s
+      return 'error';                         // Issue: >= 10s
     }
   }
 
@@ -206,13 +206,6 @@
     if (consistencyPercentage >= 100) return 'success';     // Perfect: 100%
     if (consistencyPercentage >= 90) return 'warning';      // Warning: 90-99%
     return 'error';                                          // Issue: < 90%
-  }
-
-  function getSyncClass(maxDiffMs: number | undefined): string {
-    if (maxDiffMs === undefined) return '';
-    if (maxDiffMs < 50) return 'success';       // Good: < 50ms
-    if (maxDiffMs <= 100) return 'warning';     // Warning: 50-100ms
-    return 'error';                              // Issue: > 100ms
   }
 </script>
 
@@ -504,7 +497,6 @@
             <th>Stereo Separation</th>
             <th>Speech Overlap</th>
             <th>Channel Consistency</th>
-            <th>Channel Sync</th>
             <th>Mic Bleed</th>
           </tr>
         </thead>
@@ -553,7 +545,29 @@
                   N/A
                 {/if}
               </td>
-              <td>
+              <td
+                class="conversational-cell"
+                title={(() => {
+                  let tooltip = 'Silence detection based on dynamic threshold (25% between noise floor and peak).\n\nFilters out audio ticks < 150ms.';
+
+                  // Show worst silence segments if available
+                  if (result.silenceSegments?.length > 0) {
+                    tooltip += `\n\n⚠️ Worst silence gaps:`;
+                    const segmentsToShow = result.silenceSegments.slice(0, 5);
+                    segmentsToShow.forEach(seg => {
+                      const startMin = Math.floor(seg.startTime / 60);
+                      const startSec = Math.floor(seg.startTime % 60);
+                      const endMin = Math.floor(seg.endTime / 60);
+                      const endSec = Math.floor(seg.endTime % 60);
+                      tooltip += `\n${startMin}:${startSec.toString().padStart(2, '0')}-${endMin}:${endSec.toString().padStart(2, '0')} (${seg.duration.toFixed(1)}s)`;
+                    });
+                  } else {
+                    tooltip += '\n\nNo significant silence gaps detected.';
+                  }
+
+                  return tooltip;
+                })()}
+              >
                 <div>
                   <span class="subtitle">Lead: <span class="value-{getSilenceClass(result.leadingSilence, 'lead-trail')}">{formatTime(result.leadingSilence)}</span></span>
                   <span class="subtitle">Trail: <span class="value-{getSilenceClass(result.trailingSilence, 'lead-trail')}">{formatTime(result.trailingSilence)}</span></span>
@@ -571,7 +585,31 @@
               <!-- Speech Overlap -->
               <td
                 class="conversational-cell"
-                title={result.conversationalAnalysis?.overlap ? `Detects when both channels have active speech simultaneously. Based on noise floor + 20 dB threshold.` : 'Speech overlap analysis only runs for Conversational Stereo files'}
+                title={result.conversationalAnalysis?.overlap ? (() => {
+                  let tooltip = 'Detects when both channels have active speech simultaneously.\n\nBased on noise floor + 20 dB threshold.';
+                  tooltip += `\n\nResult: ${result.conversationalAnalysis.overlap.overlapPercentage.toFixed(1)}% overlap`;
+
+                  if (result.conversationalAnalysis.overlap.overlapSegments?.length > 0) {
+                    tooltip += ` (${result.conversationalAnalysis.overlap.overlapSegments.length} instance${result.conversationalAnalysis.overlap.overlapSegments.length > 1 ? 's' : ''})`;
+                    tooltip += `\n\nFilters interjections < ${result.conversationalAnalysis.overlap.minOverlapDuration}s`;
+
+                    // Show top 5 worst (longest) overlap instances
+                    tooltip += '\n\n⚠️ Worst overlap times:';
+                    const sortedSegments = [...result.conversationalAnalysis.overlap.overlapSegments].sort((a, b) => b.duration - a.duration);
+                    const segmentsToShow = sortedSegments.slice(0, 5);
+                    segmentsToShow.forEach(seg => {
+                      const startMin = Math.floor(seg.startTime / 60);
+                      const startSec = Math.floor(seg.startTime % 60);
+                      const endMin = Math.floor(seg.endTime / 60);
+                      const endSec = Math.floor(seg.endTime % 60);
+
+                      // Show duration
+                      tooltip += `\n${startMin}:${startSec.toString().padStart(2, '0')}-${endMin}:${endSec.toString().padStart(2, '0')} (${seg.duration.toFixed(1)}s)`;
+                    });
+                  }
+
+                  return tooltip;
+                })() : 'Speech overlap analysis only runs for Conversational Stereo files'}
               >
                 {#if result.conversationalAnalysis?.overlap}
                   <span class="value-{getOverlapClass(result.conversationalAnalysis.overlap.overlapPercentage)}">
@@ -584,31 +622,23 @@
               <!-- Channel Consistency -->
               <td
                 class="conversational-cell"
-                title={result.conversationalAnalysis?.consistency ? `Verifies speakers remain in same channels throughout. Detects mid-recording channel swaps.` : 'Channel consistency analysis only runs for Conversational Stereo files'}
+                title={result.conversationalAnalysis?.consistency ?
+                  (result.conversationalAnalysis.consistency.isConsistent
+                    ? `Verifies speakers remain in same channels throughout.\n\nResult: No channel swapping detected.`
+                    : `Verifies speakers remain in same channels throughout.\n\nResult: Possible channel swapping detected.\n\nSeverity: ${result.conversationalAnalysis.consistency.severityScore?.toFixed(1) || 0}/100\nInconsistent Segments: ${result.conversationalAnalysis.consistency.inconsistentSegments || 0}${result.conversationalAnalysis.consistency.inconsistentSegmentDetails?.length > 0 ? '\n\n⚠️ Review these times:\n' + result.conversationalAnalysis.consistency.inconsistentSegmentDetails.map(seg => `${Math.floor(seg.startTime / 60)}:${Math.floor(seg.startTime % 60).toString().padStart(2, '0')}-${Math.floor(seg.endTime / 60)}:${Math.floor(seg.endTime % 60).toString().padStart(2, '0')} (${seg.confidence?.toFixed(0)}% conf)`).join('\n') : ''}`)
+                  : 'Channel consistency analysis only runs for Conversational Stereo files'}
               >
                 {#if result.conversationalAnalysis?.consistency}
                   {#if result.conversationalAnalysis.consistency.isConsistent}
                     <span class="value-success">Consistent</span>
                   {:else}
                     <span class="value-{getConsistencyClass(result.conversationalAnalysis.consistency.consistencyPercentage)}">
-                      Inconsistent ({result.conversationalAnalysis.consistency.consistencyPercentage.toFixed(0)}%)
+                      Inconsistent
                     </span>
-                  {/if}
-                {:else}
-                  N/A
-                {/if}
-              </td>
-              <!-- Channel Sync -->
-              <td
-                class="conversational-cell"
-                title={result.conversationalAnalysis?.sync ? `Detects timing misalignment between channels. Start: ${result.conversationalAnalysis.sync.startDiffMs.toFixed(0)}ms, End: ${result.conversationalAnalysis.sync.endDiffMs.toFixed(0)}ms` : 'Channel sync analysis only runs for Conversational Stereo files'}
-              >
-                {#if result.conversationalAnalysis?.sync}
-                  <span class="value-{getSyncClass(result.conversationalAnalysis.sync.maxDiffMs)}">
-                    {result.conversationalAnalysis.sync.syncStatus}
-                  </span>
-                  {#if result.conversationalAnalysis.sync.maxDiffMs > 0}
-                    <span class="subtitle">({result.conversationalAnalysis.sync.maxDiffMs.toFixed(0)}ms)</span>
+                    <span class="subtitle">{result.conversationalAnalysis.consistency.inconsistentSegments || 0} of {result.conversationalAnalysis.consistency.totalSegmentsChecked || 0} segments</span>
+                    {#if result.conversationalAnalysis.consistency.severityScore !== undefined}
+                      <span class="subtitle">Severity: {result.conversationalAnalysis.consistency.severityScore.toFixed(1)}/100</span>
+                    {/if}
                   {/if}
                 {:else}
                   N/A
@@ -617,17 +647,54 @@
               <td
                 class="mic-bleed-cell"
                 title={result.micBleed ? (() => {
-                  let tooltip = '';
-                  if (result.micBleed.old) {
-                    tooltip += `Bleed Level: L: ${result.micBleed.old.leftChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.leftChannelBleedDb.toFixed(1)} dB, R: ${result.micBleed.old.rightChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.rightChannelBleedDb.toFixed(1)} dB`;
+                  // Check if bleed is detected
+                  const oldDetected = result.micBleed.old &&
+                    (result.micBleed.old.leftChannelBleedDb > -60 || result.micBleed.old.rightChannelBleedDb > -60);
+                  const newDetected = result.micBleed.new &&
+                    (result.micBleed.new.percentageConfirmedBleed > 0.5);
+
+                  if (oldDetected || newDetected) {
+                    // Bleed detected - show detailed info
+                    let tooltip = 'Detects audio leakage between channels.\n\nResult: Mic bleed detected';
+                    if (result.micBleed.new?.bleedSegments?.length > 0) {
+                      tooltip += ` in ${result.micBleed.new.bleedSegments.length} segment${result.micBleed.new.bleedSegments.length > 1 ? 's' : ''}.`;
+                    } else {
+                      tooltip += '.';
+                    }
+
+                    // Only show severity and correlation if NEW method detected (values > 0)
+                    if (newDetected && result.micBleed.new?.severityScore > 0) {
+                      tooltip += `\n\nSeverity: ${result.micBleed.new.severityScore.toFixed(1)}/100`;
+                    }
+                    if (newDetected && result.micBleed.new?.peakCorrelation > 0) {
+                      tooltip += `\nPeak Correlation: ${result.micBleed.new.peakCorrelation.toFixed(2)}`;
+                    }
+
+                    // Show worst affected segments (top 10) - only if NEW method has data
+                    if (result.micBleed.new?.bleedSegments?.length > 0) {
+                      tooltip += '\n\n⚠️ Worst affected times:';
+                      const segmentsToShow = result.micBleed.new.bleedSegments.slice(0, 10);
+                      segmentsToShow.forEach(seg => {
+                        const startMin = Math.floor(seg.startTime / 60);
+                        const startSec = Math.floor(seg.startTime % 60);
+                        const endMin = Math.floor(seg.endTime / 60);
+                        const endSec = Math.floor(seg.endTime % 60);
+
+                        // If segment duration < 1 second, show just start time
+                        const duration = seg.endTime - seg.startTime;
+                        if (duration < 1.0) {
+                          tooltip += `\n${startMin}:${startSec.toString().padStart(2, '0')} (${seg.maxCorrelation.toFixed(2)} corr)`;
+                        } else {
+                          tooltip += `\n${startMin}:${startSec.toString().padStart(2, '0')}-${endMin}:${endSec.toString().padStart(2, '0')} (${seg.maxCorrelation.toFixed(2)} corr)`;
+                        }
+                      });
+                    }
+
+                    return tooltip;
+                  } else {
+                    // No bleed detected
+                    return 'Detects audio leakage between channels.\n\nResult: No mic bleed detected.';
                   }
-                  if (result.micBleed.old && result.micBleed.new) {
-                    tooltip += '\n';
-                  }
-                  if (result.micBleed.new) {
-                    tooltip += `Channel Separation: Median: ${result.micBleed.new.medianSeparation.toFixed(1)} dB, Worst 10%: ${result.micBleed.new.p10Separation.toFixed(1)} dB`;
-                  }
-                  return tooltip;
                 })() : 'Mic bleed analysis only runs for Conversational Stereo files'}
               >
                 {#if result.micBleed}

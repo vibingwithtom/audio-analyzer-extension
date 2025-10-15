@@ -1111,41 +1111,6 @@
     cursor: not-allowed;
   }
 
-  .input-with-button {
-    display: flex;
-    gap: 0.5rem;
-  }
-
-  .input-with-button input {
-    flex: 1;
-  }
-
-  .fetch-button {
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
-  .error-message {
-    margin-top: 0.375rem;
-    padding: 0.5rem;
-    background: rgba(244, 67, 54, 0.1);
-    border-left: 3px solid #f44336;
-    border-radius: 4px;
-    font-size: 0.8125rem;
-    color: #c62828;
-  }
-
-  .success-message {
-    margin-top: 0.375rem;
-    padding: 0.5rem;
-    background: rgba(76, 175, 80, 0.1);
-    border-left: 3px solid #4caf50;
-    border-radius: 4px;
-    font-size: 0.8125rem;
-    color: #2e7d32;
-    font-weight: 500;
-  }
-
   .config-info {
     margin-top: 0.5rem;
     padding: 0.5rem 0.75rem;

@@ -106,14 +106,6 @@
         else if (consistencyPct >= 90) statuses.push('warning');
         else statuses.push('error');
       }
-
-      // Check channel sync
-      if (result.conversationalAnalysis.sync) {
-        const maxDiffMs = result.conversationalAnalysis.sync.maxDiffMs;
-        if (maxDiffMs < 50) statuses.push('success');
-        else if (maxDiffMs <= 100) statuses.push('warning');
-        else statuses.push('error');
-      }
     }
 
     // Determine worst status

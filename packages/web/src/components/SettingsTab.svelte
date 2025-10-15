@@ -203,13 +203,6 @@
     color: var(--text-primary, #333333);
   }
 
-  .placeholder {
-    padding: 1rem;
-    background: var(--bg-primary, #ffffff);
-    border-radius: 4px;
-    color: var(--text-secondary, #666666);
-  }
-
   .filename-validation-info {
     margin-top: 1rem;
     padding: 1rem;

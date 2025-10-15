@@ -169,6 +169,26 @@
         rgba(0, 0, 0, 0.04) 20px
       );
     transition: all 0.2s ease;
+    position: relative;
+  }
+
+  .drop-zone::before,
+  .drop-zone::after {
+    content: '🎵';
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 4rem;
+    opacity: 0.08;
+    pointer-events: none;
+  }
+
+  .drop-zone::before {
+    left: 20%;
+  }
+
+  .drop-zone::after {
+    right: 20%;
   }
 
   .drop-zone.dragging {
@@ -254,13 +274,10 @@
     on:drop={handleDrop}
   >
     <label for={id} class="file-upload-label" class:disabled={isDisabled}>
-      <span>📁 {isDisabled && !processing ? 'Configure preset to enable' : processing ? 'Processing...' : multiple ? 'Choose Audio Files' : 'Choose Audio File'}</span>
+      <span>{isDisabled && !processing ? 'Configure preset to enable' : processing ? 'Processing...' : multiple ? 'Choose Audio Files' : 'Choose Audio File'}</span>
     </label>
     <input type="file" {id} {accept} {multiple} on:change disabled={isDisabled} class="file-input" />
 
     <div class="drop-instruction">{isDisabled && !processing ? 'Select a preset in Settings to analyze files' : `or drag and drop ${multiple ? 'files/folders' : 'file'} here`}</div>
-    {#if !$isSimplifiedMode}
-      <div class="file-info">Supported formats: WAV, MP3, FLAC, M4A, OGG</div>
-    {/if}
   </div>
 </div>

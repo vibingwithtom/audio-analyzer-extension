@@ -80,7 +80,7 @@ export class LevelAnalyzer {
 
         // Silence Analysis
         if (progressCallback) progressCallback('Analyzing silence...', 0.98);
-        const { leadingSilence, trailingSilence, longestSilence } = this.analyzeSilence(channelData, channels, length, sampleRate, noiseFloorDbHistogram, peakDb);
+        const { leadingSilence, trailingSilence, longestSilence, silenceSegments } = this.analyzeSilence(channelData, channels, length, sampleRate, noiseFloorDbHistogram, peakDb);
 
         // Add experimental results
         results.noiseFloorDbHistogram = noiseFloorDbHistogram;
@@ -88,6 +88,7 @@ export class LevelAnalyzer {
         results.leadingSilence = leadingSilence;
         results.trailingSilence = trailingSilence;
         results.longestSilence = longestSilence;
+        results.silenceSegments = silenceSegments;
       }
 
       if (progressCallback) progressCallback('Analysis complete!', 1.0);
@@ -175,28 +176,54 @@ export class LevelAnalyzer {
       }
     }
 
-    // Step 3: Find longest silence streak *after* filtering
+    // Step 3: Find all silence segments *after* filtering (not counting leading/trailing)
+    const silenceSegments = [];
     let longestSilenceStreak = 0;
     let currentSilenceStreak = 0;
-    for (let i = 0; i < numChunks; i++) {
-      if (chunks[i] === 0) {
-        currentSilenceStreak++;
-      } else {
-        if (currentSilenceStreak > longestSilenceStreak) {
-          longestSilenceStreak = currentSilenceStreak;
-        }
-        currentSilenceStreak = 0;
-      }
-    }
-    if (currentSilenceStreak > longestSilenceStreak) {
-      longestSilenceStreak = currentSilenceStreak; // Check trailing silence
-    }
-    const longestSilence = longestSilenceStreak * (chunkSizeMs / 1000);
+    let currentSilenceStart = -1;
 
-    // Step 4: Find leading and trailing silence from the *filtered* chunks
+    // Find first and last sound index for excluding leading/trailing
     const firstSoundIndex = chunks.indexOf(1);
     const lastSoundIndex = chunks.lastIndexOf(1);
 
+    for (let i = 0; i < numChunks; i++) {
+      if (chunks[i] === 0) {
+        if (currentSilenceStreak === 0) {
+          currentSilenceStart = i;
+        }
+        currentSilenceStreak++;
+      } else {
+        if (currentSilenceStreak > 0) {
+          // Only record silence segments that are NOT leading or trailing
+          if (i > firstSoundIndex && currentSilenceStart < lastSoundIndex) {
+            const duration = currentSilenceStreak * (chunkSizeMs / 1000);
+            const startTime = currentSilenceStart * (chunkSizeMs / 1000);
+            const endTime = i * (chunkSizeMs / 1000);
+
+            silenceSegments.push({
+              startTime,
+              endTime,
+              duration
+            });
+          }
+
+          if (currentSilenceStreak > longestSilenceStreak) {
+            longestSilenceStreak = currentSilenceStreak;
+          }
+          currentSilenceStreak = 0;
+          currentSilenceStart = -1;
+        }
+      }
+    }
+
+    // Check trailing silence for longest streak
+    if (currentSilenceStreak > longestSilenceStreak) {
+      longestSilenceStreak = currentSilenceStreak;
+    }
+
+    const longestSilence = longestSilenceStreak * (chunkSizeMs / 1000);
+
+    // Step 4: Find leading and trailing silence from the *filtered* chunks
     let leadingSilence = 0;
     let trailingSilence = 0;
 
@@ -207,12 +234,37 @@ export class LevelAnalyzer {
     } else {
       leadingSilence = firstSoundIndex * (chunkSizeMs / 1000);
       trailingSilence = (numChunks - 1 - lastSoundIndex) * (chunkSizeMs / 1000);
+
+      // Add leading silence to segments if significant
+      if (leadingSilence > 0) {
+        silenceSegments.push({
+          startTime: 0,
+          endTime: leadingSilence,
+          duration: leadingSilence,
+          type: 'leading'
+        });
+      }
+
+      // Add trailing silence to segments if significant
+      if (trailingSilence > 0) {
+        const fileEndTime = (numChunks * chunkSizeMs) / 1000;
+        silenceSegments.push({
+          startTime: fileEndTime - trailingSilence,
+          endTime: fileEndTime,
+          duration: trailingSilence,
+          type: 'trailing'
+        });
+      }
     }
+
+    // Sort silence segments by duration (longest first) - now includes leading/trailing
+    silenceSegments.sort((a, b) => b.duration - a.duration);
 
     return {
       leadingSilence: leadingSilence,
       trailingSilence: trailingSilence,
-      longestSilence: longestSilence
+      longestSilence: longestSilence,
+      silenceSegments: silenceSegments
     };
   }
 
@@ -655,6 +707,61 @@ export class LevelAnalyzer {
       ? (confirmedBleedBlocks.length / separationRatios.length) * 100
       : 0;
 
+    // Group consecutive blocks into segments for cleaner display
+    const bleedSegments = [];
+    if (confirmedBleedBlocks.length > 0) {
+      // Sort by timestamp
+      const sortedBlocks = [...confirmedBleedBlocks].sort((a, b) => a.timestamp - b.timestamp);
+
+      let currentSegment = {
+        startTime: sortedBlocks[0].timestamp,
+        endTime: sortedBlocks[0].endSample / sampleRate,
+        maxCorrelation: sortedBlocks[0].correlation,
+        minSeparation: sortedBlocks[0].separation,
+        blockCount: 1
+      };
+
+      for (let i = 1; i < sortedBlocks.length; i++) {
+        const block = sortedBlocks[i];
+        const prevBlock = sortedBlocks[i - 1];
+
+        // If blocks are consecutive (within 1 second), merge into same segment
+        if (block.timestamp - prevBlock.endSample / sampleRate < 1.0) {
+          currentSegment.endTime = block.endSample / sampleRate;
+          currentSegment.maxCorrelation = Math.max(currentSegment.maxCorrelation, block.correlation);
+          currentSegment.minSeparation = Math.min(currentSegment.minSeparation, block.separation);
+          currentSegment.blockCount++;
+        } else {
+          // Start a new segment
+          bleedSegments.push(currentSegment);
+          currentSegment = {
+            startTime: block.timestamp,
+            endTime: block.endSample / sampleRate,
+            maxCorrelation: block.correlation,
+            minSeparation: block.separation,
+            blockCount: 1
+          };
+        }
+      }
+
+      // Push the last segment
+      bleedSegments.push(currentSegment);
+
+      // Sort by worst correlation first
+      bleedSegments.sort((a, b) => b.maxCorrelation - a.maxCorrelation);
+    }
+
+    // Calculate severity score (similar to Channel Consistency)
+    // Normalize correlation (0.3-1.0 range) to 0-100 scale
+    const avgCorrelation = confirmedBleedBlocks.length > 0
+      ? confirmedBleedBlocks.reduce((sum, block) => sum + block.correlation, 0) / confirmedBleedBlocks.length
+      : 0;
+
+    // Severity = (percentage of blocks affected) * (normalized correlation score)
+    // Higher correlation = worse bleed
+    const normalizedCorrelation = Math.min(100, ((avgCorrelation - 0.3) / 0.7) * 100);
+    const severityScore = (percentageConfirmedBleed / 100) * normalizedCorrelation;
+
     return {
       // OLD METHOD results
       old: {
@@ -672,7 +779,14 @@ export class LevelAnalyzer {
         totalBlocks: separationRatios.length,
         concerningBlocks: concerningBlocks.length,
         confirmedBleedBlocks: confirmedBleedBlocks.length,
-        worstBlocks: confirmedBleedBlocks.slice(0, 5) // Top 5 worst instances
+        worstBlocks: confirmedBleedBlocks.slice(0, 5), // Top 5 worst instances
+        // NEW: Segment-level details
+        bleedSegments: bleedSegments,
+        severityScore: severityScore,
+        avgCorrelation: avgCorrelation,
+        peakCorrelation: confirmedBleedBlocks.length > 0
+          ? Math.max(...confirmedBleedBlocks.map(b => b.correlation))
+          : 0
       }
     };
   }
@@ -733,7 +847,7 @@ export class LevelAnalyzer {
 
   /**
    * Unified conversational audio analysis (single-pass optimization).
-   * Analyzes overlapping speech, channel consistency, and channel sync.
+   * Analyzes overlapping speech and channel consistency.
    * @param {AudioBuffer} audioBuffer The audio buffer to analyze.
    * @param {number} noiseFloorDb Noise floor in dB.
    * @param {number} peakDb Peak level in dB.
@@ -777,15 +891,13 @@ export class LevelAnalyzer {
       rmsBlocks.push({ rmsLeft, rmsRight, startSample: i, endSample: blockEnd });
     }
 
-    // Run all three analyses using the same RMS data
+    // Run both analyses using the same RMS data
     const overlap = this.analyzeOverlappingSpeech(noiseFloorDb, rmsBlocks);
     const consistency = this.analyzeChannelConsistency(rmsBlocks);
-    const sync = this.analyzeChannelSync(leftChannel, rightChannel, sampleRate, noiseFloorDb, peakDb);
 
     return {
       overlap,
-      consistency,
-      sync
+      consistency
     };
   }
 
@@ -799,12 +911,24 @@ export class LevelAnalyzer {
     // Speech threshold: noise floor + 20 dB (active speech level)
     const speechThresholdDb = noiseFloorDb + 20;
     const speechThresholdLinear = Math.pow(10, speechThresholdDb / 20);
+    const blockDuration = 0.25; // 250ms per block
+    const minOverlapDuration = 0.5; // 500ms minimum to count as significant overlap (filters brief interjections)
+    const minOverlapBlocks = Math.ceil(minOverlapDuration / blockDuration); // 2 blocks
+
+    // Calculate sample rate from first block
+    const sampleRate = rmsBlocks.length > 0
+      ? (rmsBlocks[0].endSample - rmsBlocks[0].startSample) / blockDuration
+      : 44100; // fallback
 
     let totalActiveBlocks = 0;
     let overlapBlocks = 0;
+    const overlapSegments = [];
 
-    for (const block of rmsBlocks) {
-      const { rmsLeft, rmsRight } = block;
+    let currentOverlapSegment = null;
+
+    for (let i = 0; i < rmsBlocks.length; i++) {
+      const block = rmsBlocks[i];
+      const { rmsLeft, rmsRight, startSample, endSample } = block;
 
       // Check if BOTH channels have active speech
       const leftActive = rmsLeft > speechThresholdLinear;
@@ -814,9 +938,63 @@ export class LevelAnalyzer {
         totalActiveBlocks++;
 
         if (leftActive && rightActive) {
-          overlapBlocks++;
+          // Overlap detected in this block
+          if (currentOverlapSegment === null) {
+            // Start a new overlap segment
+            currentOverlapSegment = {
+              startBlock: i,
+              startSample: startSample,
+              blockCount: 1
+            };
+          } else {
+            // Continue current overlap segment
+            currentOverlapSegment.blockCount++;
+          }
+        } else {
+          // No overlap in this block - end current segment if exists
+          if (currentOverlapSegment !== null) {
+            // Only count overlaps that meet minimum duration
+            if (currentOverlapSegment.blockCount >= minOverlapBlocks) {
+              const prevBlock = rmsBlocks[i - 1];
+              overlapBlocks += currentOverlapSegment.blockCount;
+              overlapSegments.push({
+                startTime: currentOverlapSegment.startSample / sampleRate,
+                endTime: prevBlock.endSample / sampleRate,
+                blockCount: currentOverlapSegment.blockCount,
+                duration: currentOverlapSegment.blockCount * blockDuration
+              });
+            }
+            currentOverlapSegment = null;
+          }
+        }
+      } else {
+        // No active speech - end overlap segment if exists
+        if (currentOverlapSegment !== null) {
+          if (currentOverlapSegment.blockCount >= minOverlapBlocks) {
+            const prevBlock = rmsBlocks[i - 1];
+            overlapBlocks += currentOverlapSegment.blockCount;
+            overlapSegments.push({
+              startTime: currentOverlapSegment.startSample / sampleRate,
+              endTime: prevBlock.endSample / sampleRate,
+              blockCount: currentOverlapSegment.blockCount,
+              duration: currentOverlapSegment.blockCount * blockDuration
+            });
+          }
+          currentOverlapSegment = null;
         }
       }
+    }
+
+    // Handle final overlap segment if file ends during overlap
+    if (currentOverlapSegment !== null && currentOverlapSegment.blockCount >= minOverlapBlocks) {
+      const lastBlock = rmsBlocks[rmsBlocks.length - 1];
+      overlapBlocks += currentOverlapSegment.blockCount;
+      overlapSegments.push({
+        startTime: currentOverlapSegment.startSample / sampleRate,
+        endTime: lastBlock.endSample / sampleRate,
+        blockCount: currentOverlapSegment.blockCount,
+        duration: currentOverlapSegment.blockCount * blockDuration
+      });
     }
 
     const overlapPercentage = totalActiveBlocks > 0
@@ -827,8 +1005,22 @@ export class LevelAnalyzer {
       totalActiveBlocks,
       overlapBlocks,
       overlapPercentage,
-      speechThresholdDb
+      speechThresholdDb,
+      overlapSegments,
+      minOverlapDuration
     };
+  }
+
+  /**
+   * Helper function to calculate median of an array.
+   * @param {Array} arr Array of numbers.
+   * @returns {number} Median value.
+   */
+  median(arr) {
+    if (arr.length === 0) return 0;
+    const sorted = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   }
 
   /**
@@ -837,194 +1029,160 @@ export class LevelAnalyzer {
    * @returns {object} Consistency analysis results.
    */
   analyzeChannelConsistency(rmsBlocks) {
-    const dominanceRatioThreshold = 2.5; // 2.5x louder = dominant (conservative)
+    const dominanceRatioThreshold = 2.0;
     const silenceThreshold = 0.001;
+    const swapConfidenceThreshold = 0.5;
+    const segmentDuration = 15; // 15 seconds per segment
+    const blockDuration = 0.25; // 250ms per block
+    const blocksPerSegment = Math.floor(segmentDuration / blockDuration); // 60 blocks
 
-    // Track dominance patterns in 10-second segments
-    const segmentBlocks = 40; // 40 blocks × 250ms = 10 seconds
-    let segments = [];
-    let currentSegment = { leftDominant: 0, rightDominant: 0, balanced: 0 };
-    let blockCount = 0;
+    // Pass 1: Collect volume profiles from all segments
+    // Segment by TIME, not by active speech blocks
+    const segmentProfiles = [];
+    const allSegmentsStatus = [];
 
-    for (const block of rmsBlocks) {
-      const { rmsLeft, rmsRight } = block;
+    for (let segmentStart = 0; segmentStart < rmsBlocks.length; segmentStart += blocksPerSegment) {
+      const segmentEnd = Math.min(segmentStart + blocksPerSegment, rmsBlocks.length);
+      const leftRms = [];
+      const rightRms = [];
 
-      // Skip silent blocks
-      if (rmsLeft < silenceThreshold && rmsRight < silenceThreshold) {
-        continue;
-      }
+      // Process all blocks in this time segment
+      for (let i = segmentStart; i < segmentEnd; i++) {
+        const block = rmsBlocks[i];
+        const { rmsLeft, rmsRight } = block;
 
-      // Guard against division by zero
-      if (rmsRight === 0 && rmsLeft === 0) {
-        continue;
-      }
-
-      const ratio = rmsRight > 0 ? rmsLeft / rmsRight : (rmsLeft > 0 ? Infinity : 1);
-
-      if (ratio > dominanceRatioThreshold) {
-        currentSegment.leftDominant++;
-      } else if (ratio < 1 / dominanceRatioThreshold) {
-        currentSegment.rightDominant++;
-      } else {
-        currentSegment.balanced++;
-      }
-
-      blockCount++;
-
-      // End of segment
-      if (blockCount >= segmentBlocks) {
-        segments.push({ ...currentSegment });
-        currentSegment = { leftDominant: 0, rightDominant: 0, balanced: 0 };
-        blockCount = 0;
-      }
-    }
-
-    // Add final partial segment
-    if (blockCount > 0) {
-      segments.push(currentSegment);
-    }
-
-    // Analyze consistency: ONLY consider segments with clear dominance, ignore balanced
-    let inconsistentSegments = 0;
-    let expectedPattern = null;
-    let clearlySeparatedSegments = 0;
-
-    for (const segment of segments) {
-      const total = segment.leftDominant + segment.rightDominant + segment.balanced;
-      if (total === 0) continue;
-
-      // Determine this segment's dominant pattern
-      // CHANGE: Require clear dominance (> 50% of non-balanced blocks)
-      const nonBalanced = segment.leftDominant + segment.rightDominant;
-      let pattern = 'balanced';
-
-      if (nonBalanced > segment.balanced) {
-        // This segment has clear dominance
-        if (segment.leftDominant > segment.rightDominant) {
-          pattern = 'left';
-        } else {
-          pattern = 'right';
+        // Skip silent blocks when collecting RMS
+        if (rmsLeft < silenceThreshold && rmsRight < silenceThreshold) {
+          continue;
         }
-        clearlySeparatedSegments++;
+
+        // Check dominance and collect RMS values
+        const ratio = rmsLeft > 0 && rmsRight > 0 ? rmsLeft / rmsRight : 0;
+        if (ratio > dominanceRatioThreshold) {
+          leftRms.push(rmsLeft);
+        } else if (ratio > 0 && ratio < 1 / dominanceRatioThreshold) {
+          rightRms.push(rmsRight);
+        }
       }
 
-      // Set initial expected pattern (skip balanced segments)
-      if (expectedPattern === null && pattern !== 'balanced') {
-        expectedPattern = pattern;
-      }
+      // Add segment status
+      allSegmentsStatus.push({ status: 'NoClearDominance' });
 
-      // Check for inconsistency (pattern flips from left to right or vice versa)
-      // ONLY flag as inconsistent if we have a clear dominant pattern that differs
-      if (expectedPattern !== null && pattern !== 'balanced' && pattern !== expectedPattern) {
-        inconsistentSegments++;
-      }
-    }
-
-    const isConsistent = inconsistentSegments === 0;
-    // Calculate percentage based on clearly separated segments only
-    const consistencyPercentage = clearlySeparatedSegments > 0
-      ? ((clearlySeparatedSegments - inconsistentSegments) / clearlySeparatedSegments) * 100
-      : 100;
-
-    return {
-      isConsistent,
-      consistencyPercentage,
-      totalSegments: segments.length,
-      clearlySeparatedSegments,
-      inconsistentSegments,
-      expectedPattern
-    };
-  }
-
-  /**
-   * Analyzes channel time-sync (detects timing misalignment).
-   * @param {Float32Array} leftChannel Left channel audio data.
-   * @param {Float32Array} rightChannel Right channel audio data.
-   * @param {number} sampleRate Sample rate.
-   * @param {number} noiseFloorDb Noise floor in dB.
-   * @param {number} peakDb Peak level in dB.
-   * @returns {object} Sync analysis results.
-   */
-  analyzeChannelSync(leftChannel, rightChannel, sampleRate, noiseFloorDb, peakDb) {
-    const length = leftChannel.length;
-
-    // Calculate silence threshold: noise floor + 25% of dynamic range
-    const dynamicRange = peakDb - noiseFloorDb;
-    const effectiveDynamicRange = Math.max(0, dynamicRange);
-    const silenceThresholdDb = noiseFloorDb + (effectiveDynamicRange * 0.25);
-    const silenceThresholdLinear = Math.pow(10, silenceThresholdDb / 20);
-
-    // Use smaller window for more precise detection (10ms instead of 50ms)
-    const windowSize = Math.floor(sampleRate * 0.01); // 10ms windows
-
-    // Find first and last active WINDOWS in each channel
-    let leftFirstActive = -1;
-    let leftLastActive = -1;
-    let rightFirstActive = -1;
-    let rightLastActive = -1;
-
-    for (let i = 0; i < length; i += windowSize) {
-      const end = Math.min(i + windowSize, length);
-
-      let maxLeft = 0;
-      let maxRight = 0;
-
-      for (let j = i; j < end; j++) {
-        maxLeft = Math.max(maxLeft, Math.abs(leftChannel[j]));
-        maxRight = Math.max(maxRight, Math.abs(rightChannel[j]));
-      }
-
-      if (maxLeft > silenceThresholdLinear) {
-        if (leftFirstActive === -1) leftFirstActive = i;
-        leftLastActive = end; // Use end of window for last active
-      }
-
-      if (maxRight > silenceThresholdLinear) {
-        if (rightFirstActive === -1) rightFirstActive = i;
-        rightLastActive = end; // Use end of window for last active
+      // Only create profile if segment has speech
+      if (leftRms.length > 0 || rightRms.length > 0) {
+        segmentProfiles.push({
+          l: this.median(leftRms),
+          r: this.median(rightRms),
+          segmentIndex: allSegmentsStatus.length - 1,
+          startBlock: segmentStart,
+          endBlock: segmentEnd - 1
+        });
       }
     }
 
-    // Handle case where no active audio found
-    if (leftFirstActive === -1 || rightFirstActive === -1) {
+    // Need at least 2 segments to compare
+    if (segmentProfiles.length < 2) {
       return {
-        syncStatus: 'In Sync',
-        startDiffMs: 0,
-        endDiffMs: 0,
-        maxDiffMs: 0,
-        leftFirstActive: 0,
-        rightFirstActive: 0,
-        leftLastActive: 0,
-        rightLastActive: 0
+        isConsistent: true,
+        consistencyPercentage: 100,
+        totalSegments: allSegmentsStatus.length,
+        totalSegmentsChecked: 0,
+        inconsistentSegments: 0,
+        severityScore: 0,
+        avgConfidence: 0,
+        baselineProfile: { left: 0, right: 0 },
+        segments: allSegmentsStatus,
+        inconsistentSegmentDetails: []
       };
     }
 
-    // Calculate timing differences in samples
-    const startDiffSamples = Math.abs(leftFirstActive - rightFirstActive);
-    const endDiffSamples = Math.abs(leftLastActive - rightLastActive);
+    // Pass 2: Determine majority baseline (voting between two hypotheses)
+    let totalL = 0, totalR = 0;
+    segmentProfiles.forEach(p => {
+      totalL += p.l;
+      totalR += p.r;
+    });
+    const avgL = totalL / segmentProfiles.length;
+    const avgR = totalR / segmentProfiles.length;
 
-    const startDiffMs = (startDiffSamples / sampleRate) * 1000;
-    const endDiffMs = (endDiffSamples / sampleRate) * 1000;
+    const hypothesisA = { l: avgL, r: avgR };
+    const hypothesisB = { l: avgR, r: avgL }; // Swapped
 
-    const maxDiffMs = Math.max(startDiffMs, endDiffMs);
+    let votesA = 0, votesB = 0;
+    segmentProfiles.forEach(p => {
+      const distA = Math.abs(p.l - hypothesisA.l) + Math.abs(p.r - hypothesisA.r);
+      const distB = Math.abs(p.l - hypothesisB.l) + Math.abs(p.r - hypothesisB.r);
+      if (distA < distB) {
+        votesA++;
+      } else {
+        votesB++;
+      }
+    });
 
-    // Sync status
-    let syncStatus = 'In Sync';
-    if (maxDiffMs > 100) {
-      syncStatus = 'Out of Sync';
-    } else if (maxDiffMs > 50) {
-      syncStatus = 'Slight Offset';
-    }
+    const majorityBaseline = votesA > votesB ? hypothesisA : hypothesisB;
+    const minorityBaseline = votesA > votesB ? hypothesisB : hypothesisA;
+
+    // Pass 3: Identify inconsistent segments
+    let inconsistentSegments = 0;
+    const inconsistentSegmentDetails = [];
+
+    segmentProfiles.forEach(p => {
+      const distMajority = Math.abs(p.l - majorityBaseline.l) + Math.abs(p.r - majorityBaseline.r);
+      const distMinority = Math.abs(p.l - minorityBaseline.l) + Math.abs(p.r - minorityBaseline.r);
+
+      if (distMinority < distMajority * swapConfidenceThreshold) {
+        // Calculate confidence
+        const distRatio = distMinority / distMajority;
+        const confidence = Math.min(100, ((swapConfidenceThreshold - distRatio) / swapConfidenceThreshold) * 100);
+
+        // Calculate timestamps (approximate based on block positions)
+        const startTime = p.startBlock * blockDuration;
+        const endTime = p.endBlock * blockDuration;
+
+        allSegmentsStatus[p.segmentIndex].status = 'Inconsistent';
+        allSegmentsStatus[p.segmentIndex].confidence = confidence;
+        allSegmentsStatus[p.segmentIndex].startTime = startTime;
+        allSegmentsStatus[p.segmentIndex].endTime = endTime;
+
+        inconsistentSegments++;
+        inconsistentSegmentDetails.push({
+          segmentNumber: p.segmentIndex + 1,
+          startTime,
+          endTime,
+          confidence,
+          profile: { left: p.l, right: p.r }
+        });
+      } else {
+        allSegmentsStatus[p.segmentIndex].status = 'Consistent';
+      }
+    });
+
+    const totalSegmentsChecked = segmentProfiles.length;
+    const consistencyPercentage = totalSegmentsChecked > 0
+      ? ((totalSegmentsChecked - inconsistentSegments) / totalSegmentsChecked) * 100
+      : 100;
+
+    // Calculate overall severity score
+    const avgConfidence = inconsistentSegmentDetails.length > 0
+      ? inconsistentSegmentDetails.reduce((sum, seg) => sum + seg.confidence, 0) / inconsistentSegmentDetails.length
+      : 0;
+    const severityScore = (inconsistentSegments / totalSegmentsChecked) * avgConfidence;
 
     return {
-      syncStatus,
-      startDiffMs,
-      endDiffMs,
-      maxDiffMs,
-      leftFirstActive: leftFirstActive / sampleRate,
-      rightFirstActive: rightFirstActive / sampleRate,
-      leftLastActive: leftLastActive / sampleRate,
-      rightLastActive: rightLastActive / sampleRate
+      isConsistent: inconsistentSegments === 0,
+      consistencyPercentage,
+      totalSegments: allSegmentsStatus.length,
+      totalSegmentsChecked,
+      inconsistentSegments,
+      severityScore,
+      avgConfidence,
+      baselineProfile: {
+        left: majorityBaseline.l,
+        right: majorityBaseline.r
+      },
+      segments: allSegmentsStatus,
+      inconsistentSegmentDetails
     };
   }
+
 }
