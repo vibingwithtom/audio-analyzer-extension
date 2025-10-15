@@ -1211,7 +1211,9 @@ export class LevelAnalyzer {
     const maxGapSamples = 3; // Allow up to 3 samples below threshold in a region
 
     // Thresholds
-    const hardClippingThreshold = 1.0;
+    // Hard clipping: >= 0.9999 (accounts for floating-point precision near 1.0)
+    // This is approximately -0.0087 dB from full scale
+    const hardClippingThreshold = 0.9999;
     const nearClippingThreshold = 0.98;
 
     // Safety limit: Cap number of regions to prevent memory issues
@@ -1256,8 +1258,8 @@ export class LevelAnalyzer {
 
         const absSample = Math.abs(data[i]);
 
-        // Check for hard clipping (±1.0)
-        if (absSample === hardClippingThreshold) {
+        // Check for hard clipping (samples >= 0.9999)
+        if (absSample >= hardClippingThreshold) {
           if (currentHardRegion === null) {
             // Start new hard clipping region
             currentHardRegion = {
