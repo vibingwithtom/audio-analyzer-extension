@@ -74,7 +74,11 @@ describe('audio-analysis-service', () => {
         reverbInfo: { rt60: 0.5 }
       }),
       analyzeStereoSeparation: vi.fn().mockReturnValue({ stereoType: 'Conversational Stereo' }),
-      analyzeMicBleed: vi.fn().mockReturnValue({ detected: false })
+      analyzeMicBleed: vi.fn().mockReturnValue({ detected: false }),
+      analyzeConversationalAudio: vi.fn().mockReturnValue({
+        overlap: { overlapPercentage: 5.2 },
+        consistency: { isConsistent: true, consistencyPercentage: 100 }
+      })
     };
 
     LevelAnalyzer.mockImplementation(() => mockLevelAnalyzer);
