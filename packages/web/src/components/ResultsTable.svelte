@@ -516,8 +516,7 @@
             <th>Peak Level</th>
             <th>Normalization</th>
             <th>Clipping</th>
-            <th>Noise Floor (Old)</th>
-            <th>Noise Floor (New)</th>
+            <th>Noise Floor</th>
             <th>Reverb (RT60)</th>
             <th>Silence</th>
             <th>Stereo Separation</th>
@@ -610,15 +609,6 @@
                 {#if result.noiseFloorDb !== undefined}
                   <span class="value-{getNoiseFloorClass(result.noiseFloorDb)}">
                     {result.noiseFloorDb === -Infinity ? '-∞' : result.noiseFloorDb.toFixed(1)} dB
-                  </span>
-                {:else}
-                  N/A
-                {/if}
-              </td>
-              <td>
-                {#if result.noiseFloorDbHistogram !== undefined}
-                  <span class="value-{getNoiseFloorClass(result.noiseFloorDbHistogram)}">
-                    {result.noiseFloorDbHistogram === -Infinity ? '-∞' : result.noiseFloorDbHistogram.toFixed(1)} dB
                   </span>
                 {:else}
                   N/A

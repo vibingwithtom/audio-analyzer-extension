@@ -63,9 +63,9 @@ export class LevelAnalyzer {
 
       const peakDb = globalPeak > 0 ? 20 * Math.log10(globalPeak) : -Infinity;
 
-      // 2. Noise Floor Analysis (Old Method - always included)
+      // 2. Noise Floor Analysis (histogram-based, always included)
       if (progressCallback) progressCallback('Analyzing noise floor...', 0.5);
-      const noiseFloorDb = await this.analyzeNoiseFloor(channelData, channels, length, progressCallback);
+      const noiseFloorDb = await this.analyzeNoiseFloor(channelData, channels, length);
 
       // 3. Normalization Check
       if (progressCallback) progressCallback('Checking normalization...', 0.9);
@@ -80,24 +80,20 @@ export class LevelAnalyzer {
 
       // Experimental analysis (only when requested)
       if (includeExperimental) {
-        // Histogram-based noise floor
-        const noiseFloorDbHistogram = await this.analyzeNoiseFloorHistogram(channelData, channels, length);
-
         // Reverb Estimation
         if (progressCallback) progressCallback('Estimating reverb...', 0.93);
-        const reverbAnalysisResults = await this.estimateReverb(channelData, channels, length, sampleRate, noiseFloorDbHistogram);
+        const reverbAnalysisResults = await this.estimateReverb(channelData, channels, length, sampleRate, noiseFloorDb);
         const reverbInfo = this.interpretReverb(reverbAnalysisResults.overallMedianRt60);
 
         // Silence Analysis
         if (progressCallback) progressCallback('Analyzing silence...', 0.95);
-        const { leadingSilence, trailingSilence, longestSilence, silenceSegments } = this.analyzeSilence(channelData, channels, length, sampleRate, noiseFloorDbHistogram, peakDb);
+        const { leadingSilence, trailingSilence, longestSilence, silenceSegments } = this.analyzeSilence(channelData, channels, length, sampleRate, noiseFloorDb, peakDb);
 
         // Clipping Analysis
         if (progressCallback) progressCallback('Detecting clipping...', 0.97);
         const clippingAnalysis = await this.analyzeClipping(audioBuffer, sampleRate, progressCallback);
 
         // Add experimental results
-        results.noiseFloorDbHistogram = noiseFloorDbHistogram;
         results.reverbInfo = reverbInfo; // This is the interpreted text
         results.reverbAnalysis = reverbAnalysisResults; // This is the raw data including per-channel
         results.leadingSilence = leadingSilence;
@@ -399,9 +395,10 @@ export class LevelAnalyzer {
     };
   }
 
-  async analyzeNoiseFloorHistogram(channelData, channels, length) {
-    // This method uses a histogram to find the most common quiet level.
-    const numBins = 100; // Bins for levels from -100dB to 0dB
+  async analyzeNoiseFloor(channelData, channels, length) {
+    // Uses a histogram to find the most common quiet level (modal noise floor).
+    // This is more robust than RMS-based methods as it's less affected by outliers.
+    const numBins = 200; // Bins for levels from -100dB to 0dB (0.5 dB resolution)
     const histogram = new Array(numBins).fill(0);
     const minDb = -100.0;
     const dbRange = 100.0;
@@ -446,38 +443,6 @@ export class LevelAnalyzer {
     // Convert the bin index back to a dB value
     const noiseFloor = modeBin * (dbRange / numBins) + minDb;
     return noiseFloor;
-  }
-
-  async analyzeNoiseFloor(channelData, channels, length, progressCallback) {
-    // Collect samples from quieter sections (bottom 20% of RMS values)
-    const windowSize = Math.floor(length / 100); // 1% windows
-    const rmsValues = [];
-
-    for (let channel = 0; channel < channels; channel++) {
-      const data = channelData[channel];
-
-      for (let windowStart = 0; windowStart < length - windowSize; windowStart += windowSize) {
-        let sumSquares = 0;
-
-        for (let i = windowStart; i < windowStart + windowSize && i < length; i++) {
-          sumSquares += data[i] * data[i];
-        }
-
-        const rms = Math.sqrt(sumSquares / windowSize);
-        rmsValues.push(rms);
-      }
-    }
-
-    // Sort RMS values and take bottom 20% as quiet sections
-    rmsValues.sort((a, b) => a - b);
-    const quietSectionCount = Math.floor(rmsValues.length * 0.2);
-    const quietRmsValues = rmsValues.slice(0, quietSectionCount);
-
-    // Calculate average noise floor from quiet sections
-    const avgQuietRms = quietRmsValues.reduce((sum, rms) => sum + rms, 0) / quietRmsValues.length;
-    const noiseFloorDb = avgQuietRms > 0 ? 20 * Math.log10(avgQuietRms) : -Infinity;
-
-    return noiseFloorDb;
   }
 
   checkNormalization(peakDb) {

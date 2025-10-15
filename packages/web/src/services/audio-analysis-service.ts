@@ -220,7 +220,7 @@ async function analyzeExperimental(arrayBuffer: ArrayBuffer): Promise<Partial<Au
       // Add conversational audio analysis (overlap, consistency, sync)
       const conversationalAnalysis = levelAnalyzer.analyzeConversationalAudio(
         audioBuffer,
-        advancedResults.noiseFloorDbHistogram,
+        advancedResults.noiseFloorDb,
         advancedResults.peakDb
       );
       if (conversationalAnalysis) {
