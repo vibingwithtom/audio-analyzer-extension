@@ -78,6 +78,20 @@ describe('audio-analysis-service', () => {
       analyzeConversationalAudio: vi.fn().mockReturnValue({
         overlap: { overlapPercentage: 5.2 },
         consistency: { isConsistent: true, consistencyPercentage: 100 }
+      }),
+      analyzeClipping: vi.fn().mockResolvedValue({
+        clippedSamples: 0,
+        clippedPercentage: 0,
+        nearClippingSamples: 0,
+        nearClippingPercentage: 0,
+        clippingEventCount: 0,
+        nearClippingEventCount: 0,
+        maxConsecutiveClipped: 0,
+        avgClippingDuration: 0,
+        perChannel: [],
+        clippingRegions: [],
+        hardClippingRegions: [],
+        nearClippingRegions: []
       })
     };
 

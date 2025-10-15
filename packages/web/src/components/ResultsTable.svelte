@@ -208,31 +208,25 @@
     return 'error';                                          // Issue: < 90%
   }
 
-  function getClippingSeverity(clippingAnalysis: any): { level: string; label: string } {
-    if (!clippingAnalysis) return { level: '', label: 'N/A' };
+  function getClippingSeverity(clippingAnalysis: any): { level: string; label: string; eventCount: number } {
+    if (!clippingAnalysis) return { level: '', label: 'N/A', eventCount: 0 };
 
-    const { clippedPercentage, clippingEventCount, nearClippingPercentage } = clippingAnalysis;
+    const { clippedPercentage, clippingEventCount, nearClippingPercentage, nearClippingEventCount } = clippingAnalysis;
 
-    // Hard clipping thresholds
-    if (clippedPercentage > 1 || clippingEventCount > 50) {
-      return { level: 'error', label: `${clippedPercentage.toFixed(2)}% clipped (${clippingEventCount} events)` };
-    }
-
-    if (clippedPercentage > 0.1 || clippingEventCount > 10) {
-      return { level: 'warning', label: `${clippedPercentage.toFixed(2)}% clipped (${clippingEventCount} events)` };
-    }
-
-    if (clippedPercentage > 0 && clippingEventCount > 0) {
-      return { level: 'warning', label: `${clippedPercentage.toFixed(2)}% clipped (${clippingEventCount} events)` };
+    // Hard clipping detected (any amount)
+    if (clippingEventCount > 0) {
+      // Severity based on percentage/count
+      const level = (clippedPercentage > 1 || clippingEventCount > 50) ? 'error' : 'warning';
+      return { level, label: 'Clipping detected', eventCount: clippingEventCount };
     }
 
     // Near-clipping warning
     if (nearClippingPercentage > 1) {
-      return { level: 'warning', label: `Near clipping: ${nearClippingPercentage.toFixed(1)}%` };
+      return { level: 'warning', label: 'Near clipping detected', eventCount: nearClippingEventCount };
     }
 
     // All clear
-    return { level: 'success', label: 'No clipping detected' };
+    return { level: 'success', label: 'Not detected', eventCount: 0 };
   }
 
   function getClippingClass(clippingAnalysis: any): string {
@@ -521,6 +515,7 @@
             <th>Filename</th>
             <th>Peak Level</th>
             <th>Normalization</th>
+            <th>Clipping</th>
             <th>Noise Floor (Old)</th>
             <th>Noise Floor (New)</th>
             <th>Reverb (RT60)</th>
@@ -529,7 +524,6 @@
             <th>Speech Overlap</th>
             <th>Channel Consistency</th>
             <th>Mic Bleed</th>
-            <th>Clipping</th>
           </tr>
         </thead>
         <tbody>
@@ -542,8 +536,71 @@
                   <span class="value-{getNormalizationClass(result.normalizationStatus)}">
                     {result.normalizationStatus.message || 'N/A'}
                   </span>
-                  {#if result.normalizationStatus.peakDb !== undefined}
-                    <span class="subtitle">Peak: {result.normalizationStatus.peakDb.toFixed(1)}dB</span>
+                  {#if result.normalizationStatus.peakDb !== undefined && result.normalizationStatus.targetDb !== undefined}
+                    {@const distance = Math.abs(result.normalizationStatus.peakDb - result.normalizationStatus.targetDb)}
+                    {#if result.normalizationStatus.status === 'normalized'}
+                      <span class="subtitle">At target (-6.0 dB)</span>
+                    {:else if result.normalizationStatus.status === 'too_loud'}
+                      <span class="subtitle">{distance.toFixed(1)} dB over target</span>
+                    {:else if result.normalizationStatus.status === 'too_quiet'}
+                      <span class="subtitle">{distance.toFixed(1)} dB under target</span>
+                    {/if}
+                  {/if}
+                {:else}
+                  N/A
+                {/if}
+              </td>
+              <!-- Clipping -->
+              <td
+                class="conversational-cell"
+                title={result.clippingAnalysis ? (() => {
+                  let tooltip = 'Clipping Detection\n━━━━━━━━━━━━━━━━━\nDetects audio samples at maximum values (±1.0) which indicate\ndistortion from overdriven recording levels.';
+
+                  const { clippedPercentage, clippingEventCount, nearClippingPercentage, nearClippingEventCount,
+                          perChannel, hardClippingRegions } = result.clippingAnalysis;
+
+                  tooltip += `\n\nHard Clipping: ${clippedPercentage.toFixed(2)}% (${clippingEventCount} regions)`;
+                  if (nearClippingPercentage > 0) {
+                    tooltip += `\nNear Clipping: ${nearClippingPercentage.toFixed(2)}% (${nearClippingEventCount} regions)`;
+                  }
+
+                  // Show worst clipping regions (hard clipping)
+                  if (hardClippingRegions?.length > 0) {
+                    tooltip += '\n\nWorst Clipping Regions (Hard):';
+                    const regionsToShow = hardClippingRegions.slice(0, 3);
+                    regionsToShow.forEach(region => {
+                      const startMin = Math.floor(region.startTime / 60);
+                      const startSec = (region.startTime % 60).toFixed(3); // Show decimal seconds
+
+                      // For very short regions (< 0.1s), show as point in time instead of range
+                      if (region.duration < 0.1) {
+                        tooltip += `\n• ${region.channelName}: ${startMin}:${startSec} (${region.sampleCount} samples)`;
+                      } else {
+                        const endMin = Math.floor(region.endTime / 60);
+                        const endSec = (region.endTime % 60).toFixed(3);
+                        tooltip += `\n• ${region.channelName}: ${startMin}:${startSec}-${endMin}:${endSec} (${region.sampleCount} samples)`;
+                      }
+                    });
+                  }
+
+                  // Per-channel breakdown
+                  if (perChannel?.length > 0) {
+                    tooltip += '\n\nPer-Channel Breakdown:';
+                    perChannel.forEach(ch => {
+                      tooltip += `\n• ${ch.name}: ${ch.clippedPercentage.toFixed(2)}% clipped, ${ch.nearClippingPercentage.toFixed(2)}% near`;
+                    });
+                  }
+
+                  return tooltip;
+                })() : 'Clipping analysis data not available'}
+              >
+                {#if result.clippingAnalysis}
+                  {@const severity = getClippingSeverity(result.clippingAnalysis)}
+                  <span class="value-{severity.level}">
+                    {severity.label}
+                  </span>
+                  {#if severity.eventCount > 0}
+                    <span class="subtitle">{severity.eventCount} event{severity.eventCount > 1 ? 's' : ''}</span>
                   {/if}
                 {:else}
                   N/A
@@ -732,54 +789,6 @@
                 {#if result.micBleed}
                   <span class="value-{getUnifiedMicBleedClass(result.micBleed)}">
                     {getUnifiedMicBleedLabel(result.micBleed)}
-                  </span>
-                {:else}
-                  N/A
-                {/if}
-              </td>
-              <!-- Clipping -->
-              <td
-                class="conversational-cell"
-                title={result.clippingAnalysis ? (() => {
-                  let tooltip = 'Clipping Detection\n━━━━━━━━━━━━━━━━━\nDetects audio samples at maximum values (±1.0) which indicate\ndistortion from overdriven recording levels.';
-
-                  const { clippedPercentage, clippingEventCount, nearClippingPercentage, nearClippingEventCount,
-                          perChannel, hardClippingRegions } = result.clippingAnalysis;
-
-                  tooltip += `\n\nHard Clipping: ${clippedPercentage.toFixed(2)}% (${clippingEventCount} regions)`;
-                  if (nearClippingPercentage > 0) {
-                    tooltip += `\nNear Clipping: ${nearClippingPercentage.toFixed(2)}% (${nearClippingEventCount} regions)`;
-                  }
-
-                  // Show worst clipping regions (hard clipping)
-                  if (hardClippingRegions?.length > 0) {
-                    tooltip += '\n\nWorst Clipping Regions (Hard):';
-                    const regionsToShow = hardClippingRegions.slice(0, 3);
-                    regionsToShow.forEach(region => {
-                      const startMin = Math.floor(region.startTime / 60);
-                      const startSec = Math.floor(region.startTime % 60);
-                      const endMin = Math.floor(region.endTime / 60);
-                      const endSec = Math.floor(region.endTime % 60);
-                      tooltip += `\n• ${region.channelName}: ${startMin}:${startSec.toString().padStart(2, '0')}-${endMin}:${endSec.toString().padStart(2, '0')} (${region.duration.toFixed(2)}s, ${region.sampleCount} samples)`;
-                    });
-                  }
-
-                  // Per-channel breakdown
-                  if (perChannel?.length > 0) {
-                    tooltip += '\n\nPer-Channel Breakdown:';
-                    perChannel.forEach(ch => {
-                      tooltip += `\n• ${ch.name}: ${ch.clippedPercentage.toFixed(2)}% clipped, ${ch.nearClippingPercentage.toFixed(2)}% near`;
-                    });
-                  }
-
-                  tooltip += '\n\nTip: Reduce input gain or apply normalization with headroom';
-
-                  return tooltip;
-                })() : 'Clipping analysis data not available'}
-              >
-                {#if result.clippingAnalysis}
-                  <span class="value-{getClippingClass(result.clippingAnalysis)}">
-                    {getClippingSeverity(result.clippingAnalysis).label}
                   </span>
                 {:else}
                   N/A

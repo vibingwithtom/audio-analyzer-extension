@@ -74,13 +74,17 @@ export class LevelAnalyzer {
         const noiseFloorDbHistogram = await this.analyzeNoiseFloorHistogram(channelData, channels, length);
 
         // Reverb Estimation
-        if (progressCallback) progressCallback('Estimating reverb...', 0.95);
+        if (progressCallback) progressCallback('Estimating reverb...', 0.93);
         const reverbTime = await this.estimateReverb(channelData, channels, length, sampleRate, noiseFloorDbHistogram);
         const reverbInfo = this.interpretReverb(reverbTime);
 
         // Silence Analysis
-        if (progressCallback) progressCallback('Analyzing silence...', 0.98);
+        if (progressCallback) progressCallback('Analyzing silence...', 0.95);
         const { leadingSilence, trailingSilence, longestSilence, silenceSegments } = this.analyzeSilence(channelData, channels, length, sampleRate, noiseFloorDbHistogram, peakDb);
+
+        // Clipping Analysis
+        if (progressCallback) progressCallback('Detecting clipping...', 0.97);
+        const clippingAnalysis = await this.analyzeClipping(audioBuffer, sampleRate, progressCallback);
 
         // Add experimental results
         results.noiseFloorDbHistogram = noiseFloorDbHistogram;
@@ -89,6 +93,7 @@ export class LevelAnalyzer {
         results.trailingSilence = trailingSilence;
         results.longestSilence = longestSilence;
         results.silenceSegments = silenceSegments;
+        results.clippingAnalysis = clippingAnalysis;
       }
 
       if (progressCallback) progressCallback('Analysis complete!', 1.0);
@@ -1186,6 +1191,242 @@ export class LevelAnalyzer {
       },
       segments: allSegmentsStatus,
       inconsistentSegmentDetails
+    };
+  }
+
+  /**
+   * Analyzes clipping in an audio buffer.
+   * Detects hard clipping (±1.0) and near-clipping (0.98-0.999) with gap tolerance.
+   * @param {AudioBuffer} audioBuffer The audio buffer to analyze.
+   * @param {number} sampleRate Sample rate of the audio.
+   * @param {function} progressCallback Optional progress callback.
+   * @returns {object} Clipping analysis results with per-channel breakdown.
+   */
+  async analyzeClipping(audioBuffer, sampleRate, progressCallback = null) {
+    const channels = audioBuffer.numberOfChannels;
+    const length = audioBuffer.length;
+
+    // Calculate adaptive threshold based on sample rate
+    const minConsecutiveSamples = Math.max(2, Math.floor(sampleRate / 20000));
+    const maxGapSamples = 3; // Allow up to 3 samples below threshold in a region
+
+    // Thresholds
+    const hardClippingThreshold = 1.0;
+    const nearClippingThreshold = 0.98;
+
+    // Channel names
+    const channelNames = ['left', 'right', 'center', 'LFE', 'surroundLeft', 'surroundRight'];
+
+    // Overall statistics
+    let totalClippedSamples = 0;
+    let totalNearClippingSamples = 0;
+    const allRegions = [];
+    const perChannelStats = [];
+
+    // Process each channel
+    for (let channel = 0; channel < channels; channel++) {
+      const data = audioBuffer.getChannelData(channel);
+      const channelName = channelNames[channel] || `channel${channel}`;
+
+      // Channel-specific counters
+      let channelClippedSamples = 0;
+      let channelNearClippingSamples = 0;
+      const channelRegions = [];
+
+      // Tracking variables for region detection
+      let currentHardRegion = null;
+      let currentNearRegion = null;
+      let gapCounter = 0;
+
+      // Iterate through all samples
+      for (let i = 0; i < length; i++) {
+        // Cancellation support
+        if (!this.analysisInProgress) {
+          throw new Error('Analysis cancelled');
+        }
+
+        const absSample = Math.abs(data[i]);
+
+        // Check for hard clipping (±1.0)
+        if (absSample === hardClippingThreshold) {
+          if (currentHardRegion === null) {
+            // Start new hard clipping region
+            currentHardRegion = {
+              startSample: i,
+              endSample: i,
+              sampleCount: 1,
+              peakSample: absSample,
+              type: 'hard',
+              channel,
+              channelName,
+              gapCount: 0
+            };
+          } else {
+            // Continue current region
+            currentHardRegion.endSample = i;
+            currentHardRegion.sampleCount++;
+            currentHardRegion.peakSample = Math.max(currentHardRegion.peakSample, absSample);
+            gapCounter = 0; // Reset gap counter
+          }
+          channelClippedSamples++;
+        } else if (currentHardRegion !== null) {
+          // We're in a region but this sample isn't clipped
+          gapCounter++;
+
+          if (gapCounter <= maxGapSamples) {
+            // Within gap tolerance, continue region
+            currentHardRegion.endSample = i;
+            currentHardRegion.gapCount++;
+          } else {
+            // Gap too large, end region
+            if (currentHardRegion.sampleCount >= minConsecutiveSamples) {
+              // Region is significant enough to record
+              channelRegions.push({...currentHardRegion});
+            }
+            currentHardRegion = null;
+            gapCounter = 0;
+          }
+        }
+
+        // Check for near-clipping (0.98 <= |sample| < 1.0)
+        if (absSample >= nearClippingThreshold && absSample < hardClippingThreshold) {
+          if (currentNearRegion === null) {
+            // Start new near-clipping region
+            currentNearRegion = {
+              startSample: i,
+              endSample: i,
+              sampleCount: 1,
+              peakSample: absSample,
+              type: 'near',
+              channel,
+              channelName,
+              gapCount: 0
+            };
+          } else {
+            // Continue current region
+            currentNearRegion.endSample = i;
+            currentNearRegion.sampleCount++;
+            currentNearRegion.peakSample = Math.max(currentNearRegion.peakSample, absSample);
+          }
+          channelNearClippingSamples++;
+        } else if (currentNearRegion !== null && absSample < nearClippingThreshold) {
+          // End near-clipping region (no gap tolerance for near-clipping)
+          if (currentNearRegion.sampleCount >= minConsecutiveSamples) {
+            channelRegions.push({...currentNearRegion});
+          }
+          currentNearRegion = null;
+        }
+
+        // Progress updates
+        if (i % 10000 === 0) {
+          const progress = (channel * length + i) / (channels * length);
+          if (progressCallback) {
+            progressCallback('Detecting clipping...', progress);
+          }
+
+          // UI yield every 100K samples
+          if (i % 100000 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 1));
+          }
+        }
+      }
+
+      // Handle any remaining regions at end of file
+      if (currentHardRegion !== null && currentHardRegion.sampleCount >= minConsecutiveSamples) {
+        channelRegions.push(currentHardRegion);
+      }
+      if (currentNearRegion !== null && currentNearRegion.sampleCount >= minConsecutiveSamples) {
+        channelRegions.push(currentNearRegion);
+      }
+
+      // Add timestamps to regions
+      channelRegions.forEach(region => {
+        region.startTime = region.startSample / sampleRate;
+        region.endTime = region.endSample / sampleRate;
+        region.duration = region.endTime - region.startTime;
+      });
+
+      // Accumulate totals
+      totalClippedSamples += channelClippedSamples;
+      totalNearClippingSamples += channelNearClippingSamples;
+      allRegions.push(...channelRegions);
+
+      // Per-channel statistics
+      const hardRegionCount = channelRegions.filter(r => r.type === 'hard').length;
+      const nearRegionCount = channelRegions.filter(r => r.type === 'near').length;
+
+      perChannelStats.push({
+        channel,
+        name: channelName,
+        clippedSamples: channelClippedSamples,
+        clippedPercentage: (channelClippedSamples / length) * 100,
+        nearClippingSamples: channelNearClippingSamples,
+        nearClippingPercentage: (channelNearClippingSamples / length) * 100,
+        regionCount: hardRegionCount + nearRegionCount,
+        hardClippingRegions: hardRegionCount,
+        nearClippingRegions: nearRegionCount
+      });
+    }
+
+    // Calculate overall statistics
+    const totalSamples = channels * length;
+    const clippedPercentage = (totalClippedSamples / totalSamples) * 100;
+    const nearClippingPercentage = (totalNearClippingSamples / totalSamples) * 100;
+
+    // Separate hard and near clipping regions
+    const hardClippingRegions = allRegions.filter(r => r.type === 'hard');
+    const nearClippingRegions = allRegions.filter(r => r.type === 'near');
+
+    // Sort regions by duration (longest first)
+    hardClippingRegions.sort((a, b) => b.duration - a.duration);
+    nearClippingRegions.sort((a, b) => b.duration - a.duration);
+
+    // Calculate density metrics
+    const clippingEventCount = hardClippingRegions.length;
+    const nearClippingEventCount = nearClippingRegions.length;
+
+    const maxConsecutiveClipped = hardClippingRegions.length > 0
+      ? Math.max(...hardClippingRegions.map(r => r.sampleCount))
+      : 0;
+
+    const avgClippingDuration = hardClippingRegions.length > 0
+      ? hardClippingRegions.reduce((sum, r) => sum + r.duration, 0) / hardClippingRegions.length
+      : 0;
+
+    // Combine regions for sorted list (prioritize hard clipping)
+    const clippingRegions = [
+      ...hardClippingRegions.slice(0, 10), // Top 10 hard clipping
+      ...nearClippingRegions.slice(0, 5)   // Top 5 near clipping
+    ].sort((a, b) => {
+      // Hard clipping always comes first
+      if (a.type === 'hard' && b.type === 'near') return -1;
+      if (a.type === 'near' && b.type === 'hard') return 1;
+      // Within same type, sort by duration
+      return b.duration - a.duration;
+    });
+
+    return {
+      // Overall statistics
+      clippedSamples: totalClippedSamples,
+      clippedPercentage,
+      nearClippingSamples: totalNearClippingSamples,
+      nearClippingPercentage,
+
+      // Density metrics
+      clippingEventCount,
+      nearClippingEventCount,
+      maxConsecutiveClipped,
+      avgClippingDuration,
+
+      // Per-channel breakdown
+      perChannel: perChannelStats,
+
+      // Detailed regions (top instances only)
+      clippingRegions,
+
+      // Separate lists for detailed analysis if needed
+      hardClippingRegions,
+      nearClippingRegions
     };
   }
 
