@@ -216,6 +216,16 @@ async function analyzeExperimental(arrayBuffer: ArrayBuffer): Promise<Partial<Au
       if (micBleed) {
         advancedResults.micBleed = micBleed;
       }
+
+      // Add conversational audio analysis (overlap, consistency, sync)
+      const conversationalAnalysis = levelAnalyzer.analyzeConversationalAudio(
+        audioBuffer,
+        advancedResults.noiseFloorDbHistogram,
+        advancedResults.peakDb
+      );
+      if (conversationalAnalysis) {
+        advancedResults.conversationalAnalysis = conversationalAnalysis;
+      }
     }
   }
 

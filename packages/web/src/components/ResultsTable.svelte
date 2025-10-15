@@ -3,12 +3,74 @@
   import { formatSampleRate, formatDuration, formatBitDepth, formatChannels, formatBytes } from '../utils/format-utils';
   import type { AudioResults, ValidationResults } from '../types';
 
-  export let results: AudioResults[] = [];
-  export let mode: 'single' | 'batch' = 'single';
-  export let metadataOnly = false;
-  export let experimentalMode = false;
+  import { onMount } from 'svelte';
 
-  $: isSingleFile = mode === 'single';
+  const {
+    results = [],
+    mode = 'single',
+    metadataOnly = false,
+    experimentalMode = false
+  }: {
+    results?: AudioResults[];
+    mode?: 'single' | 'batch';
+    metadataOnly?: boolean;
+    experimentalMode?: boolean;
+  } = $props();
+
+  const isSingleFile = $derived(mode === 'single');
+
+  let tableWrapper: HTMLElement;
+  let hasHorizontalScroll = $state(false);
+  let canScrollLeft = $state(false);
+  let canScrollRight = $state(false);
+
+  // Check if table has horizontal scroll and which direction
+  function checkScroll() {
+    if (tableWrapper) {
+      hasHorizontalScroll = tableWrapper.scrollWidth > tableWrapper.clientWidth;
+      canScrollLeft = tableWrapper.scrollLeft > 0;
+      canScrollRight = tableWrapper.scrollLeft < tableWrapper.scrollWidth - tableWrapper.clientWidth;
+    }
+  }
+
+  // Scroll the table left or right
+  function scrollTable(direction: 'left' | 'right') {
+    if (!tableWrapper) return;
+    const scrollAmount = 300; // Scroll 300px at a time
+    const targetScroll = direction === 'left'
+      ? tableWrapper.scrollLeft - scrollAmount
+      : tableWrapper.scrollLeft + scrollAmount;
+
+    tableWrapper.scrollTo({
+      left: targetScroll,
+      behavior: 'smooth'
+    });
+  }
+
+  // Check scroll on mount and when results change
+  onMount(() => {
+    checkScroll();
+    window.addEventListener('resize', checkScroll);
+
+    // Listen for scroll events to update button states
+    if (tableWrapper) {
+      tableWrapper.addEventListener('scroll', checkScroll);
+    }
+
+    return () => {
+      window.removeEventListener('resize', checkScroll);
+      if (tableWrapper) {
+        tableWrapper.removeEventListener('scroll', checkScroll);
+      }
+    };
+  });
+
+  // Recheck scroll when results change
+  $effect(() => {
+    if (results.length > 0) {
+      setTimeout(checkScroll, 100);
+    }
+  });
 
   function getValidationStatus(result: AudioResults, field: string): 'pass' | 'warning' | 'fail' | null {
     if (!result.validation) return null;
@@ -113,14 +175,14 @@
 
     if (type === 'lead-trail') {
       // Leading/Trailing silence thresholds
-      if (seconds < 1) return 'success';      // Good: < 1s
-      if (seconds <= 3) return 'warning';     // Warning: 1-3s
-      return 'error';                         // Issue: > 3s
+      if (seconds < 5) return 'success';      // Good: < 5s
+      if (seconds < 10) return 'warning';     // Warning: 5-9s
+      return 'error';                         // Issue: >= 10s
     } else {
       // Max silence gap thresholds
-      if (seconds < 2) return 'success';      // Good: < 2s
-      if (seconds <= 5) return 'warning';     // Warning: 2-5s
-      return 'error';                         // Issue: > 5s
+      if (seconds < 5) return 'success';      // Good: < 5s
+      if (seconds < 10) return 'warning';     // Warning: 5-9s
+      return 'error';                         // Issue: >= 10s
     }
   }
 
@@ -129,6 +191,21 @@
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  // Helper functions for conversational audio analysis
+  function getOverlapClass(overlapPercentage: number | undefined): string {
+    if (overlapPercentage === undefined) return '';
+    if (overlapPercentage < 5) return 'success';      // Good: < 5%
+    if (overlapPercentage <= 15) return 'warning';    // Warning: 5-15%
+    return 'error';                                    // Issue: > 15%
+  }
+
+  function getConsistencyClass(consistencyPercentage: number | undefined): string {
+    if (consistencyPercentage === undefined) return '';
+    if (consistencyPercentage >= 100) return 'success';     // Perfect: 100%
+    if (consistencyPercentage >= 90) return 'warning';      // Warning: 90-99%
+    return 'error';                                          // Issue: < 90%
   }
 </script>
 
@@ -270,9 +347,101 @@
     margin-top: 0.15rem;
   }
 
+  /* Container for experimental table with gradient overlay */
+  .experimental-table-container {
+    position: relative;
+  }
+
   /* Experimental table should be scrollable horizontally if needed */
   .experimental-table-wrapper {
     overflow-x: auto;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Sticky header for experimental table */
+  .experimental-table-wrapper thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  /* Shadow gradient overlay - stays fixed at right edge */
+  .scroll-shadow {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 30px;
+    background: linear-gradient(to left, rgba(0, 0, 0, 0.1), transparent);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-radius: 0 8px 8px 0;
+  }
+
+  .scroll-shadow.visible {
+    opacity: 1;
+  }
+
+  /* Scroll buttons */
+  .scroll-button {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 50px;
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.7));
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s ease;
+    z-index: 20;
+    font-size: 1.5rem;
+    color: var(--text-primary, #333);
+  }
+
+  :global([data-theme="dark"]) .scroll-button {
+    background: linear-gradient(to right, rgba(30, 30, 30, 0.95), rgba(30, 30, 30, 0.7));
+  }
+
+  .scroll-button.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .scroll-button:hover {
+    background: linear-gradient(to right, rgba(245, 245, 245, 0.98), rgba(245, 245, 245, 0.8));
+  }
+
+  :global([data-theme="dark"]) .scroll-button:hover {
+    background: linear-gradient(to right, rgba(50, 50, 50, 0.98), rgba(50, 50, 50, 0.8));
+  }
+
+  .scroll-button.left {
+    left: 0;
+    border-radius: 8px 0 0 8px;
+  }
+
+  .scroll-button.right {
+    right: 0;
+    border-radius: 0 8px 8px 0;
+    background: linear-gradient(to left, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.7));
+  }
+
+  :global([data-theme="dark"]) .scroll-button.right {
+    background: linear-gradient(to left, rgba(30, 30, 30, 0.95), rgba(30, 30, 30, 0.7));
+  }
+
+  .scroll-button.right:hover {
+    background: linear-gradient(to left, rgba(245, 245, 245, 0.98), rgba(245, 245, 245, 0.8));
+  }
+
+  :global([data-theme="dark"]) .scroll-button.right:hover {
+    background: linear-gradient(to left, rgba(50, 50, 50, 0.98), rgba(50, 50, 50, 0.8));
   }
 
   .external-link-btn {
@@ -304,13 +473,18 @@
   .mic-bleed-cell {
     cursor: help;
   }
+
+  .conversational-cell {
+    cursor: help;
+  }
 </style>
 
 <div class="results-container">
   {#if experimentalMode}
     <!-- EXPERIMENTAL MODE TABLE -->
-    <div class="experimental-table-wrapper">
-      <table class="results-table">
+    <div class="experimental-table-container">
+      <div class="experimental-table-wrapper" bind:this={tableWrapper}>
+        <table class="results-table">
         <thead>
           <tr>
             <th>Filename</th>
@@ -321,6 +495,8 @@
             <th>Reverb (RT60)</th>
             <th>Silence</th>
             <th>Stereo Separation</th>
+            <th>Speech Overlap</th>
+            <th>Channel Consistency</th>
             <th>Mic Bleed</th>
           </tr>
         </thead>
@@ -369,7 +545,29 @@
                   N/A
                 {/if}
               </td>
-              <td>
+              <td
+                class="conversational-cell"
+                title={(() => {
+                  let tooltip = 'Silence detection based on dynamic threshold (25% between noise floor and peak).\n\nFilters out audio ticks < 150ms.';
+
+                  // Show worst silence segments if available
+                  if (result.silenceSegments?.length > 0) {
+                    tooltip += `\n\n⚠️ Worst silence gaps:`;
+                    const segmentsToShow = result.silenceSegments.slice(0, 5);
+                    segmentsToShow.forEach(seg => {
+                      const startMin = Math.floor(seg.startTime / 60);
+                      const startSec = Math.floor(seg.startTime % 60);
+                      const endMin = Math.floor(seg.endTime / 60);
+                      const endSec = Math.floor(seg.endTime % 60);
+                      tooltip += `\n${startMin}:${startSec.toString().padStart(2, '0')}-${endMin}:${endSec.toString().padStart(2, '0')} (${seg.duration.toFixed(1)}s)`;
+                    });
+                  } else {
+                    tooltip += '\n\nNo significant silence gaps detected.';
+                  }
+
+                  return tooltip;
+                })()}
+              >
                 <div>
                   <span class="subtitle">Lead: <span class="value-{getSilenceClass(result.leadingSilence, 'lead-trail')}">{formatTime(result.leadingSilence)}</span></span>
                   <span class="subtitle">Trail: <span class="value-{getSilenceClass(result.trailingSilence, 'lead-trail')}">{formatTime(result.trailingSilence)}</span></span>
@@ -384,20 +582,119 @@
                   Mono file
                 {/if}
               </td>
+              <!-- Speech Overlap -->
+              <td
+                class="conversational-cell"
+                title={result.conversationalAnalysis?.overlap ? (() => {
+                  let tooltip = 'Detects when both channels have active speech simultaneously.\n\nBased on noise floor + 20 dB threshold.';
+                  tooltip += `\n\nResult: ${result.conversationalAnalysis.overlap.overlapPercentage.toFixed(1)}% overlap`;
+
+                  if (result.conversationalAnalysis.overlap.overlapSegments?.length > 0) {
+                    tooltip += ` (${result.conversationalAnalysis.overlap.overlapSegments.length} instance${result.conversationalAnalysis.overlap.overlapSegments.length > 1 ? 's' : ''})`;
+                    tooltip += `\n\nFilters interjections < ${result.conversationalAnalysis.overlap.minOverlapDuration}s`;
+
+                    // Show top 5 worst (longest) overlap instances
+                    tooltip += '\n\n⚠️ Worst overlap times:';
+                    const sortedSegments = [...result.conversationalAnalysis.overlap.overlapSegments].sort((a, b) => b.duration - a.duration);
+                    const segmentsToShow = sortedSegments.slice(0, 5);
+                    segmentsToShow.forEach(seg => {
+                      const startMin = Math.floor(seg.startTime / 60);
+                      const startSec = Math.floor(seg.startTime % 60);
+                      const endMin = Math.floor(seg.endTime / 60);
+                      const endSec = Math.floor(seg.endTime % 60);
+
+                      // Show duration
+                      tooltip += `\n${startMin}:${startSec.toString().padStart(2, '0')}-${endMin}:${endSec.toString().padStart(2, '0')} (${seg.duration.toFixed(1)}s)`;
+                    });
+                  }
+
+                  return tooltip;
+                })() : 'Speech overlap analysis only runs for Conversational Stereo files'}
+              >
+                {#if result.conversationalAnalysis?.overlap}
+                  <span class="value-{getOverlapClass(result.conversationalAnalysis.overlap.overlapPercentage)}">
+                    {result.conversationalAnalysis.overlap.overlapPercentage.toFixed(1)}%
+                  </span>
+                {:else}
+                  N/A
+                {/if}
+              </td>
+              <!-- Channel Consistency -->
+              <td
+                class="conversational-cell"
+                title={result.conversationalAnalysis?.consistency ?
+                  (result.conversationalAnalysis.consistency.isConsistent
+                    ? `Verifies speakers remain in same channels throughout.\n\nResult: No channel swapping detected.`
+                    : `Verifies speakers remain in same channels throughout.\n\nResult: Possible channel swapping detected.\n\nSeverity: ${result.conversationalAnalysis.consistency.severityScore?.toFixed(1) || 0}/100\nInconsistent Segments: ${result.conversationalAnalysis.consistency.inconsistentSegments || 0}${result.conversationalAnalysis.consistency.inconsistentSegmentDetails?.length > 0 ? '\n\n⚠️ Review these times:\n' + result.conversationalAnalysis.consistency.inconsistentSegmentDetails.map(seg => `${Math.floor(seg.startTime / 60)}:${Math.floor(seg.startTime % 60).toString().padStart(2, '0')}-${Math.floor(seg.endTime / 60)}:${Math.floor(seg.endTime % 60).toString().padStart(2, '0')} (${seg.confidence?.toFixed(0)}% conf)`).join('\n') : ''}`)
+                  : 'Channel consistency analysis only runs for Conversational Stereo files'}
+              >
+                {#if result.conversationalAnalysis?.consistency}
+                  {#if result.conversationalAnalysis.consistency.isConsistent}
+                    <span class="value-success">Consistent</span>
+                  {:else}
+                    <span class="value-{getConsistencyClass(result.conversationalAnalysis.consistency.consistencyPercentage)}">
+                      Inconsistent
+                    </span>
+                    <span class="subtitle">{result.conversationalAnalysis.consistency.inconsistentSegments || 0} of {result.conversationalAnalysis.consistency.totalSegmentsChecked || 0} segments</span>
+                    {#if result.conversationalAnalysis.consistency.severityScore !== undefined}
+                      <span class="subtitle">Severity: {result.conversationalAnalysis.consistency.severityScore.toFixed(1)}/100</span>
+                    {/if}
+                  {/if}
+                {:else}
+                  N/A
+                {/if}
+              </td>
               <td
                 class="mic-bleed-cell"
                 title={result.micBleed ? (() => {
-                  let tooltip = '';
-                  if (result.micBleed.old) {
-                    tooltip += `Bleed Level: L: ${result.micBleed.old.leftChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.leftChannelBleedDb.toFixed(1)} dB, R: ${result.micBleed.old.rightChannelBleedDb === -Infinity ? '-∞' : result.micBleed.old.rightChannelBleedDb.toFixed(1)} dB`;
+                  // Check if bleed is detected
+                  const oldDetected = result.micBleed.old &&
+                    (result.micBleed.old.leftChannelBleedDb > -60 || result.micBleed.old.rightChannelBleedDb > -60);
+                  const newDetected = result.micBleed.new &&
+                    (result.micBleed.new.percentageConfirmedBleed > 0.5);
+
+                  if (oldDetected || newDetected) {
+                    // Bleed detected - show detailed info
+                    let tooltip = 'Detects audio leakage between channels.\n\nResult: Mic bleed detected';
+                    if (result.micBleed.new?.bleedSegments?.length > 0) {
+                      tooltip += ` in ${result.micBleed.new.bleedSegments.length} segment${result.micBleed.new.bleedSegments.length > 1 ? 's' : ''}.`;
+                    } else {
+                      tooltip += '.';
+                    }
+
+                    // Only show severity and correlation if NEW method detected (values > 0)
+                    if (newDetected && result.micBleed.new?.severityScore > 0) {
+                      tooltip += `\n\nSeverity: ${result.micBleed.new.severityScore.toFixed(1)}/100`;
+                    }
+                    if (newDetected && result.micBleed.new?.peakCorrelation > 0) {
+                      tooltip += `\nPeak Correlation: ${result.micBleed.new.peakCorrelation.toFixed(2)}`;
+                    }
+
+                    // Show worst affected segments (top 10) - only if NEW method has data
+                    if (result.micBleed.new?.bleedSegments?.length > 0) {
+                      tooltip += '\n\n⚠️ Worst affected times:';
+                      const segmentsToShow = result.micBleed.new.bleedSegments.slice(0, 10);
+                      segmentsToShow.forEach(seg => {
+                        const startMin = Math.floor(seg.startTime / 60);
+                        const startSec = Math.floor(seg.startTime % 60);
+                        const endMin = Math.floor(seg.endTime / 60);
+                        const endSec = Math.floor(seg.endTime % 60);
+
+                        // If segment duration < 1 second, show just start time
+                        const duration = seg.endTime - seg.startTime;
+                        if (duration < 1.0) {
+                          tooltip += `\n${startMin}:${startSec.toString().padStart(2, '0')} (${seg.maxCorrelation.toFixed(2)} corr)`;
+                        } else {
+                          tooltip += `\n${startMin}:${startSec.toString().padStart(2, '0')}-${endMin}:${endSec.toString().padStart(2, '0')} (${seg.maxCorrelation.toFixed(2)} corr)`;
+                        }
+                      });
+                    }
+
+                    return tooltip;
+                  } else {
+                    // No bleed detected
+                    return 'Detects audio leakage between channels.\n\nResult: No mic bleed detected.';
                   }
-                  if (result.micBleed.old && result.micBleed.new) {
-                    tooltip += '\n';
-                  }
-                  if (result.micBleed.new) {
-                    tooltip += `Channel Separation: Median: ${result.micBleed.new.medianSeparation.toFixed(1)} dB, Worst 10%: ${result.micBleed.new.p10Separation.toFixed(1)} dB`;
-                  }
-                  return tooltip;
                 })() : 'Mic bleed analysis only runs for Conversational Stereo files'}
               >
                 {#if result.micBleed}
@@ -413,6 +710,26 @@
         </tbody>
       </table>
     </div>
+    <!-- Shadow gradient overlay - stays fixed at right edge -->
+    <div class="scroll-shadow" class:visible={hasHorizontalScroll}></div>
+    <!-- Scroll buttons -->
+    <button
+      class="scroll-button left"
+      class:visible={canScrollLeft}
+      onclick={() => scrollTable('left')}
+      aria-label="Scroll left"
+    >
+      ◀
+    </button>
+    <button
+      class="scroll-button right"
+      class:visible={canScrollRight}
+      onclick={() => scrollTable('right')}
+      aria-label="Scroll right"
+    >
+      ▶
+    </button>
+  </div>
   {:else}
     <!-- STANDARD MODE TABLE -->
     <table class="results-table">

@@ -89,6 +89,25 @@
       }
     }
 
+    // Check conversational audio metrics (only for conversational stereo)
+    if (result.conversationalAnalysis) {
+      // Check speech overlap
+      if (result.conversationalAnalysis.overlap) {
+        const overlapPct = result.conversationalAnalysis.overlap.overlapPercentage;
+        if (overlapPct < 5) statuses.push('success');
+        else if (overlapPct <= 15) statuses.push('warning');
+        else statuses.push('error');
+      }
+
+      // Check channel consistency
+      if (result.conversationalAnalysis.consistency) {
+        const consistencyPct = result.conversationalAnalysis.consistency.consistencyPercentage;
+        if (consistencyPct >= 100) statuses.push('success');
+        else if (consistencyPct >= 90) statuses.push('warning');
+        else statuses.push('error');
+      }
+    }
+
     // Determine worst status
     if (statuses.includes('error')) return 'fail';
     if (statuses.includes('warning')) return 'warning';
