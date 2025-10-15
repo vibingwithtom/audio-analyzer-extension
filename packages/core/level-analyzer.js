@@ -1238,6 +1238,10 @@ export class LevelAnalyzer {
       let channelNearClippingSamples = 0;
       const channelRegions = [];
 
+      // Separate counters for region counts (continue counting even after hitting storage limit)
+      let channelHardRegionCount = 0;
+      let channelNearRegionCount = 0;
+
       // Tracking variables for region detection
       let currentHardRegion = null;
       let currentNearRegion = null;
@@ -1286,7 +1290,9 @@ export class LevelAnalyzer {
             // Gap too large, end region
             if (currentHardRegion.sampleCount >= minConsecutiveSamples) {
               // Region is significant enough to record
-              // Only add if we haven't reached the limit
+              channelHardRegionCount++; // Always increment counter
+
+              // Only store region object if we haven't reached the limit
               if (channelRegions.length < MAX_REGIONS_PER_CHANNEL) {
                 channelRegions.push({...currentHardRegion});
               } else {
@@ -1322,7 +1328,9 @@ export class LevelAnalyzer {
         } else if (currentNearRegion !== null && absSample < nearClippingThreshold) {
           // End near-clipping region (no gap tolerance for near-clipping)
           if (currentNearRegion.sampleCount >= minConsecutiveSamples) {
-            // Only add if we haven't reached the limit
+            channelNearRegionCount++; // Always increment counter
+
+            // Only store region object if we haven't reached the limit
             if (channelRegions.length < MAX_REGIONS_PER_CHANNEL) {
               channelRegions.push({...currentNearRegion});
             } else {
@@ -1348,6 +1356,8 @@ export class LevelAnalyzer {
 
       // Handle any remaining regions at end of file
       if (currentHardRegion !== null && currentHardRegion.sampleCount >= minConsecutiveSamples) {
+        channelHardRegionCount++; // Always increment counter
+
         if (channelRegions.length < MAX_REGIONS_PER_CHANNEL) {
           channelRegions.push(currentHardRegion);
         } else {
@@ -1355,6 +1365,8 @@ export class LevelAnalyzer {
         }
       }
       if (currentNearRegion !== null && currentNearRegion.sampleCount >= minConsecutiveSamples) {
+        channelNearRegionCount++; // Always increment counter
+
         if (channelRegions.length < MAX_REGIONS_PER_CHANNEL) {
           channelRegions.push(currentNearRegion);
         } else {
@@ -1387,10 +1399,7 @@ export class LevelAnalyzer {
         regionsLimitReached = true;
       }
 
-      // Per-channel statistics
-      const hardRegionCount = channelRegions.filter(r => r.type === 'hard').length;
-      const nearRegionCount = channelRegions.filter(r => r.type === 'near').length;
-
+      // Per-channel statistics (use dedicated counters, not filtered array)
       perChannelStats.push({
         channel,
         name: channelName,
@@ -1398,9 +1407,9 @@ export class LevelAnalyzer {
         clippedPercentage: (channelClippedSamples / length) * 100,
         nearClippingSamples: channelNearClippingSamples,
         nearClippingPercentage: (channelNearClippingSamples / length) * 100,
-        regionCount: hardRegionCount + nearRegionCount,
-        hardClippingRegions: hardRegionCount,
-        nearClippingRegions: nearRegionCount
+        regionCount: channelHardRegionCount + channelNearRegionCount,
+        hardClippingRegions: channelHardRegionCount,
+        nearClippingRegions: channelNearRegionCount
       });
     }
 
