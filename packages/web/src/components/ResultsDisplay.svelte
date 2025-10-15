@@ -89,6 +89,32 @@
       }
     }
 
+    // Check clipping analysis
+    if (result.clippingAnalysis) {
+      const { clippedPercentage, clippingEventCount, nearClippingPercentage } = result.clippingAnalysis;
+
+      // Hard clipping > 1% OR > 50 events → error
+      if (clippedPercentage > 1 || clippingEventCount > 50) {
+        statuses.push('error');
+      }
+      // Hard clipping 0.1-1% OR 10-50 events → warning
+      else if (clippedPercentage > 0.1 || clippingEventCount > 10) {
+        statuses.push('warning');
+      }
+      // Any hard clipping → warning
+      else if (clippedPercentage > 0 && clippingEventCount > 0) {
+        statuses.push('warning');
+      }
+      // Near clipping > 1% → warning
+      else if (nearClippingPercentage > 1) {
+        statuses.push('warning');
+      }
+      // All clear
+      else {
+        statuses.push('success');
+      }
+    }
+
     // Check conversational audio metrics (only for conversational stereo)
     if (result.conversationalAnalysis) {
       // Check speech overlap
