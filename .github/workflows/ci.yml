@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ '**' ]  # Run on all branches
+    branches:
+      - '**'  # Run on all branches
+      - '!main'  # Except main (deploy.yml handles main)
   pull_request:
     branches: [ main ]
 
