@@ -2,6 +2,76 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ CRITICAL: Development Workflow Rules
+
+**THESE RULES MUST BE FOLLOWED TO PREVENT PRODUCTION ISSUES:**
+
+### 1. Feature Branch Development (REQUIRED)
+- **NEVER push directly to main** for features or significant changes
+- **ALWAYS create a feature branch** for any new work
+- Feature branches automatically run CI tests on every push
+- CI must pass before merging to main
+
+### 2. Testing Requirements
+- All feature branches run CI automatically (tests, TypeScript checks, linting)
+- **739 tests must pass** before any code reaches production
+- If tests fail on your feature branch, fix them before creating a PR
+- Check CI status: https://github.com/vibingwithtom/audio-analyzer/actions
+
+### 3. Branch Protection
+- The `main` branch is protected and requires:
+  - Pull Request with passing CI checks
+  - Status check: "Run Tests" must pass
+- **Verify branch protection is active**: See `.github/BRANCH_PROTECTION_SETUP.md`
+- If you can push directly to main without a PR, branch protection may not be configured
+
+### 4. When to Update Test Mocks
+- **Critical**: When adding new methods to classes imported by tests (e.g., LevelAnalyzer)
+- Check `packages/web/tests/unit/` for relevant test files
+- Update mocks in `beforeEach` blocks to include new methods
+- Example: If you add `myNewMethod()` to LevelAnalyzer, add it to `mockLevelAnalyzer` in tests
+
+### 5. Standard Workflow (Use This Every Time)
+```bash
+# 1. Create feature branch
+git checkout -b feature/descriptive-name
+
+# 2. Develop and test locally
+npm run dev                  # Test in browser
+npm test                     # Run tests locally
+
+# 3. Commit and push (triggers CI automatically)
+git add .
+git commit -m "feat: description"
+git push origin feature/descriptive-name
+
+# 4. Wait for CI to pass
+# Check: https://github.com/vibingwithtom/audio-analyzer/actions
+
+# 5. Deploy to beta for manual testing (optional but recommended)
+cd packages/web
+npm run deploy:beta
+# Test at: https://audio-analyzer.tinytech.site/beta/
+
+# 6. Create Pull Request (REQUIRED for main branch)
+gh pr create --base main --head feature/descriptive-name
+# OR use GitHub UI: https://github.com/vibingwithtom/audio-analyzer/pulls
+
+# 7. Merge PR after CI passes
+# GitHub will prevent merge if tests fail
+# Production auto-deploys after merge
+```
+
+### Why These Rules Exist
+In October 2024, a feature branch was merged to main without running tests. The production deployment failed because:
+1. Test mocks were incomplete (missing `analyzeConversationalAudio` method)
+2. File formatting had issues (methods outside class scope)
+3. No CI ran on the feature branch to catch these issues early
+
+These rules prevent this from happening again.
+
+---
+
 ## Project Overview
 
 Audio Analyzer is a monorepo containing multiple applications for analyzing audio file properties and validating them against criteria. The project consists of:
