@@ -201,13 +201,6 @@
     return 'error';                                    // Issue: > 15%
   }
 
-  function getConsistencyClass(consistencyPercentage: number | undefined): string {
-    if (consistencyPercentage === undefined) return '';
-    if (consistencyPercentage >= 100) return 'success';     // Perfect: 100%
-    if (consistencyPercentage >= 90) return 'warning';      // Warning: 90-99%
-    return 'error';                                          // Issue: < 90%
-  }
-
   function getClippingSeverity(clippingAnalysis: any): { level: string; label: string; eventCount: number } {
     if (!clippingAnalysis) return { level: '', label: 'N/A', eventCount: 0 };
 
@@ -521,7 +514,6 @@
             <th>Silence</th>
             <th>Stereo Separation</th>
             <th>Speech Overlap</th>
-            <th>Channel Consistency</th>
             <th>Mic Bleed</th>
           </tr>
         </thead>
@@ -759,31 +751,6 @@
                   N/A
                 {/if}
               </td>
-              <!-- Channel Consistency -->
-              <td
-                class="conversational-cell"
-                title={result.conversationalAnalysis?.consistency ?
-                  (result.conversationalAnalysis.consistency.isConsistent
-                    ? `Verifies speakers remain in same channels throughout.\n\nResult: No channel swapping detected.`
-                    : `Verifies speakers remain in same channels throughout.\n\nResult: Possible channel swapping detected.\n\nSeverity: ${result.conversationalAnalysis.consistency.severityScore?.toFixed(1) || 0}/100\nInconsistent Segments: ${result.conversationalAnalysis.consistency.inconsistentSegments || 0}${result.conversationalAnalysis.consistency.inconsistentSegmentDetails?.length > 0 ? '\n\n⚠️ Review these times:\n' + result.conversationalAnalysis.consistency.inconsistentSegmentDetails.map(seg => `${Math.floor(seg.startTime / 60)}:${Math.floor(seg.startTime % 60).toString().padStart(2, '0')}-${Math.floor(seg.endTime / 60)}:${Math.floor(seg.endTime % 60).toString().padStart(2, '0')} (${seg.confidence?.toFixed(0)}% conf)`).join('\n') : ''}`)
-                  : 'Channel consistency analysis only runs for Conversational Stereo files'}
-              >
-                {#if result.conversationalAnalysis?.consistency}
-                  {#if result.conversationalAnalysis.consistency.isConsistent}
-                    <span class="value-success">Consistent</span>
-                  {:else}
-                    <span class="value-{getConsistencyClass(result.conversationalAnalysis.consistency.consistencyPercentage)}">
-                      Inconsistent
-                    </span>
-                    <span class="subtitle">{result.conversationalAnalysis.consistency.inconsistentSegments || 0} of {result.conversationalAnalysis.consistency.totalSegmentsChecked || 0} segments</span>
-                    {#if result.conversationalAnalysis.consistency.severityScore !== undefined}
-                      <span class="subtitle">Severity: {result.conversationalAnalysis.consistency.severityScore.toFixed(1)}/100</span>
-                    {/if}
-                  {/if}
-                {:else}
-                  N/A
-                {/if}
-              </td>
               <td
                 class="mic-bleed-cell"
                 title={result.micBleed ? (() => {
@@ -802,7 +769,7 @@
                       tooltip += '.';
                     }
 
-                    // Only show severity and correlation if NEW method detected (values > 0)
+                    // Show NEW method details if available
                     if (newDetected && result.micBleed.new?.severityScore > 0) {
                       tooltip += `\n\nSeverity: ${result.micBleed.new.severityScore.toFixed(1)}/100`;
                     }
@@ -828,6 +795,16 @@
                           tooltip += `\n${startMin}:${startSec.toString().padStart(2, '0')}-${endMin}:${endSec.toString().padStart(2, '0')} (${seg.maxCorrelation.toFixed(2)} corr)`;
                         }
                       });
+                    } else if (oldDetected && result.micBleed.old) {
+                      // If NEW method didn't find segments, show OLD method channel levels
+                      tooltip += '\n\nAverage Bleed Levels:';
+                      if (result.micBleed.old.leftChannelBleedDb > -60) {
+                        tooltip += `\n• Left channel: ${result.micBleed.old.leftChannelBleedDb.toFixed(1)} dB`;
+                      }
+                      if (result.micBleed.old.rightChannelBleedDb > -60) {
+                        tooltip += `\n• Right channel: ${result.micBleed.old.rightChannelBleedDb.toFixed(1)} dB`;
+                      }
+                      tooltip += '\n\n(Simple average method - specific timestamps not available)';
                     }
 
                     return tooltip;

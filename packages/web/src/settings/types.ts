@@ -111,7 +111,7 @@ export const DEFAULT_PRESETS: PresetConfigurations = {
     sampleRate: ['48000'],
     bitDepth: ['16', '24'],
     channels: ['1', '2'],
-    minDuration: '30'
+    minDuration: '5'
   },
   'character-recordings': {
     name: 'Character Recordings',
