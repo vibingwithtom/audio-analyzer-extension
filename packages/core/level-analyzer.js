@@ -1426,9 +1426,9 @@ export class LevelAnalyzer {
     hardClippingRegions.sort((a, b) => b.duration - a.duration);
     nearClippingRegions.sort((a, b) => b.duration - a.duration);
 
-    // Calculate density metrics
-    const clippingEventCount = hardClippingRegions.length;
-    const nearClippingEventCount = nearClippingRegions.length;
+    // Calculate density metrics using dedicated counters (not capped arrays)
+    const clippingEventCount = perChannelStats.reduce((sum, ch) => sum + ch.hardClippingRegions, 0);
+    const nearClippingEventCount = perChannelStats.reduce((sum, ch) => sum + ch.nearClippingRegions, 0);
 
     const maxConsecutiveClipped = hardClippingRegions.length > 0
       ? Math.max(...hardClippingRegions.map(r => r.sampleCount))
