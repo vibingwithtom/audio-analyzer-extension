@@ -636,10 +636,12 @@
                   {#if result.hasDigitalSilence}
                     <span class="subtitle">Contains digital silence ({result.digitalSilencePercentage.toFixed(1)}%)</span>
                   {:else if result.noiseFloorPerChannel?.length === 2}
-                    <!-- Stereo: Show left/right values -->
+                    <!-- Stereo: Show left/right values on separate lines -->
                     <span class="subtitle">
-                      L: {result.noiseFloorPerChannel[0].noiseFloorDb === -Infinity ? '-∞' : result.noiseFloorPerChannel[0].noiseFloorDb.toFixed(1)} dB,
-                      R: {result.noiseFloorPerChannel[1].noiseFloorDb === -Infinity ? '-∞' : result.noiseFloorPerChannel[1].noiseFloorDb.toFixed(1)} dB
+                      L: {result.noiseFloorPerChannel[0].noiseFloorDb === -Infinity ? '-∞' : result.noiseFloorPerChannel[0].noiseFloorDb.toFixed(1)}
+                    </span>
+                    <span class="subtitle">
+                      R: {result.noiseFloorPerChannel[1].noiseFloorDb === -Infinity ? '-∞' : result.noiseFloorPerChannel[1].noiseFloorDb.toFixed(1)}
                     </span>
                   {:else if result.noiseFloorPerChannel?.length > 2}
                     <!-- Multi-channel: Show consistency indicator -->
