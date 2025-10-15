@@ -1214,6 +1214,10 @@ export class LevelAnalyzer {
     const hardClippingThreshold = 1.0;
     const nearClippingThreshold = 0.98;
 
+    // Safety limit: Cap number of regions to prevent memory issues
+    const MAX_REGIONS_PER_CHANNEL = 5000; // Reasonable limit for even extreme cases
+    const MAX_TOTAL_REGIONS = 10000; // Total regions across all channels
+
     // Channel names
     const channelNames = ['left', 'right', 'center', 'LFE', 'surroundLeft', 'surroundRight'];
 
@@ -1222,6 +1226,7 @@ export class LevelAnalyzer {
     let totalNearClippingSamples = 0;
     const allRegions = [];
     const perChannelStats = [];
+    let regionsLimitReached = false;
 
     // Process each channel
     for (let channel = 0; channel < channels; channel++) {
@@ -1281,7 +1286,12 @@ export class LevelAnalyzer {
             // Gap too large, end region
             if (currentHardRegion.sampleCount >= minConsecutiveSamples) {
               // Region is significant enough to record
-              channelRegions.push({...currentHardRegion});
+              // Only add if we haven't reached the limit
+              if (channelRegions.length < MAX_REGIONS_PER_CHANNEL) {
+                channelRegions.push({...currentHardRegion});
+              } else {
+                regionsLimitReached = true;
+              }
             }
             currentHardRegion = null;
             gapCounter = 0;
@@ -1312,7 +1322,12 @@ export class LevelAnalyzer {
         } else if (currentNearRegion !== null && absSample < nearClippingThreshold) {
           // End near-clipping region (no gap tolerance for near-clipping)
           if (currentNearRegion.sampleCount >= minConsecutiveSamples) {
-            channelRegions.push({...currentNearRegion});
+            // Only add if we haven't reached the limit
+            if (channelRegions.length < MAX_REGIONS_PER_CHANNEL) {
+              channelRegions.push({...currentNearRegion});
+            } else {
+              regionsLimitReached = true;
+            }
           }
           currentNearRegion = null;
         }
@@ -1333,10 +1348,18 @@ export class LevelAnalyzer {
 
       // Handle any remaining regions at end of file
       if (currentHardRegion !== null && currentHardRegion.sampleCount >= minConsecutiveSamples) {
-        channelRegions.push(currentHardRegion);
+        if (channelRegions.length < MAX_REGIONS_PER_CHANNEL) {
+          channelRegions.push(currentHardRegion);
+        } else {
+          regionsLimitReached = true;
+        }
       }
       if (currentNearRegion !== null && currentNearRegion.sampleCount >= minConsecutiveSamples) {
-        channelRegions.push(currentNearRegion);
+        if (channelRegions.length < MAX_REGIONS_PER_CHANNEL) {
+          channelRegions.push(currentNearRegion);
+        } else {
+          regionsLimitReached = true;
+        }
       }
 
       // Add timestamps to regions
@@ -1349,7 +1372,20 @@ export class LevelAnalyzer {
       // Accumulate totals
       totalClippedSamples += channelClippedSamples;
       totalNearClippingSamples += channelNearClippingSamples;
-      allRegions.push(...channelRegions);
+
+      // Use concat instead of spread operator to avoid stack overflow with large arrays
+      // Check total regions limit before adding
+      if (allRegions.length < MAX_TOTAL_REGIONS) {
+        const remainingSpace = MAX_TOTAL_REGIONS - allRegions.length;
+        const regionsToAdd = channelRegions.slice(0, remainingSpace);
+        allRegions.push(...regionsToAdd);
+
+        if (channelRegions.length > remainingSpace) {
+          regionsLimitReached = true;
+        }
+      } else {
+        regionsLimitReached = true;
+      }
 
       // Per-channel statistics
       const hardRegionCount = channelRegions.filter(r => r.type === 'hard').length;
@@ -1426,7 +1462,12 @@ export class LevelAnalyzer {
 
       // Separate lists for detailed analysis if needed
       hardClippingRegions,
-      nearClippingRegions
+      nearClippingRegions,
+
+      // Warning flag for extreme clipping cases
+      regionsLimitReached,
+      maxRegionsPerChannel: MAX_REGIONS_PER_CHANNEL,
+      maxTotalRegions: MAX_TOTAL_REGIONS
     };
   }
 
