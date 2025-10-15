@@ -98,63 +98,67 @@ export class LevelAnalyzer {
       this.analysisInProgress = false;
     }
   }
-      
-          interpretReverb(rt60) {
-            if (rt60 <= 0) {
-              return { time: rt60, label: 'N/A', description: 'No reverb detected.' };
-            }
-            if (rt60 < 0.3) {
-              return { time: rt60, label: 'Excellent (Dry)', description: 'Ideal for voiceover. Matches a vocal booth or well-treated studio environment.' };
-            }
-            if (rt60 < 0.5) {
-              return { time: rt60, label: 'Good (Controlled)', description: 'A well-controlled room with minimal reflections. Acceptable for most recording.' };
-            }
-            if (rt60 < 0.8) {
-              return { time: rt60, label: 'Fair (Slightly Live)', description: 'Noticeable room reflections. May reduce clarity for voiceover work.' };
-            }
-            if (rt60 < 1.2) {
-              return { time: rt60, label: 'Poor (Reverberant)', description: 'Significant reverb is present, making the recording sound distant and unprofessional.' };
-            }
-            return { time: rt60, label: 'Very Poor (Echoey)', description: 'Excessive echo and reverb. Unsuitable for professional voice recording.' };
-          }        analyzeSilence(channelData, channels, length, sampleRate, noiseFloorDb, peakDb) {
-          // Set threshold 25% of the way between the noise floor and the peak
-          const dynamicRange = peakDb - noiseFloorDb;
-          const thresholdRatio = 0.25;
-          // Handle case where peak is quieter than noise floor (unlikely but possible)
-          const effectiveDynamicRange = Math.max(0, dynamicRange);
-          const silenceThresholdDb = noiseFloorDb + (effectiveDynamicRange * thresholdRatio);
-          const silenceThresholdLinear = Math.pow(10, silenceThresholdDb / 20);
-      
-          const chunkSizeMs = 50; // 50ms chunks
-          const chunkSamples = Math.floor(sampleRate * (chunkSizeMs / 1000));
-          const numChunks = Math.ceil(length / chunkSamples);
-      
-          const minSoundDurationMs = 150; // Minimum duration for a sound to not be considered a tick
-          const minSoundChunks = Math.ceil(minSoundDurationMs / chunkSizeMs);
-      
-          const chunks = new Array(numChunks).fill(0); // 0 for silence, 1 for sound
-      
-          // Step 1: Classify chunks as sound or silence
-          for (let i = 0; i < numChunks; i++) {
-            const start = i * chunkSamples;
-            const end = Math.min(start + chunkSamples, length);
-            let maxSampleInChunk = 0;
-      
-            // Find the absolute max sample in this chunk across all channels
-            for (let channel = 0; channel < channels; channel++) {
-              const data = channelData[channel];
-              for (let j = start; j < end; j++) {
-                const sample = Math.abs(data[j]);
-                if (sample > maxSampleInChunk) {
-                  maxSampleInChunk = sample;
-                }
-              }
-            }
-      
-            if (maxSampleInChunk > silenceThresholdLinear) {
-              chunks[i] = 1; // Sound
-            }
-          }    // Step 2: Filter out small "islands" of sound
+
+  interpretReverb(rt60) {
+    if (rt60 <= 0) {
+      return { time: rt60, label: 'N/A', description: 'No reverb detected.' };
+    }
+    if (rt60 < 0.3) {
+      return { time: rt60, label: 'Excellent (Dry)', description: 'Ideal for voiceover. Matches a vocal booth or well-treated studio environment.' };
+    }
+    if (rt60 < 0.5) {
+      return { time: rt60, label: 'Good (Controlled)', description: 'A well-controlled room with minimal reflections. Acceptable for most recording.' };
+    }
+    if (rt60 < 0.8) {
+      return { time: rt60, label: 'Fair (Slightly Live)', description: 'Noticeable room reflections. May reduce clarity for voiceover work.' };
+    }
+    if (rt60 < 1.2) {
+      return { time: rt60, label: 'Poor (Reverberant)', description: 'Significant reverb is present, making the recording sound distant and unprofessional.' };
+    }
+    return { time: rt60, label: 'Very Poor (Echoey)', description: 'Excessive echo and reverb. Unsuitable for professional voice recording.' };
+  }
+
+  analyzeSilence(channelData, channels, length, sampleRate, noiseFloorDb, peakDb) {
+    // Set threshold 25% of the way between the noise floor and the peak
+    const dynamicRange = peakDb - noiseFloorDb;
+    const thresholdRatio = 0.25;
+    // Handle case where peak is quieter than noise floor (unlikely but possible)
+    const effectiveDynamicRange = Math.max(0, dynamicRange);
+    const silenceThresholdDb = noiseFloorDb + (effectiveDynamicRange * thresholdRatio);
+    const silenceThresholdLinear = Math.pow(10, silenceThresholdDb / 20);
+
+    const chunkSizeMs = 50; // 50ms chunks
+    const chunkSamples = Math.floor(sampleRate * (chunkSizeMs / 1000));
+    const numChunks = Math.ceil(length / chunkSamples);
+
+    const minSoundDurationMs = 150; // Minimum duration for a sound to not be considered a tick
+    const minSoundChunks = Math.ceil(minSoundDurationMs / chunkSizeMs);
+
+    const chunks = new Array(numChunks).fill(0); // 0 for silence, 1 for sound
+
+    // Step 1: Classify chunks as sound or silence
+    for (let i = 0; i < numChunks; i++) {
+      const start = i * chunkSamples;
+      const end = Math.min(start + chunkSamples, length);
+      let maxSampleInChunk = 0;
+
+      // Find the absolute max sample in this chunk across all channels
+      for (let channel = 0; channel < channels; channel++) {
+        const data = channelData[channel];
+        for (let j = start; j < end; j++) {
+          const sample = Math.abs(data[j]);
+          if (sample > maxSampleInChunk) {
+            maxSampleInChunk = sample;
+          }
+        }
+      }
+
+      if (maxSampleInChunk > silenceThresholdLinear) {
+        chunks[i] = 1; // Sound
+      }
+    }
+
+    // Step 2: Filter out small "islands" of sound
     let currentSoundStreak = 0;
     for (let i = 0; i < numChunks; i++) {
       if (chunks[i] === 1) {
