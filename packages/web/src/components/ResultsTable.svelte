@@ -201,13 +201,6 @@
     return 'error';                                    // Issue: > 15%
   }
 
-  function getConsistencyClass(consistencyPercentage: number | undefined): string {
-    if (consistencyPercentage === undefined) return '';
-    if (consistencyPercentage >= 100) return 'success';     // Perfect: 100%
-    if (consistencyPercentage >= 90) return 'warning';      // Warning: 90-99%
-    return 'error';                                          // Issue: < 90%
-  }
-
   function getClippingSeverity(clippingAnalysis: any): { level: string; label: string; eventCount: number } {
     if (!clippingAnalysis) return { level: '', label: 'N/A', eventCount: 0 };
 
@@ -516,13 +509,11 @@
             <th>Peak Level</th>
             <th>Normalization</th>
             <th>Clipping</th>
-            <th>Noise Floor (Old)</th>
-            <th>Noise Floor (New)</th>
+            <th>Noise Floor</th>
             <th>Reverb (RT60)</th>
             <th>Silence</th>
             <th>Stereo Separation</th>
             <th>Speech Overlap</th>
-            <th>Channel Consistency</th>
             <th>Mic Bleed</th>
           </tr>
         </thead>
@@ -606,20 +597,54 @@
                   N/A
                 {/if}
               </td>
-              <td>
+              <td
+                class="conversational-cell"
+                title={result.noiseFloorPerChannel ? (() => {
+                  let tooltip = 'Noise Floor Analysis\n━━━━━━━━━━━━━━━━━\nMeasures the background noise level using histogram analysis of the quietest 30% of windows.';
+
+                  tooltip += `\n\nOverall: ${result.noiseFloorDb === -Infinity ? '-∞' : result.noiseFloorDb.toFixed(1)} dB`;
+
+                  if (result.noiseFloorPerChannel?.length > 0) {
+                    tooltip += '\n\nPer-Channel Breakdown:';
+                    result.noiseFloorPerChannel.forEach(ch => {
+                      tooltip += `\n• ${ch.channelName}: ${ch.noiseFloorDb === -Infinity ? '-∞' : ch.noiseFloorDb.toFixed(1)} dB`;
+                    });
+                  }
+
+                  if (result.hasDigitalSilence) {
+                    tooltip += `\n\nDigital Silence Detected: ${result.digitalSilencePercentage.toFixed(1)}% of windows`;
+                    tooltip += '\n(True silence where all samples = 0.0)';
+                  }
+
+                  tooltip += '\n\nTip: Lower values indicate cleaner recordings with less background noise.';
+
+                  return tooltip;
+                })() : 'Noise floor analysis data not available'}
+              >
                 {#if result.noiseFloorDb !== undefined}
                   <span class="value-{getNoiseFloorClass(result.noiseFloorDb)}">
                     {result.noiseFloorDb === -Infinity ? '-∞' : result.noiseFloorDb.toFixed(1)} dB
                   </span>
-                {:else}
-                  N/A
-                {/if}
-              </td>
-              <td>
-                {#if result.noiseFloorDbHistogram !== undefined}
-                  <span class="value-{getNoiseFloorClass(result.noiseFloorDbHistogram)}">
-                    {result.noiseFloorDbHistogram === -Infinity ? '-∞' : result.noiseFloorDbHistogram.toFixed(1)} dB
-                  </span>
+                  {#if result.hasDigitalSilence}
+                    <span class="subtitle">Contains digital silence ({result.digitalSilencePercentage.toFixed(1)}%)</span>
+                  {:else if result.noiseFloorPerChannel?.length === 2}
+                    <!-- Stereo: Show left/right values on separate lines -->
+                    <span class="subtitle">
+                      L: {result.noiseFloorPerChannel[0].noiseFloorDb === -Infinity ? '-∞' : result.noiseFloorPerChannel[0].noiseFloorDb.toFixed(1)}
+                    </span>
+                    <span class="subtitle">
+                      R: {result.noiseFloorPerChannel[1].noiseFloorDb === -Infinity ? '-∞' : result.noiseFloorPerChannel[1].noiseFloorDb.toFixed(1)}
+                    </span>
+                  {:else if result.noiseFloorPerChannel?.length > 2}
+                    <!-- Multi-channel: Show consistency indicator -->
+                    <span class="subtitle">
+                      {#if result.noiseFloorPerChannel.every(ch => Math.abs(ch.noiseFloorDb - result.noiseFloorDb) < 2)}
+                        Consistent across channels
+                      {:else}
+                        Varies by channel
+                      {/if}
+                    </span>
+                  {/if}
                 {:else}
                   N/A
                 {/if}
@@ -726,31 +751,6 @@
                   N/A
                 {/if}
               </td>
-              <!-- Channel Consistency -->
-              <td
-                class="conversational-cell"
-                title={result.conversationalAnalysis?.consistency ?
-                  (result.conversationalAnalysis.consistency.isConsistent
-                    ? `Verifies speakers remain in same channels throughout.\n\nResult: No channel swapping detected.`
-                    : `Verifies speakers remain in same channels throughout.\n\nResult: Possible channel swapping detected.\n\nSeverity: ${result.conversationalAnalysis.consistency.severityScore?.toFixed(1) || 0}/100\nInconsistent Segments: ${result.conversationalAnalysis.consistency.inconsistentSegments || 0}${result.conversationalAnalysis.consistency.inconsistentSegmentDetails?.length > 0 ? '\n\n⚠️ Review these times:\n' + result.conversationalAnalysis.consistency.inconsistentSegmentDetails.map(seg => `${Math.floor(seg.startTime / 60)}:${Math.floor(seg.startTime % 60).toString().padStart(2, '0')}-${Math.floor(seg.endTime / 60)}:${Math.floor(seg.endTime % 60).toString().padStart(2, '0')} (${seg.confidence?.toFixed(0)}% conf)`).join('\n') : ''}`)
-                  : 'Channel consistency analysis only runs for Conversational Stereo files'}
-              >
-                {#if result.conversationalAnalysis?.consistency}
-                  {#if result.conversationalAnalysis.consistency.isConsistent}
-                    <span class="value-success">Consistent</span>
-                  {:else}
-                    <span class="value-{getConsistencyClass(result.conversationalAnalysis.consistency.consistencyPercentage)}">
-                      Inconsistent
-                    </span>
-                    <span class="subtitle">{result.conversationalAnalysis.consistency.inconsistentSegments || 0} of {result.conversationalAnalysis.consistency.totalSegmentsChecked || 0} segments</span>
-                    {#if result.conversationalAnalysis.consistency.severityScore !== undefined}
-                      <span class="subtitle">Severity: {result.conversationalAnalysis.consistency.severityScore.toFixed(1)}/100</span>
-                    {/if}
-                  {/if}
-                {:else}
-                  N/A
-                {/if}
-              </td>
               <td
                 class="mic-bleed-cell"
                 title={result.micBleed ? (() => {
@@ -769,7 +769,7 @@
                       tooltip += '.';
                     }
 
-                    // Only show severity and correlation if NEW method detected (values > 0)
+                    // Show NEW method details if available
                     if (newDetected && result.micBleed.new?.severityScore > 0) {
                       tooltip += `\n\nSeverity: ${result.micBleed.new.severityScore.toFixed(1)}/100`;
                     }
@@ -795,6 +795,16 @@
                           tooltip += `\n${startMin}:${startSec.toString().padStart(2, '0')}-${endMin}:${endSec.toString().padStart(2, '0')} (${seg.maxCorrelation.toFixed(2)} corr)`;
                         }
                       });
+                    } else if (oldDetected && result.micBleed.old) {
+                      // If NEW method didn't find segments, show OLD method channel levels
+                      tooltip += '\n\nAverage Bleed Levels:';
+                      if (result.micBleed.old.leftChannelBleedDb > -60) {
+                        tooltip += `\n• Left channel: ${result.micBleed.old.leftChannelBleedDb.toFixed(1)} dB`;
+                      }
+                      if (result.micBleed.old.rightChannelBleedDb > -60) {
+                        tooltip += `\n• Right channel: ${result.micBleed.old.rightChannelBleedDb.toFixed(1)} dB`;
+                      }
+                      tooltip += '\n\n(Simple average method - specific timestamps not available)';
                     }
 
                     return tooltip;

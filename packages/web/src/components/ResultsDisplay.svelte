@@ -33,17 +33,10 @@
       statuses.push(result.normalizationStatus.status === 'normalized' ? 'success' : 'warning');
     }
 
-    // Check noise floor (old)
+    // Check noise floor
     if (result.noiseFloorDb !== undefined && result.noiseFloorDb !== -Infinity) {
       if (result.noiseFloorDb <= -60) statuses.push('success');
       else if (result.noiseFloorDb <= -50) statuses.push('warning');
-      else statuses.push('error');
-    }
-
-    // Check noise floor (new/histogram)
-    if (result.noiseFloorDbHistogram !== undefined && result.noiseFloorDbHistogram !== -Infinity) {
-      if (result.noiseFloorDbHistogram <= -60) statuses.push('success');
-      else if (result.noiseFloorDbHistogram <= -50) statuses.push('warning');
       else statuses.push('error');
     }
 
