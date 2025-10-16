@@ -670,7 +670,7 @@
               <button
                 class="export-button"
                 on:click={handleExport}
-                disabled={isExporting || batchResults.length === 0}
+                disabled={isExporting || batchResults.length === 0 || isProcessing}
                 title="Export results to CSV file"
               >
                 {#if isExporting}
