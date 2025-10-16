@@ -662,7 +662,7 @@
           on:click={() => setEnhancedCSVExport(!$enableEnhancedCSVExport)}
           aria-label="Toggle enhanced CSV export"
           aria-pressed={$enableEnhancedCSVExport}
-        />
+        ></button>
       </div>
     </div>
 
