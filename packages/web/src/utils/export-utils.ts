@@ -423,21 +423,21 @@ function analyzeFailuresWithRecommendations(
     recommendations.push(generateDynamicRecommendation('reverb', severity, result.reverbInfo.time, null));
   }
 
-  // Silence Analysis (more sensitive thresholds)
-  if (result.leadingSilence !== undefined && result.leadingSilence > 3) {
-    qualityIssues.push(`Excessive leading silence: ${result.leadingSilence.toFixed(1)}s`);
+  // Silence Analysis (aligned with UI thresholds)
+  if (result.leadingSilence !== undefined && result.leadingSilence > 1) {
+    qualityIssues.push(`Leading silence: ${result.leadingSilence.toFixed(1)}s`);
     issueCount++;
     recommendations.push(generateDynamicRecommendation('silence', 'leadingExcess', result.leadingSilence, null));
   }
 
-  if (result.trailingSilence !== undefined && result.trailingSilence > 3) {
-    qualityIssues.push(`Excessive trailing silence: ${result.trailingSilence.toFixed(1)}s`);
+  if (result.trailingSilence !== undefined && result.trailingSilence > 1) {
+    qualityIssues.push(`Trailing silence: ${result.trailingSilence.toFixed(1)}s`);
     issueCount++;
     recommendations.push(generateDynamicRecommendation('silence', 'trailingExcess', result.trailingSilence, null));
   }
 
-  if (result.longestSilence !== undefined && result.longestSilence > 8) {
-    qualityIssues.push(`Long silent gap: ${result.longestSilence.toFixed(1)}s`);
+  if (result.longestSilence !== undefined && result.longestSilence > 2) {
+    qualityIssues.push(`Silence gap: ${result.longestSilence.toFixed(1)}s`);
     issueCount++;
     recommendations.push(generateDynamicRecommendation('silence', 'gapsExcess', result.longestSilence, null));
   }
