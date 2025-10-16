@@ -78,6 +78,7 @@ export interface LocalFilenameValidationSettings {
  */
 export interface AppSettings {
   criteria?: AudioCriteria;
+  enableEnhancedCSVExport?: boolean; // CSV export with failure analysis and recommendations
 }
 
 /**
@@ -90,7 +91,8 @@ export const STORAGE_KEYS = {
   BOX_FILENAME_VALIDATION: 'audio-analyzer-box-filename-validation',
   LOCAL_FILENAME_VALIDATION: 'audio-analyzer-local-filename-validation',
   DARK_MODE: 'darkMode',
-  BOX_JUST_AUTHENTICATED: 'box_just_authenticated'
+  BOX_JUST_AUTHENTICATED: 'box_just_authenticated',
+  ENHANCED_CSV_EXPORT: 'audio-analyzer-enhanced-csv-export'
 } as const;
 
 /**

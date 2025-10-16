@@ -1,10 +1,10 @@
 <script lang="ts">
   import ResultsTable from './ResultsTable.svelte';
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
-  import { currentPresetId } from '../stores/settings';
+  import { currentPresetId, enableEnhancedCSVExport, currentCriteria } from '../stores/settings';
   import { isSimplifiedMode } from '../stores/simplifiedMode';
   import type { AudioResults } from '../types';
-  import { exportResultsToCsv, type ExportOptions } from '../utils/export-utils';
+  import { exportResultsToCsv, exportResultsEnhanced, type ExportOptions } from '../utils/export-utils';
 
   // Props
   export let results: AudioResults | AudioResults[] | null = null;
@@ -208,12 +208,23 @@
               // 'full' and 'audio-only' both map to 'standard'
       };
 
-      exportResultsToCsv(
-        batchResults,
-        exportOptions,
-        $currentPresetId,
-        $analysisMode
-      );
+      // Use enhanced export if setting is enabled, otherwise use standard export
+      if ($enableEnhancedCSVExport) {
+        exportResultsEnhanced(
+          batchResults,
+          exportOptions,
+          $currentPresetId,
+          $analysisMode,
+          $currentCriteria
+        );
+      } else {
+        exportResultsToCsv(
+          batchResults,
+          exportOptions,
+          $currentPresetId,
+          $analysisMode
+        );
+      }
 
       // Show success feedback
       exportSuccess = true;

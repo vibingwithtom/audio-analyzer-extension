@@ -1,6 +1,7 @@
 import { writable, derived, type Readable, get } from 'svelte/store';
 import { SettingsManager } from '../settings/settings-manager';
 import type { AudioCriteria, PresetConfig } from '../settings/types';
+import { STORAGE_KEYS } from '../settings/types';
 import { isSimplifiedMode, lockedPresetId } from './simplifiedMode';
 import { analyticsService } from '../services/analytics-service';
 
@@ -87,6 +88,41 @@ export const currentCriteria: Readable<AudioCriteria | null> = {
 export function updateCustomCriteria(newCriteria: AudioCriteria): void {
   criteria.set(newCriteria);
   SettingsManager.saveCriteria(newCriteria);
+}
+
+// Enhanced CSV Export Setting
+// When enabled, CSV exports include failure analysis and recommendations
+const enhancedCSVExportValue = writable<boolean>(false);
+
+// Load from localStorage on initialization
+if (typeof window !== 'undefined') {
+  const saved = localStorage.getItem(STORAGE_KEYS.ENHANCED_CSV_EXPORT);
+  if (saved !== null) {
+    try {
+      enhancedCSVExportValue.set(JSON.parse(saved));
+    } catch (e) {
+      console.warn('Failed to parse enhanced CSV export setting', e);
+    }
+  }
+}
+
+// Persist to localStorage whenever setting changes and track in analytics
+enhancedCSVExportValue.subscribe((value) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEYS.ENHANCED_CSV_EXPORT, JSON.stringify(value));
+    analyticsService.track('enhanced_csv_export_toggled', {
+      enabled: value
+    });
+  }
+});
+
+export const enableEnhancedCSVExport: Readable<boolean> = {
+  subscribe: enhancedCSVExportValue.subscribe
+};
+
+// Export function to update the setting
+export function setEnhancedCSVExport(enabled: boolean): void {
+  enhancedCSVExportValue.set(enabled);
 }
 
 // Check if current configuration is valid (has a properly configured preset)

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { availablePresets, currentPresetId, setPreset, selectedPreset, currentCriteria, updateCustomCriteria, hasValidPresetConfig } from '../stores/settings';
+  import { availablePresets, currentPresetId, setPreset, selectedPreset, currentCriteria, updateCustomCriteria, hasValidPresetConfig, enableEnhancedCSVExport, setEnhancedCSVExport } from '../stores/settings';
   import type { AudioCriteria } from '../settings/types';
 
   // Custom criteria form state
@@ -327,6 +327,110 @@
   .config-warning strong {
     color: var(--warning, #ff9800);
   }
+
+  /* Toggle Switch Styles */
+  .toggle-group {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .toggle-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: var(--bg-primary, #ffffff);
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: 6px;
+    transition: all 0.2s ease;
+  }
+
+  .toggle-item:hover {
+    background: var(--bg-hover, #f5f5f5);
+    border-color: var(--accent-primary, #2563eb);
+  }
+
+  .toggle-label-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .toggle-label {
+    font-weight: 600;
+    color: var(--text-primary, #333333);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .toggle-description {
+    font-size: 0.875rem;
+    color: var(--text-secondary, #666666);
+  }
+
+  .toggle-switch {
+    position: relative;
+    display: inline-flex;
+    width: 48px;
+    height: 28px;
+    background: var(--border-color, #e0e0e0);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    border: none;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  .toggle-switch.active {
+    background: var(--success, #4CAF50);
+  }
+
+  .toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 24px;
+    height: 24px;
+    background: white;
+    border-radius: 50%;
+    transition: left 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .toggle-switch.active::after {
+    left: 22px;
+  }
+
+  .export-settings-info {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(37, 99, 235, 0.1) 100%);
+    border: 1px solid rgba(37, 99, 235, 0.2);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: var(--text-primary, #333333);
+  }
+
+  .export-settings-info h5 {
+    margin: 0 0 0.5rem 0;
+    color: var(--primary, #2563eb);
+    font-weight: 600;
+  }
+
+  .export-settings-info ul {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+  }
+
+  .export-settings-info li {
+    margin: 0.25rem 0;
+  }
 </style>
 
 <div class="settings-tab">
@@ -534,6 +638,44 @@
             <span class="field-hint">Leave empty for no minimum duration requirement</span>
           </div>
         </div>
+      </div>
+    {/if}
+  </div>
+
+  <!-- Export Settings Section -->
+  <div class="settings-section">
+    <h3>Export Settings</h3>
+
+    <div class="toggle-group">
+      <div class="toggle-item">
+        <div class="toggle-label-group">
+          <label class="toggle-label">
+            📊 Enhanced CSV Export
+          </label>
+          <span class="toggle-description">
+            Include failure analysis and actionable recommendations in CSV exports
+          </span>
+        </div>
+        <button
+          class="toggle-switch"
+          class:active={$enableEnhancedCSVExport}
+          on:click={() => setEnhancedCSVExport(!$enableEnhancedCSVExport)}
+          aria-label="Toggle enhanced CSV export"
+          aria-pressed={$enableEnhancedCSVExport}
+        />
+      </div>
+    </div>
+
+    {#if $enableEnhancedCSVExport}
+      <div class="export-settings-info">
+        <h5>✓ Enhanced Export Enabled</h5>
+        <p>Your CSV exports will include:</p>
+        <ul>
+          <li><strong>Failure Analysis:</strong> Multi-level issue detection (technical specs, quality issues)</li>
+          <li><strong>Actionable Recommendations:</strong> Context-aware suggestions for fixing problems</li>
+          <li><strong>Quality Issues:</strong> Detailed metrics for clipping, noise, reverb, silence, and more</li>
+          <li><strong>Filename Validation:</strong> Issues detected based on your preset requirements (if applicable)</li>
+        </ul>
       </div>
     {/if}
   </div>
