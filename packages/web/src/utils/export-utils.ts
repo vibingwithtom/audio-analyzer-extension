@@ -325,7 +325,10 @@ function analyzeFailuresWithRecommendations(
       if (field === 'filename') return;
 
       if (validation.status === 'fail' || validation.status === 'warning') {
-        validationIssues.push(`${field}: ${validation.issue}`);
+        // Include the issue message if available, otherwise include the actual value
+        const actualValue = (result as any)[field];
+        const issueMessage = validation.issue || `Actual: ${actualValue}`;
+        validationIssues.push(`${field}: ${issueMessage}`);
         issueCount++;
 
         let subType: string = 'generic';
