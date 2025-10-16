@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { availablePresets, currentPresetId, setPreset, selectedPreset, currentCriteria, updateCustomCriteria, hasValidPresetConfig, enableEnhancedCSVExport, setEnhancedCSVExport, enableIncludeFailureAnalysis, setIncludeFailureAnalysis, enableIncludeRecommendations, setIncludeRecommendations } from '../stores/settings';
+  import { availablePresets, currentPresetId, setPreset, selectedPreset, currentCriteria, updateCustomCriteria, hasValidPresetConfig, enableIncludeFailureAnalysis, setIncludeFailureAnalysis, enableIncludeRecommendations, setIncludeRecommendations } from '../stores/settings';
   import type { AudioCriteria } from '../settings/types';
 
   // Custom criteria form state
@@ -646,68 +646,40 @@
   <div class="settings-section">
     <h3>Export Settings</h3>
 
-    <div class="toggle-group">
-      <div class="toggle-item">
-        <div class="toggle-label-group">
-          <label class="toggle-label">
-            📊 Enhanced CSV Export
-          </label>
-          <span class="toggle-description">
-            Enable advanced export features (configured below)
-          </span>
+    <p style="margin-bottom: 1rem; color: var(--text-secondary, #666666); font-size: 0.9rem;">
+      Customize what information is included in your CSV exports. When both options are disabled, standard exports will be used.
+    </p>
+
+    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+      <!-- Failure Analysis Toggle -->
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: var(--bg-primary, #ffffff); border-radius: 4px; border: 1px solid var(--border-color, #e0e0e0);">
+        <div>
+          <div style="font-weight: 500; color: var(--text-primary, #333333);">Include Failure Analysis</div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary, #666666); margin-top: 0.25rem;">Multi-level issue detection (technical specs, quality issues)</div>
         </div>
         <button
           class="toggle-switch"
-          class:active={$enableEnhancedCSVExport}
-          on:click={() => setEnhancedCSVExport(!$enableEnhancedCSVExport)}
-          aria-label="Toggle enhanced CSV export"
-          aria-pressed={$enableEnhancedCSVExport}
+          class:active={$enableIncludeFailureAnalysis}
+          on:click={() => setIncludeFailureAnalysis(!$enableIncludeFailureAnalysis)}
+          aria-label="Toggle failure analysis"
+          aria-pressed={$enableIncludeFailureAnalysis}
+        ></button>
+      </div>
+
+      <!-- Recommendations Toggle -->
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: var(--bg-primary, #ffffff); border-radius: 4px; border: 1px solid var(--border-color, #e0e0e0);">
+        <div>
+          <div style="font-weight: 500; color: var(--text-primary, #333333);">Include Recommendations</div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary, #666666); margin-top: 0.25rem;">Context-aware suggestions for fixing problems</div>
+        </div>
+        <button
+          class="toggle-switch"
+          class:active={$enableIncludeRecommendations}
+          on:click={() => setIncludeRecommendations(!$enableIncludeRecommendations)}
+          aria-label="Toggle recommendations"
+          aria-pressed={$enableIncludeRecommendations}
         ></button>
       </div>
     </div>
-
-    {#if $enableEnhancedCSVExport}
-      <div class="export-settings-info">
-        <h5>✓ Enhanced Export Enabled - Configure Options:</h5>
-
-        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(37, 99, 235, 0.3);">
-          <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-            <!-- Failure Analysis Toggle -->
-            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: var(--bg-primary, #ffffff); border-radius: 4px; border: 1px solid rgba(37, 99, 235, 0.2);">
-              <div>
-                <div style="font-weight: 500; color: var(--text-primary, #333333);">Include Failure Analysis</div>
-                <div style="font-size: 0.85rem; color: var(--text-secondary, #666666); margin-top: 0.25rem;">Multi-level issue detection (technical specs, quality issues)</div>
-              </div>
-              <button
-                class="toggle-switch"
-                class:active={$enableIncludeFailureAnalysis}
-                on:click={() => setIncludeFailureAnalysis(!$enableIncludeFailureAnalysis)}
-                aria-label="Toggle failure analysis"
-                aria-pressed={$enableIncludeFailureAnalysis}
-              ></button>
-            </div>
-
-            <!-- Recommendations Toggle -->
-            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: var(--bg-primary, #ffffff); border-radius: 4px; border: 1px solid rgba(37, 99, 235, 0.2);">
-              <div>
-                <div style="font-weight: 500; color: var(--text-primary, #333333);">Include Recommendations</div>
-                <div style="font-size: 0.85rem; color: var(--text-secondary, #666666); margin-top: 0.25rem;">Context-aware suggestions for fixing problems</div>
-              </div>
-              <button
-                class="toggle-switch"
-                class:active={$enableIncludeRecommendations}
-                on:click={() => setIncludeRecommendations(!$enableIncludeRecommendations)}
-                aria-label="Toggle recommendations"
-                aria-pressed={$enableIncludeRecommendations}
-              ></button>
-            </div>
-          </div>
-        </div>
-
-        <p style="margin-top: 1rem; font-size: 0.9rem; color: var(--text-primary, #333333);">
-          <strong>Note:</strong> Both options are enabled by default to give you the most comprehensive export. Disable either option if you don't need that information in your CSV exports.
-        </p>
-      </div>
-    {/if}
   </div>
 </div>

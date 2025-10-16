@@ -560,13 +560,20 @@ function analyzeFailuresWithRecommendations(
  */
 function generateEnhancedHeaders(options: EnhancedExportOptions): string[] {
   const baseHeaders = ['Filename', 'Overall Status'];
+  const includeFailureAnalysis = options.includeFailureAnalysis !== false; // Default to true
+  const includeRecommendations = options.includeRecommendations !== false; // Default to true
 
   if (options.mode === 'metadata-only') {
     const headers = [...baseHeaders];
     if (options.includeFilenameValidation) {
       headers.push('Filename Validation Issues');
     }
-    headers.push('Failure Summary', 'Recommendations');
+    if (includeFailureAnalysis) {
+      headers.push('Failure Summary');
+    }
+    if (includeRecommendations) {
+      headers.push('Recommendations');
+    }
     return headers;
   }
 
@@ -585,7 +592,12 @@ function generateEnhancedHeaders(options: EnhancedExportOptions): string[] {
       headers.push('Filename Validation Issues');
     }
 
-    headers.push('Quality Issues', 'Failure Summary', 'Recommendations');
+    if (includeFailureAnalysis) {
+      headers.push('Quality Issues', 'Failure Summary');
+    }
+    if (includeRecommendations) {
+      headers.push('Recommendations');
+    }
     return headers;
   }
 
@@ -617,7 +629,12 @@ function generateEnhancedHeaders(options: EnhancedExportOptions): string[] {
     headers.push('Filename Validation Issues');
   }
 
-  headers.push('Quality Issues', 'Failure Summary', 'Recommendations');
+  if (includeFailureAnalysis) {
+    headers.push('Quality Issues', 'Failure Summary');
+  }
+  if (includeRecommendations) {
+    headers.push('Recommendations');
+  }
   return headers;
 }
 
@@ -629,6 +646,8 @@ function extractEnhancedDataRow(
   options: EnhancedExportOptions
 ): string[] {
   const failureAnalysis = analyzeFailuresWithRecommendations(result, options);
+  const includeFailureAnalysis = options.includeFailureAnalysis !== false; // Default to true
+  const includeRecommendations = options.includeRecommendations !== false; // Default to true
 
   const baseRow = [result.filename, result.status];
 
@@ -637,7 +656,12 @@ function extractEnhancedDataRow(
     if (options.includeFilenameValidation) {
       row.push(failureAnalysis.filenameValidationIssues || '');
     }
-    row.push(failureAnalysis.failureSummary, failureAnalysis.recommendations);
+    if (includeFailureAnalysis) {
+      row.push(failureAnalysis.failureSummary);
+    }
+    if (includeRecommendations) {
+      row.push(failureAnalysis.recommendations);
+    }
     return row;
   }
 
@@ -656,11 +680,15 @@ function extractEnhancedDataRow(
       row.push(failureAnalysis.filenameValidationIssues || '');
     }
 
-    row.push(
-      failureAnalysis.qualityIssues || '',
-      failureAnalysis.failureSummary,
-      failureAnalysis.recommendations
-    );
+    if (includeFailureAnalysis) {
+      row.push(
+        failureAnalysis.qualityIssues || '',
+        failureAnalysis.failureSummary
+      );
+    }
+    if (includeRecommendations) {
+      row.push(failureAnalysis.recommendations);
+    }
     return row;
   }
 
@@ -692,11 +720,15 @@ function extractEnhancedDataRow(
     row.push(failureAnalysis.filenameValidationIssues || '');
   }
 
-  row.push(
-    failureAnalysis.qualityIssues || '',
-    failureAnalysis.failureSummary,
-    failureAnalysis.recommendations
-  );
+  if (includeFailureAnalysis) {
+    row.push(
+      failureAnalysis.qualityIssues || '',
+      failureAnalysis.failureSummary
+    );
+  }
+  if (includeRecommendations) {
+    row.push(failureAnalysis.recommendations);
+  }
 
   return row;
 }
