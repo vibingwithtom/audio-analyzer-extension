@@ -82,8 +82,7 @@ function generateHeaders(mode: ExportOptions['mode']): string[] {
       'Channels',
       'Duration',
       'File Size (Bytes)',
-      'Has Audio URL',
-      'Has External URL'
+      'Source URL'
     ];
   }
 
@@ -152,8 +151,7 @@ function extractDataRow(result: AudioResults, mode: ExportOptions['mode']): stri
       formatChannels(result.channels || 'Unknown'),
       formatDuration(result.duration),
       formatBytes(result.fileSize || 0),
-      result.audioUrl ? 'Yes' : 'No',
-      result.externalUrl ? 'Yes' : 'No'
+      result.externalUrl || ''
     ];
   }
 
