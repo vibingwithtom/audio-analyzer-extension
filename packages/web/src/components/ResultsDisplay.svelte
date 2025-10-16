@@ -1,7 +1,7 @@
 <script lang="ts">
   import ResultsTable from './ResultsTable.svelte';
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
-  import { currentPresetId, enableEnhancedCSVExport, currentCriteria } from '../stores/settings';
+  import { currentPresetId, enableEnhancedCSVExport, currentCriteria, enableIncludeFailureAnalysis, enableIncludeRecommendations } from '../stores/settings';
   import { isSimplifiedMode } from '../stores/simplifiedMode';
   import type { AudioResults } from '../types';
   import { exportResultsToCsv, exportResultsEnhanced, type ExportOptions } from '../utils/export-utils';
@@ -210,9 +210,16 @@
 
       // Use enhanced export if setting is enabled, otherwise use standard export
       if ($enableEnhancedCSVExport) {
+        // Add export options for failure analysis and recommendations
+        const exportOpts = {
+          ...exportOptions,
+          includeFailureAnalysis: $enableIncludeFailureAnalysis,
+          includeRecommendations: $enableIncludeRecommendations
+        };
+
         exportResultsEnhanced(
           batchResults,
-          exportOptions,
+          exportOpts,
           $currentPresetId,
           $analysisMode,
           $currentCriteria

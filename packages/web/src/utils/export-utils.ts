@@ -21,6 +21,8 @@ export interface EnhancedExportOptions extends ExportOptions {
   includeFilenameValidation: boolean;
   currentPresetCriteria?: AudioCriteria | null;
   analysisMode: 'standard' | 'experimental' | 'metadata-only';
+  includeFailureAnalysis?: boolean;
+  includeRecommendations?: boolean;
 }
 
 /**
@@ -502,42 +504,53 @@ function analyzeFailuresWithRecommendations(
     }
   }
 
-  // Compile results - combine both validation and quality issues
-  const allIssues = [...validationIssues, ...qualityIssues];
-  analysis.qualityIssues = allIssues.join(' | ');
+  // Compile results - combine both validation and quality issues (only if includeFailureAnalysis is enabled)
+  const shouldIncludeFailureAnalysis = options.includeFailureAnalysis !== false; // Default to true
+  if (shouldIncludeFailureAnalysis) {
+    const allIssues = [...validationIssues, ...qualityIssues];
+    analysis.qualityIssues = allIssues.join(' | ');
 
-  // Generate failure summary
-  if (issueCount === 0) {
-    analysis.failureSummary = 'No issues detected';
-  } else {
-    const issueTypes: string[] = [];
+    // Generate failure summary
+    if (issueCount === 0) {
+      analysis.failureSummary = 'No issues detected';
+    } else {
+      const issueTypes: string[] = [];
 
-    // Determine critical vs warning counts
-    let criticalCount = qualityIssues.filter(q => q.includes('critical')).length +
-                       validationIssues.filter(v => result.validation &&
-                         Object.values(result.validation).some(val => val.status === 'fail')).length;
+      // Determine critical vs warning counts
+      let criticalCount = qualityIssues.filter(q => q.includes('critical')).length +
+                         validationIssues.filter(v => result.validation &&
+                           Object.values(result.validation).some(val => val.status === 'fail')).length;
 
-    // In filename-only mode, filename validation failures are CRITICAL
-    const isFilenameOnlyMode = options.analysisMode === 'metadata-only' && options.includeFilenameValidation;
-    if (isFilenameOnlyMode && result.validation?.filename) {
-      const filenameValidation = result.validation.filename;
-      if (filenameValidation.status === 'fail') {
-        criticalCount++;
+      // In filename-only mode, filename validation failures are CRITICAL
+      const isFilenameOnlyMode = options.analysisMode === 'metadata-only' && options.includeFilenameValidation;
+      if (isFilenameOnlyMode && result.validation?.filename) {
+        const filenameValidation = result.validation.filename;
+        if (filenameValidation.status === 'fail') {
+          criticalCount++;
+        }
       }
+
+      const warningCount = issueCount - criticalCount;
+
+      if (criticalCount > 0) issueTypes.push(`${criticalCount} critical`);
+      if (warningCount > 0) issueTypes.push(`${warningCount} warning`);
+
+      analysis.failureSummary = issueTypes.length > 0 ?
+        `${issueTypes.join(', ')} issue${issueCount > 1 ? 's' : ''}` :
+        `${issueCount} issue${issueCount > 1 ? 's' : ''} detected`;
     }
-
-    const warningCount = issueCount - criticalCount;
-
-    if (criticalCount > 0) issueTypes.push(`${criticalCount} critical`);
-    if (warningCount > 0) issueTypes.push(`${warningCount} warning`);
-
-    analysis.failureSummary = issueTypes.length > 0 ?
-      `${issueTypes.join(', ')} issue${issueCount > 1 ? 's' : ''}` :
-      `${issueCount} issue${issueCount > 1 ? 's' : ''} detected`;
+  } else {
+    analysis.qualityIssues = '';
+    analysis.failureSummary = '';
   }
 
-  // Compile unique recommendations
-  analysis.recommendations = Array.from(new Set(recommendations)).join(' ');
+  // Compile unique recommendations (only if includeRecommendations is enabled)
+  const shouldIncludeRecommendations = options.includeRecommendations !== false; // Default to true
+  if (shouldIncludeRecommendations) {
+    analysis.recommendations = Array.from(new Set(recommendations)).join(' ');
+  } else {
+    analysis.recommendations = '';
+  }
 
   return analysis;
 }
