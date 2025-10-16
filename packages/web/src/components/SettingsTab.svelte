@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { availablePresets, currentPresetId, setPreset, selectedPreset, currentCriteria, updateCustomCriteria, hasValidPresetConfig } from '../stores/settings';
+  import { availablePresets, currentPresetId, setPreset, selectedPreset, currentCriteria, updateCustomCriteria, hasValidPresetConfig, enableIncludeFailureAnalysis, setIncludeFailureAnalysis, enableIncludeRecommendations, setIncludeRecommendations } from '../stores/settings';
   import type { AudioCriteria } from '../settings/types';
 
   // Custom criteria form state
@@ -327,6 +327,110 @@
   .config-warning strong {
     color: var(--warning, #ff9800);
   }
+
+  /* Toggle Switch Styles */
+  .toggle-group {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .toggle-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: var(--bg-primary, #ffffff);
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: 6px;
+    transition: all 0.2s ease;
+  }
+
+  .toggle-item:hover {
+    background: var(--bg-hover, #f5f5f5);
+    border-color: var(--accent-primary, #2563eb);
+  }
+
+  .toggle-label-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .toggle-label {
+    font-weight: 600;
+    color: var(--text-primary, #333333);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .toggle-description {
+    font-size: 0.875rem;
+    color: var(--text-secondary, #666666);
+  }
+
+  .toggle-switch {
+    position: relative;
+    display: inline-flex;
+    width: 48px;
+    height: 28px;
+    background: var(--border-color, #e0e0e0);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    border: none;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  .toggle-switch.active {
+    background: var(--success, #4CAF50);
+  }
+
+  .toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 24px;
+    height: 24px;
+    background: white;
+    border-radius: 50%;
+    transition: left 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .toggle-switch.active::after {
+    left: 22px;
+  }
+
+  .export-settings-info {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(37, 99, 235, 0.1) 100%);
+    border: 1px solid rgba(37, 99, 235, 0.2);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: var(--text-primary, #333333);
+  }
+
+  .export-settings-info h5 {
+    margin: 0 0 0.5rem 0;
+    color: var(--primary, #2563eb);
+    font-weight: 600;
+  }
+
+  .export-settings-info ul {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+  }
+
+  .export-settings-info li {
+    margin: 0.25rem 0;
+  }
 </style>
 
 <div class="settings-tab">
@@ -536,5 +640,46 @@
         </div>
       </div>
     {/if}
+  </div>
+
+  <!-- Export Settings Section -->
+  <div class="settings-section">
+    <h3>Export Settings</h3>
+
+    <p style="margin-bottom: 1rem; color: var(--text-secondary, #666666); font-size: 0.9rem;">
+      Customize what information is included in your CSV exports. When both options are disabled, standard exports will be used.
+    </p>
+
+    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+      <!-- Failure Analysis Toggle -->
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: var(--bg-primary, #ffffff); border-radius: 4px; border: 1px solid var(--border-color, #e0e0e0);">
+        <div>
+          <div style="font-weight: 500; color: var(--text-primary, #333333);">Include Failure Analysis</div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary, #666666); margin-top: 0.25rem;">Multi-level issue detection (technical specs, quality issues)</div>
+        </div>
+        <button
+          class="toggle-switch"
+          class:active={$enableIncludeFailureAnalysis}
+          on:click={() => setIncludeFailureAnalysis(!$enableIncludeFailureAnalysis)}
+          aria-label="Toggle failure analysis"
+          aria-pressed={$enableIncludeFailureAnalysis}
+        ></button>
+      </div>
+
+      <!-- Recommendations Toggle -->
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: var(--bg-primary, #ffffff); border-radius: 4px; border: 1px solid var(--border-color, #e0e0e0);">
+        <div>
+          <div style="font-weight: 500; color: var(--text-primary, #333333);">Include Recommendations</div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary, #666666); margin-top: 0.25rem;">Context-aware suggestions for fixing problems</div>
+        </div>
+        <button
+          class="toggle-switch"
+          class:active={$enableIncludeRecommendations}
+          on:click={() => setIncludeRecommendations(!$enableIncludeRecommendations)}
+          aria-label="Toggle recommendations"
+          aria-pressed={$enableIncludeRecommendations}
+        ></button>
+      </div>
+    </div>
   </div>
 </div>

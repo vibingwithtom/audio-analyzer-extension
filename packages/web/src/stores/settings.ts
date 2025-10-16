@@ -1,6 +1,7 @@
 import { writable, derived, type Readable, get } from 'svelte/store';
 import { SettingsManager } from '../settings/settings-manager';
 import type { AudioCriteria, PresetConfig } from '../settings/types';
+import { STORAGE_KEYS } from '../settings/types';
 import { isSimplifiedMode, lockedPresetId } from './simplifiedMode';
 import { analyticsService } from '../services/analytics-service';
 
@@ -87,6 +88,76 @@ export const currentCriteria: Readable<AudioCriteria | null> = {
 export function updateCustomCriteria(newCriteria: AudioCriteria): void {
   criteria.set(newCriteria);
   SettingsManager.saveCriteria(newCriteria);
+}
+
+// Include Failure Analysis in Enhanced Exports Setting
+// Default: true (failure analysis included by default)
+const includeFailureAnalysisValue = writable<boolean>(true);
+
+// Load from localStorage on initialization
+if (typeof window !== 'undefined') {
+  const saved = localStorage.getItem(STORAGE_KEYS.INCLUDE_FAILURE_ANALYSIS);
+  if (saved !== null) {
+    try {
+      includeFailureAnalysisValue.set(JSON.parse(saved));
+    } catch (e) {
+      console.warn('Failed to parse include failure analysis setting', e);
+    }
+  }
+}
+
+// Persist to localStorage whenever setting changes and track in analytics
+includeFailureAnalysisValue.subscribe((value) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEYS.INCLUDE_FAILURE_ANALYSIS, JSON.stringify(value));
+    analyticsService.track('include_failure_analysis_toggled', {
+      enabled: value
+    });
+  }
+});
+
+export const enableIncludeFailureAnalysis: Readable<boolean> = {
+  subscribe: includeFailureAnalysisValue.subscribe
+};
+
+// Export function to update the setting
+export function setIncludeFailureAnalysis(enabled: boolean): void {
+  includeFailureAnalysisValue.set(enabled);
+}
+
+// Include Recommendations in Enhanced Exports Setting
+// Default: true (recommendations included by default)
+const includeRecommendationsValue = writable<boolean>(true);
+
+// Load from localStorage on initialization
+if (typeof window !== 'undefined') {
+  const saved = localStorage.getItem(STORAGE_KEYS.INCLUDE_RECOMMENDATIONS);
+  if (saved !== null) {
+    try {
+      includeRecommendationsValue.set(JSON.parse(saved));
+    } catch (e) {
+      console.warn('Failed to parse include recommendations setting', e);
+    }
+  }
+}
+
+// Persist to localStorage whenever setting changes and track in analytics
+includeRecommendationsValue.subscribe((value) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEYS.INCLUDE_RECOMMENDATIONS, JSON.stringify(value));
+    analyticsService.track('include_recommendations_toggled', {
+      enabled: value
+    });
+  }
+});
+
+export const enableIncludeRecommendations: Readable<boolean> = {
+  subscribe: includeRecommendationsValue.subscribe
+};
+
+// Export function to update the setting
+export function setIncludeRecommendations(enabled: boolean): void {
+  includeRecommendationsValue.set(enabled);
 }
 
 // Check if current configuration is valid (has a properly configured preset)

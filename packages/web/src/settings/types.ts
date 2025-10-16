@@ -78,6 +78,8 @@ export interface LocalFilenameValidationSettings {
  */
 export interface AppSettings {
   criteria?: AudioCriteria;
+  includeFailureAnalysis?: boolean; // Include failure analysis in enhanced exports (default: true)
+  includeRecommendations?: boolean; // Include recommendations in enhanced exports (default: true)
 }
 
 /**
@@ -90,7 +92,9 @@ export const STORAGE_KEYS = {
   BOX_FILENAME_VALIDATION: 'audio-analyzer-box-filename-validation',
   LOCAL_FILENAME_VALIDATION: 'audio-analyzer-local-filename-validation',
   DARK_MODE: 'darkMode',
-  BOX_JUST_AUTHENTICATED: 'box_just_authenticated'
+  BOX_JUST_AUTHENTICATED: 'box_just_authenticated',
+  INCLUDE_FAILURE_ANALYSIS: 'audio-analyzer-include-failure-analysis',
+  INCLUDE_RECOMMENDATIONS: 'audio-analyzer-include-recommendations'
 } as const;
 
 /**

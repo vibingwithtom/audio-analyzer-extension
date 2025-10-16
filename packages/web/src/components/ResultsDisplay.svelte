@@ -1,9 +1,10 @@
 <script lang="ts">
   import ResultsTable from './ResultsTable.svelte';
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
-  import { currentPresetId } from '../stores/settings';
+  import { currentPresetId, currentCriteria, enableIncludeFailureAnalysis, enableIncludeRecommendations } from '../stores/settings';
   import { isSimplifiedMode } from '../stores/simplifiedMode';
   import type { AudioResults } from '../types';
+  import { exportResultsToCsv, exportResultsEnhanced, type ExportOptions } from '../utils/export-utils';
 
   // Props
   export let results: AudioResults | AudioResults[] | null = null;
@@ -181,6 +182,70 @@
       case 'experimental': return 'Experimental Analysis';
       case 'filename-only': return 'Filename Only';
       default: return mode;
+    }
+  }
+
+  // Export state
+  let isExporting = false;
+  let exportError: string | null = null;
+  let exportSuccess = false;
+
+  // Export handler
+  function handleExport() {
+    if (!isBatchMode || batchResults.length === 0) {
+      return;
+    }
+
+    isExporting = true;
+    exportError = null;
+    exportSuccess = false;
+
+    try {
+      // Handle all 4 analysis modes correctly
+      const exportOptions: ExportOptions = {
+        mode: $analysisMode === 'filename-only' ? 'metadata-only' :
+              $analysisMode === 'experimental' ? 'experimental' : 'standard'
+              // 'full' and 'audio-only' both map to 'standard'
+      };
+
+      // Use enhanced export if either failure analysis or recommendations is enabled
+      const useEnhancedExport = $enableIncludeFailureAnalysis || $enableIncludeRecommendations;
+
+      if (useEnhancedExport) {
+        // Add export options for failure analysis and recommendations
+        const exportOpts = {
+          ...exportOptions,
+          includeFailureAnalysis: $enableIncludeFailureAnalysis,
+          includeRecommendations: $enableIncludeRecommendations
+        };
+
+        exportResultsEnhanced(
+          batchResults,
+          exportOpts,
+          $currentPresetId,
+          $analysisMode,
+          $currentCriteria
+        );
+      } else {
+        exportResultsToCsv(
+          batchResults,
+          exportOptions,
+          $currentPresetId,
+          $analysisMode
+        );
+      }
+
+      // Show success feedback
+      exportSuccess = true;
+      setTimeout(() => {
+        exportSuccess = false;
+      }, 3000);
+
+    } catch (error) {
+      exportError = error instanceof Error ? error.message : 'Export failed';
+      console.error('Export failed:', error);
+    } finally {
+      isExporting = false;
     }
   }
 </script>
@@ -480,6 +545,83 @@
   .mode-switcher a:hover {
     text-decoration: underline;
   }
+
+  /* Export Button Styles */
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .export-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--primary, #2563eb);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .export-button:hover:not(:disabled) {
+    background: var(--primary-dark, #1d4ed8);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+  }
+
+  .export-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .loading-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .export-error {
+    padding: 0.5rem;
+    background: rgba(244, 67, 54, 0.1);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    color: var(--danger, #f44336);
+    border-radius: 4px;
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+  }
+
+  .export-success {
+    padding: 0.5rem;
+    background: rgba(76, 175, 80, 0.1);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    color: var(--success, #4CAF50);
+    border-radius: 4px;
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+  }
 </style>
 
 <div class="results-display">
@@ -531,7 +673,24 @@
     <div class:stale-results-overlay={resultsStale}>
       <div class="batch-summary">
         <div class="batch-header">
-          <h2>Batch Analysis Results</h2>
+          <div class="header-top">
+            <h2>Batch Analysis Results</h2>
+            <div class="header-actions">
+              <button
+                class="export-button"
+                on:click={handleExport}
+                disabled={isExporting || batchResults.length === 0 || isProcessing}
+                title="Export results to CSV file"
+              >
+                {#if isExporting}
+                  <span class="loading-spinner"></span>
+                  Exporting...
+                {:else}
+                  📊 Export CSV
+                {/if}
+              </button>
+            </div>
+          </div>
           {#if folderName}
             <div class="folder-name">
               <span class="folder-icon">📁</span>
@@ -540,6 +699,16 @@
               {:else}
                 <span>{folderName}</span>
               {/if}
+            </div>
+          {/if}
+          {#if exportError}
+            <div class="export-error">
+              ❌ Failed to export: {exportError}
+            </div>
+          {/if}
+          {#if exportSuccess}
+            <div class="export-success">
+              ✓ CSV file downloaded successfully
             </div>
           {/if}
         </div>
