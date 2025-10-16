@@ -1348,9 +1348,19 @@ export class LevelAnalyzer {
 
   median(arr) {
     if (arr.length === 0) return 0;
-    const sorted = [...arr].sort((a, b) => a - b);
-    const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    const mid = Math.floor(arr.length / 2);
+
+    // Use quickselect for O(n) performance instead of sorting O(n log n)
+    if (arr.length % 2 !== 0) {
+      // Odd length: return middle element
+      return this.quickSelect([...arr], mid);
+    } else {
+      // Even length: return average of two middle elements
+      const copy = [...arr];
+      const lower = this.quickSelect([...copy], mid - 1);
+      const upper = this.quickSelect([...copy], mid);
+      return (lower + upper) / 2;
+    }
   }
 
   /**

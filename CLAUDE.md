@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Testing Requirements
 - All feature branches run CI automatically (tests, TypeScript checks, linting)
-- **739 tests must pass** before any code reaches production
+- **768 tests must pass** before any code reaches production
 - If tests fail on your feature branch, fix them before creating a PR
 
 ### When to Update Test Mocks

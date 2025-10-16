@@ -118,8 +118,8 @@
         updateAvailable = true;
       });
 
-      // Expose to console for testing (non-DEV builds only)
-      if (!import.meta.env.DEV) {
+      // Expose to console for testing (beta builds only for security)
+      if (import.meta.env.MODE === 'beta') {
         (window as any).__versionCheck = {
           triggerBanner: () => { updateAvailable = true; },
           checkNow: () => versionCheckService.checkForUpdates(),
