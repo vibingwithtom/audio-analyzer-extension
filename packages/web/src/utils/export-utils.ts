@@ -324,7 +324,7 @@ function generateDynamicRecommendation(
 /**
  * Analyzes a single AudioResults object and extracts failure information with recommendations
  */
-function analyzeFailuresWithRecommendations(
+export function analyzeFailuresWithRecommendations(
   result: AudioResults,
   options: EnhancedExportOptions
 ): FailureAnalysis {
