@@ -190,6 +190,45 @@ function extractDataRow(result: AudioResults, mode: ExportOptions['mode']): stri
 }
 
 /**
+ * Quality analysis thresholds
+ * Centralized constants for maintainability and consistency with UI
+ */
+const QUALITY_THRESHOLDS = {
+  clipping: {
+    CRITICAL_PERCENTAGE: 1,      // > 1% is critical
+    CRITICAL_EVENTS: 50,          // > 50 events is critical
+    MAJOR_PERCENTAGE: 0.1,        // > 0.1% is major
+    MAJOR_EVENTS: 10,             // > 10 events is major
+    NEAR_CLIPPING: 1              // > 1% near-clipping is major
+  },
+  noiseFloor: {
+    WARNING_DB: -50,              // > -50 dB is concerning
+    CRITICAL_DB: -40              // > -40 dB is critical
+  },
+  reverb: {
+    POOR_TIME: 1.2,               // > 1.2s is poor
+    EXCESSIVE_TIME: 1.5           // > 1.5s is excessive
+  },
+  silence: {
+    LEADING_THRESHOLD: 1,         // > 1s leading silence
+    TRAILING_THRESHOLD: 1,        // > 1s trailing silence
+    GAP_THRESHOLD: 2              // > 2s silence gap
+  },
+  speechOverlap: {
+    WARNING_PERCENTAGE: 5,        // > 5% is concerning
+    CRITICAL_PERCENTAGE: 15       // > 15% is critical
+  },
+  micBleed: {
+    OLD_THRESHOLD_DB: -60,        // > -60 dB old method
+    NEW_THRESHOLD_PERCENTAGE: 0.5, // > 0.5% new method
+    SEVERE_SCORE: 70              // > 70 severity score is severe
+  },
+  channelConsistency: {
+    PERFECT: 100                  // < 100% is flagged
+  }
+} as const;
+
+/**
  * Static recommendation templates for different issue types
  */
 const RECOMMENDATION_TEMPLATES = {
@@ -216,6 +255,10 @@ const RECOMMENDATION_TEMPLATES = {
     unsupported: "File must be in a supported audio format.",
     compressed: "File must be uncompressed.",
     generic: "File must be in a supported audio format."
+  },
+  normalization: {
+    notNormalized: "Normalize audio to target level before submission.",
+    generic: "Check normalization settings and re-process audio."
   },
   clipping: {
     minor: "Reduce recording gain slightly to avoid clipping.",
@@ -244,7 +287,7 @@ const RECOMMENDATION_TEMPLATES = {
     high: "Encourage better turn-taking in conversations.",
     excessive: "Implement stricter speaking protocols to reduce simultaneous speech."
   }
-};
+} as const;
 
 /**
  * Converts channel count to human-readable format (e.g., 1 -> "Mono (1 channel)")
@@ -284,18 +327,30 @@ function formatChannelLayout(result: AudioResults): string {
 }
 
 /**
+ * Type-safe template lookup for recommendations
+ */
+type RecommendationTemplate = typeof RECOMMENDATION_TEMPLATES;
+type IssueType = keyof RecommendationTemplate;
+type SubType<T extends IssueType> = keyof RecommendationTemplate[T];
+
+/**
  * Generates context-aware recommendations based on criteria and failure types
  */
 function generateDynamicRecommendation(
-  issueType: keyof typeof RECOMMENDATION_TEMPLATES,
+  issueType: IssueType,
   subType: string,
-  actualValue: any,
+  actualValue: number | string | null,
   criteria: AudioCriteria | null | undefined
 ): string {
-  const template = (RECOMMENDATION_TEMPLATES[issueType] as any)?.[subType] ||
-                  (RECOMMENDATION_TEMPLATES[issueType] as any)?.generic;
+  // Type-safe template lookup
+  const templates = RECOMMENDATION_TEMPLATES[issueType];
+  const template = (templates as Record<string, string>)[subType] ||
+                   (templates as Record<string, string>).generic ||
+                   templates;
 
-  if (!template) return "Please review file properties.";
+  if (typeof template !== 'string') {
+    return "Please review file properties.";
+  }
 
   // Add criteria-specific context without mentioning preset name
   if (issueType === 'sampleRate' && criteria?.sampleRate?.length) {
@@ -400,7 +455,7 @@ export function analyzeFailuresWithRecommendations(
   if (result.normalizationStatus && result.normalizationStatus.status !== 'normalized') {
     qualityIssues.push(`Normalization: ${result.normalizationStatus.status}`);
     issueCount++;
-    recommendations.push(generateDynamicRecommendation('silence', 'leadingExcess', null, null));
+    recommendations.push(generateDynamicRecommendation('normalization', 'notNormalized', null, null));
   }
 
   // Clipping Analysis (aligned with UI thresholds)
@@ -408,20 +463,22 @@ export function analyzeFailuresWithRecommendations(
     const { clippedPercentage, clippingEventCount, nearClippingPercentage } = result.clippingAnalysis;
     let clipSeverity = '';
 
-    // Hard clipping > 1% OR > 50 events → error
-    if (clippedPercentage > 1 || clippingEventCount > 50) {
+    // Hard clipping > CRITICAL_PERCENTAGE% OR > CRITICAL_EVENTS events → error
+    if (clippedPercentage > QUALITY_THRESHOLDS.clipping.CRITICAL_PERCENTAGE ||
+        clippingEventCount > QUALITY_THRESHOLDS.clipping.CRITICAL_EVENTS) {
       clipSeverity = 'critical';
     }
-    // Hard clipping 0.1-1% OR 10-50 events → warning
-    else if (clippedPercentage > 0.1 || clippingEventCount > 10) {
+    // Hard clipping > MAJOR_PERCENTAGE% OR > MAJOR_EVENTS events → warning
+    else if (clippedPercentage > QUALITY_THRESHOLDS.clipping.MAJOR_PERCENTAGE ||
+             clippingEventCount > QUALITY_THRESHOLDS.clipping.MAJOR_EVENTS) {
       clipSeverity = 'major';
     }
     // Any hard clipping → warning
     else if (clippedPercentage > 0 && clippingEventCount > 0) {
       clipSeverity = 'major';
     }
-    // Near clipping > 1% → warning
-    else if (nearClippingPercentage > 1) {
+    // Near clipping > NEAR_CLIPPING% → warning
+    else if (nearClippingPercentage > QUALITY_THRESHOLDS.clipping.NEAR_CLIPPING) {
       clipSeverity = 'major';
     }
 
@@ -432,9 +489,9 @@ export function analyzeFailuresWithRecommendations(
     }
   }
 
-  // Noise Floor Analysis (aligned with UI thresholds: > -50 is warning)
-  if (result.noiseFloorDb !== undefined && result.noiseFloorDb > -50) {
-    const severity = result.noiseFloorDb > -40 ? 'critical' : 'high';
+  // Noise Floor Analysis (aligned with UI thresholds)
+  if (result.noiseFloorDb !== undefined && result.noiseFloorDb > QUALITY_THRESHOLDS.noiseFloor.WARNING_DB) {
+    const severity = result.noiseFloorDb > QUALITY_THRESHOLDS.noiseFloor.CRITICAL_DB ? 'critical' : 'high';
     qualityIssues.push(`High noise floor: ${result.noiseFloorDb.toFixed(1)} dB`);
     issueCount++;
     recommendations.push(generateDynamicRecommendation('noiseFloor', severity, result.noiseFloorDb, null));
@@ -442,27 +499,27 @@ export function analyzeFailuresWithRecommendations(
 
   // Reverb Analysis
   if (result.reverbInfo?.label &&
-      (result.reverbInfo.label.includes('Poor') || result.reverbInfo.time > 1.2)) {
-    const severity = result.reverbInfo.time > 1.5 ? 'excessive' : 'poor';
+      (result.reverbInfo.label.includes('Poor') || result.reverbInfo.time > QUALITY_THRESHOLDS.reverb.POOR_TIME)) {
+    const severity = result.reverbInfo.time > QUALITY_THRESHOLDS.reverb.EXCESSIVE_TIME ? 'excessive' : 'poor';
     qualityIssues.push(`${result.reverbInfo.label}: ${result.reverbInfo.time.toFixed(2)}s RT60`);
     issueCount++;
     recommendations.push(generateDynamicRecommendation('reverb', severity, result.reverbInfo.time, null));
   }
 
   // Silence Analysis (aligned with UI thresholds)
-  if (result.leadingSilence !== undefined && result.leadingSilence > 1) {
+  if (result.leadingSilence !== undefined && result.leadingSilence > QUALITY_THRESHOLDS.silence.LEADING_THRESHOLD) {
     qualityIssues.push(`Leading silence: ${result.leadingSilence.toFixed(1)}s`);
     issueCount++;
     recommendations.push(generateDynamicRecommendation('silence', 'leadingExcess', result.leadingSilence, null));
   }
 
-  if (result.trailingSilence !== undefined && result.trailingSilence > 1) {
+  if (result.trailingSilence !== undefined && result.trailingSilence > QUALITY_THRESHOLDS.silence.TRAILING_THRESHOLD) {
     qualityIssues.push(`Trailing silence: ${result.trailingSilence.toFixed(1)}s`);
     issueCount++;
     recommendations.push(generateDynamicRecommendation('silence', 'trailingExcess', result.trailingSilence, null));
   }
 
-  if (result.longestSilence !== undefined && result.longestSilence > 2) {
+  if (result.longestSilence !== undefined && result.longestSilence > QUALITY_THRESHOLDS.silence.GAP_THRESHOLD) {
     qualityIssues.push(`Silence gap: ${result.longestSilence.toFixed(1)}s`);
     issueCount++;
     recommendations.push(generateDynamicRecommendation('silence', 'gapsExcess', result.longestSilence, null));
@@ -470,31 +527,32 @@ export function analyzeFailuresWithRecommendations(
 
   // Mic Bleed Analysis
   const micBleedDetected = result.micBleed && (
-    (result.micBleed.old?.leftChannelBleedDb > -60 || result.micBleed.old?.rightChannelBleedDb > -60) ||
-    (result.micBleed.new?.percentageConfirmedBleed > 0.5)
+    (result.micBleed.old?.leftChannelBleedDb > QUALITY_THRESHOLDS.micBleed.OLD_THRESHOLD_DB ||
+     result.micBleed.old?.rightChannelBleedDb > QUALITY_THRESHOLDS.micBleed.OLD_THRESHOLD_DB) ||
+    (result.micBleed.new?.percentageConfirmedBleed > QUALITY_THRESHOLDS.micBleed.NEW_THRESHOLD_PERCENTAGE)
   );
   if (micBleedDetected) {
-    const severity = (result.micBleed.new?.severityScore || 0) > 70 ? 'severe' : 'detected';
+    const severity = (result.micBleed.new?.severityScore || 0) > QUALITY_THRESHOLDS.micBleed.SEVERE_SCORE ? 'severe' : 'detected';
     qualityIssues.push(`Mic bleed detected`);
     issueCount++;
     recommendations.push(generateDynamicRecommendation('micBleed', severity, null, null));
   }
 
-  // Speech Overlap Analysis (aligned with UI thresholds: 5-15% warning, > 15% error)
+  // Speech Overlap Analysis (aligned with UI thresholds)
   if (result.conversationalAnalysis?.overlap) {
     const percentage = result.conversationalAnalysis.overlap.overlapPercentage;
-    if (percentage > 5) {
-      const severity = percentage > 15 ? 'excessive' : 'high';
+    if (percentage > QUALITY_THRESHOLDS.speechOverlap.WARNING_PERCENTAGE) {
+      const severity = percentage > QUALITY_THRESHOLDS.speechOverlap.CRITICAL_PERCENTAGE ? 'excessive' : 'high';
       qualityIssues.push(`Speech overlap: ${percentage.toFixed(1)}%`);
       issueCount++;
       recommendations.push(generateDynamicRecommendation('speechOverlap', severity, percentage, null));
     }
   }
 
-  // Channel Consistency Analysis (aligned with UI thresholds: < 90% error, 90-99% warning)
+  // Channel Consistency Analysis (aligned with UI thresholds)
   if (result.conversationalAnalysis?.consistency) {
     const percentage = result.conversationalAnalysis.consistency.consistencyPercentage;
-    if (percentage < 100) {
+    if (percentage < QUALITY_THRESHOLDS.channelConsistency.PERFECT) {
       qualityIssues.push(`Channel consistency: ${percentage.toFixed(1)}%`);
       issueCount++;
       // Use speechOverlap recommendation for now (should be similar guidance)
