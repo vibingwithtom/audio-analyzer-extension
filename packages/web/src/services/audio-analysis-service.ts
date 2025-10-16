@@ -1,9 +1,18 @@
-import { AudioAnalyzer, LevelAnalyzer, CriteriaValidator } from '@audio-analyzer/core';
+import { AudioAnalyzer, LevelAnalyzer, CriteriaValidator, AnalysisCancelledError } from '@audio-analyzer/core';
 import { FilenameValidator } from '../validation/filename-validator';
 import type { AudioResults, ValidationResults } from '../types';
 import type { AnalysisMode } from '../stores/analysisMode';
 import type { PresetConfig } from '../settings/types';
 import { analyticsService } from './analytics-service';
+
+// Track all active LevelAnalyzer instances for concurrent batch processing
+const activeLevelAnalyzers = new Set<LevelAnalyzer>();
+
+export function cancelCurrentAnalysis() {
+  // Cancel all active analyzers (for batch processing)
+  activeLevelAnalyzers.forEach(analyzer => analyzer.cancelAnalysis());
+  activeLevelAnalyzers.clear();
+}
 
 export interface AnalysisOptions {
   analysisMode: AnalysisMode;
@@ -15,6 +24,8 @@ export interface AnalysisOptions {
   speakerId?: string;
   // Skip individual file tracking during batch operations (to save Umami events)
   skipIndividualTracking?: boolean;
+  // NEW: Progress callback for UI feedback
+  progressCallback?: (message: string, progress: number) => void;
 }
 
 /**
@@ -34,7 +45,7 @@ export async function analyzeAudioFile(
 ): Promise<AudioResults> {
   const startTime = Date.now();
   let result: AudioResults | null = null;
-  const { analysisMode: mode, preset, presetId, criteria, scriptsList, speakerId, skipIndividualTracking } = options;
+  const { analysisMode: mode, preset, presetId, criteria, scriptsList, speakerId, skipIndividualTracking, progressCallback } = options;
   const filename = file instanceof File ? file.name : 'unknown';
 
   try {
@@ -53,12 +64,23 @@ export async function analyzeAudioFile(
       result = await analyzeMetadataOnly(file, filename, options);
     } else {
       // Full audio analysis
-      result = await analyzeFullFile(file, filename, mode, preset, presetId, criteria, scriptsList, speakerId);
+      result = await analyzeFullFile(file, filename, mode, preset, presetId, criteria, scriptsList, speakerId, progressCallback);
     }
 
     return result;
   } catch (error) {
-    // Always track errors, even in batch mode
+    // Handle cancellation gracefully (don't track as error)
+    if (error instanceof AnalysisCancelledError) {
+      analyticsService.track('analysis_cancelled', {
+        filename,
+        stage: (error as any).stage,
+        analysisMode: options.analysisMode,
+        fileSize: file.size,
+      });
+      throw error; // Re-throw for UI to handle
+    }
+
+    // Always track other errors
     analyticsService.track('analysis_error', {
       filename,
       error: error instanceof Error ? error.message : String(error),
@@ -135,8 +157,14 @@ async function analyzeFullFile(
   presetId?: string,
   criteria?: any,
   scriptsList?: string[],
-  speakerId?: string
+  speakerId?: string,
+  progressCallback?: (message: string, progress: number) => void
 ): Promise<AudioResults> {
+  // Report progress for basic analysis
+  if (progressCallback) {
+    progressCallback('Reading file...', 0);
+  }
+
   // Basic audio analysis
   const audioAnalyzer = new AudioAnalyzer();
   const basicResults = await audioAnalyzer.analyzeFile(file);
@@ -155,10 +183,15 @@ async function analyzeFullFile(
     ...(basicResults as any)  // Spread after defaults so basicResults can override
   };
 
+  // Report progress after basic analysis
+  if (progressCallback) {
+    progressCallback('Validating properties...', 0.5);
+  }
+
   // Advanced/Experimental analysis
   if (mode === 'experimental') {
     const arrayBuffer = await file.arrayBuffer();
-    const advancedResults = await analyzeExperimental(arrayBuffer);
+    const advancedResults = await analyzeExperimental(arrayBuffer, progressCallback);
     result = { ...result, ...advancedResults };
 
     // Track experimental feature usage
@@ -189,47 +222,64 @@ async function analyzeFullFile(
     result.status = determineOverallStatus(validation);
   }
 
+  // Report completion
+  if (progressCallback) {
+    progressCallback('Analysis complete', 1.0);
+  }
+
   return result;
 }
 
 /**
  * Runs experimental analysis: peak levels, reverb, noise floor, stereo separation, mic bleed.
  */
-async function analyzeExperimental(arrayBuffer: ArrayBuffer): Promise<Partial<AudioResults>> {
+async function analyzeExperimental(
+  arrayBuffer: ArrayBuffer,
+  progressCallback?: (message: string, progress: number) => void
+): Promise<Partial<AudioResults>> {
   const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
   const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-  // Create a new LevelAnalyzer instance to avoid concurrent analysis conflicts
+  // Create a new LevelAnalyzer instance for this analysis (not shared with other concurrent analyses)
   const levelAnalyzer = new LevelAnalyzer();
+  activeLevelAnalyzers.add(levelAnalyzer);
 
-  // Run level analysis with experimental features (reverb, noise floor, silence)
-  const advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer, null, true) as any;
+  try {
+    // Run level analysis with experimental features (reverb, noise floor, silence)
+    const advancedResults = await (levelAnalyzer as any).analyzeAudioBuffer(audioBuffer, progressCallback ?? null, true);
 
-  // Add stereo separation analysis
-  const stereoSeparation = levelAnalyzer.analyzeStereoSeparation(audioBuffer) as any;
-  if (stereoSeparation) {
-    advancedResults.stereoSeparation = stereoSeparation;
+    // Re-enable analysisInProgress for additional analyses
+    (levelAnalyzer as any).analysisInProgress = true;
 
-    // Add mic bleed analysis (only meaningful for conversational stereo files)
-    if (stereoSeparation.stereoType === 'Conversational Stereo') {
-      const micBleed = levelAnalyzer.analyzeMicBleed(audioBuffer);
-      if (micBleed) {
-        advancedResults.micBleed = micBleed;
-      }
+    // Add stereo separation analysis
+    const stereoSeparation = levelAnalyzer.analyzeStereoSeparation(audioBuffer) as any;
+    if (stereoSeparation) {
+      advancedResults.stereoSeparation = stereoSeparation;
 
-      // Add conversational audio analysis (overlap, consistency, sync)
-      const conversationalAnalysis = levelAnalyzer.analyzeConversationalAudio(
-        audioBuffer,
-        advancedResults.noiseFloorDb,
-        advancedResults.peakDb
-      );
-      if (conversationalAnalysis) {
-        advancedResults.conversationalAnalysis = conversationalAnalysis;
+      // Add mic bleed analysis (only meaningful for conversational stereo files)
+      if (stereoSeparation.stereoType === 'Conversational Stereo') {
+        const micBleed = levelAnalyzer.analyzeMicBleed(audioBuffer);
+        if (micBleed) {
+          advancedResults.micBleed = micBleed;
+        }
+
+        // Add conversational audio analysis (overlap, consistency, sync)
+        const conversationalAnalysis = levelAnalyzer.analyzeConversationalAudio(
+          audioBuffer,
+          advancedResults.noiseFloorDb,
+          advancedResults.peakDb
+        );
+        if (conversationalAnalysis) {
+          advancedResults.conversationalAnalysis = conversationalAnalysis;
+        }
       }
     }
-  }
 
-  return advancedResults as Partial<AudioResults>;
+    return advancedResults as Partial<AudioResults>;
+  } finally {
+    (levelAnalyzer as any).analysisInProgress = false;
+    activeLevelAnalyzers.delete(levelAnalyzer);
+  }
 }
 
 /**

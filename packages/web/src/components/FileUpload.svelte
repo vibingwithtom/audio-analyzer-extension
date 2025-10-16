@@ -14,6 +14,11 @@
 
   $: isDisabled = processing || disabled;
 
+  function handleInputChange(event: Event) {
+    console.log('FileUpload handleInputChange', event);
+    dispatch('change', event);
+  }
+
   function handleDragOver(event: DragEvent) {
     event.preventDefault();
     if (!isDisabled) {
@@ -276,7 +281,7 @@
     <label for={id} class="file-upload-label" class:disabled={isDisabled}>
       <span>{isDisabled && !processing ? 'Configure preset to enable' : processing ? 'Processing...' : multiple ? 'Choose Audio Files' : 'Choose Audio File'}</span>
     </label>
-    <input type="file" {id} {accept} {multiple} on:change disabled={isDisabled} class="file-input" />
+    <input type="file" {id} {accept} {multiple} on:change={handleInputChange} disabled={isDisabled} class="file-input" />
 
     <div class="drop-instruction">{isDisabled && !processing ? 'Select a preset in Settings to analyze files' : `or drag and drop ${multiple ? 'files/folders' : 'file'} here`}</div>
   </div>

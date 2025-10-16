@@ -9,27 +9,49 @@
   import { isSimplifiedMode } from '../stores/simplifiedMode';
   import type { AudioResults, ValidationResults } from '../types';
   import { analyticsService } from '../services/analytics-service';
+  import { AnalysisCancelledError } from '@audio-analyzer/core';
+
+  let analysisProgress = $state({
+    visible: false,
+    filename: '',
+    message: '',
+    progress: 0,
+    cancelling: false,
+    batchCurrent: 0,
+    batchTotal: 0
+  });
+
+  function createProgressCallback(filename: string, current: number = 1, total: number = 1) {
+    return (message: string, progress: number) => {
+      analysisProgress.visible = true;
+      analysisProgress.filename = filename;
+      analysisProgress.message = message;
+      analysisProgress.progress = progress;
+      analysisProgress.batchCurrent = current;
+      analysisProgress.batchTotal = total;
+    };
+  }
 
   function goToSettings() {
     currentTab.setTab('settings');
   }
 
-  let processing = false;
-  let error = '';
-  let results: AudioResults | null = null;
-  let validation: ValidationResults | null = null;
-  let currentAudioUrl: string | null = null;
-  let currentFile: File | null = null;
-  let resultsStale = false;
-  let resultsMode: AnalysisMode | null = null; // The mode used to generate current results
+  let processing = $state(false);
+  let error = $state('');
+  let results = $state<AudioResults | null>(null);
+  let validation = $state<ValidationResults | null>(null);
+  let currentAudioUrl = $state<string | null>(null);
+  let currentFile = $state<File | null>(null);
+  let resultsStale = $state(false);
+  let resultsMode = $state<AnalysisMode | null>(null); // The mode used to generate current results
 
   // Batch processing state
-  let batchResults: AudioResults[] = [];
-  let totalFiles = 0;
-  let processedFiles = 0;
-  let isBatchMode = false;
-  let cancelRequested = false;
-  let batchFiles: File[] = []; // Store files for reprocessing
+  let batchResults = $state<AudioResults[]>([]);
+  let totalFiles = $state(0);
+  let processedFiles = $state(0);
+  let isBatchMode = $state(false);
+  let cancelRequested = $state(false);
+  let batchFiles = $state<File[]>([]); // Store files for reprocessing
 
   // Cleanup blob URLs when component is destroyed
   function cleanup() {
@@ -49,9 +71,11 @@
   onDestroy(cleanup);
 
   // Auto-set mode for auditions presets (watch for preset changes)
-  $: if ($currentPresetId?.startsWith('auditions-') && $analysisMode !== 'audio-only') {
-    setAnalysisMode('audio-only');
-  }
+  $effect(() => {
+    if ($currentPresetId?.startsWith('auditions-') && $analysisMode !== 'audio-only') {
+      setAnalysisMode('audio-only');
+    }
+  });
 
   // Helper functions for smart staleness detection
   // For audio properties, check if they were VALIDATED, not just if raw data exists
@@ -106,7 +130,7 @@
   }
 
   // Smart staleness detection - only mark stale if new mode needs data we don't have
-  $: {
+  $effect(() => {
     if ((results || (isBatchMode && batchResults.length > 0)) && resultsMode !== null) {
       if ($analysisMode === resultsMode) {
         resultsStale = false;
@@ -129,7 +153,7 @@
         resultsStale = isStale;
       }
     }
-  }
+  });
 
   async function processFile(file: File) {
     // Clean up previous blob URL if exists
@@ -149,7 +173,8 @@
         analysisMode: $analysisMode,
         preset: $currentPresetId ? availablePresets[$currentPresetId] : null,
         presetId: $currentPresetId,
-        criteria: $currentCriteria
+        criteria: $currentCriteria,
+        progressCallback: createProgressCallback(file.name)
       });
 
       // Create blob URL for audio playback
@@ -160,30 +185,57 @@
       validation = analysisResults.validation || null;
       resultsMode = $analysisMode;
 
+      console.log('Results set:', results);
+
     } catch (err) {
+      console.error('Error in processFile:', err);
+      if (err instanceof AnalysisCancelledError) {
+        // Cancellation is not an error - just reset UI
+        analysisProgress.visible = false;
+        analysisProgress.cancelling = false;
+        return; // Don't show error message
+      }
       error = err instanceof Error ? err.message : 'Unknown error occurred';
       results = null;
+      console.log('Error set:', error);
     } finally {
       processing = false;
+      analysisProgress.visible = false;
+      analysisProgress.cancelling = false;
+
+      // Reset file input so same file can be selected again
+      const input = document.getElementById('local-file-upload') as HTMLInputElement;
+      if (input) {
+        input.value = '';
+      }
     }
   }
 
   async function handleFileChange(event: CustomEvent) {
-    const inputElement = event.target as HTMLInputElement;
+    console.log('handleFileChange called', event);
+    // Get the original event from the CustomEvent detail
+    const originalEvent = event.detail as Event;
+    const inputElement = originalEvent.target as HTMLInputElement;
     const files = inputElement?.files;
+
+    console.log('Files selected:', files?.length);
 
     if (!files || files.length === 0) return;
 
     // Convert FileList to array
     const filesArray = Array.from(files);
 
+    console.log('Files array:', filesArray.length, filesArray);
+
     if (filesArray.length === 1) {
       // Single file mode
+      console.log('Single file mode');
       isBatchMode = false;
       batchResults = [];
       await processFile(filesArray[0]);
     } else {
       // Batch mode
+      console.log('Batch mode - processing', filesArray.length, 'files');
       isBatchMode = true;
       results = null;
       await processBatchFiles(filesArray);
@@ -223,7 +275,10 @@
         processedFiles = i + 1;
 
         try {
-          const result = await processSingleFile(file, true); // Pass true for batch mode
+          // Reset progress to 0 for new file
+          analysisProgress.progress = 0;
+          const progressCallback = createProgressCallback(file.name, i + 1, files.length);
+          const result = await processSingleFile(file, true, progressCallback);
 
           // Create blob URL for audio playback in batch mode
           const blobUrl = URL.createObjectURL(file);
@@ -231,7 +286,13 @@
 
           batchResults = [...batchResults, result];
         } catch (err) {
-          // Add error result (separate from validation failures)
+          // If cancelled, don't add incomplete result - just break
+          if (err instanceof AnalysisCancelledError) {
+            cancelRequested = true;
+            break;
+          }
+
+          // Add error result for real errors (not cancellations)
           batchResults = [...batchResults, {
             filename: file.name,
             fileSize: file.size,
@@ -275,17 +336,30 @@
 
       processing = false;
       cancelRequested = false;
+      analysisProgress.visible = false;
+      analysisProgress.cancelling = false;
+
+      // Reset file input so same files can be selected again
+      const input = document.getElementById('local-file-upload') as HTMLInputElement;
+      if (input) {
+        input.value = '';
+      }
     }
   }
 
-  async function processSingleFile(file: File, isBatchMode: boolean = false): Promise<AudioResults> {
+  async function processSingleFile(
+    file: File,
+    isBatchMode: boolean = false,
+    progressCallback?: (message: string, progress: number) => void
+  ): Promise<AudioResults> {
     // Use shared analysis service
     return await analyzeAudioFile(file, {
       analysisMode: $analysisMode,
       preset: $currentPresetId ? availablePresets[$currentPresetId] : null,
       presetId: $currentPresetId,
       criteria: $currentCriteria,
-      skipIndividualTracking: isBatchMode // Skip per-file events during batch to save Umami quota
+      skipIndividualTracking: isBatchMode, // Skip per-file events during batch to save Umami quota
+      progressCallback
     });
   }
 
@@ -306,18 +380,26 @@
     }
   }
 
-  function handleCancelBatch() {
-    const cancelPercentage = totalFiles > 0 ? Math.round((processedFiles / totalFiles) * 100) : 0;
+  import { cancelCurrentAnalysis } from '../services/audio-analysis-service';
 
-    // Track batch cancellation
-    analyticsService.track('batch_processing_cancelled', {
-      source: 'local',
-      processedFiles,
-      totalFiles,
-      cancelledAt: cancelPercentage,
-    });
+  function handleCancel() {
+    if (isBatchMode) {
+      const cancelPercentage = totalFiles > 0 ? Math.round((processedFiles / totalFiles) * 100) : 0;
 
-    cancelRequested = true;
+      // Track batch cancellation
+      analyticsService.track('batch_processing_cancelled', {
+        source: 'local',
+        processedFiles,
+        totalFiles,
+        cancelledAt: cancelPercentage,
+      });
+
+      cancelRequested = true; // For batch loop
+    }
+    
+    analysisProgress.cancelling = true;
+    analysisProgress.message = 'Cancelling...';
+    cancelCurrentAnalysis(); // For level-analyzer
   }
 </script>
 
@@ -501,17 +583,89 @@
     line-height: 1.2;
   }
 
-  .three-hour-note {
-    margin-top: 1rem;
-    padding: 0.75rem;
-    background: rgba(59, 130, 246, 0.1);
-    border-left: 3px solid var(--primary, #2563eb);
-    border-radius: 4px;
-    font-size: 0.875rem;
-    color: var(--text-primary, #333333);
+    .three-hour-note {
+
+      margin-top: 1rem;
+
+      padding: 0.75rem;
+
+      background: rgba(59, 130, 246, 0.1);
+
+      border-left: 3px solid var(--primary, #2563eb);
+
+      border-radius: 4px;
+
+      font-size: 0.875rem;
+
+      color: var(--text-primary, #333333);
+
+    }
+
+  
+
+  .analysis-progress {
+    margin: 1.5rem 0;
+    padding: 1.25rem;
+    background: var(--bg-secondary, #ffffff);
+    border: 1px solid var(--bg-tertiary, #e0e0e0);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   }
 
-</style>
+  .batch-counter {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--primary, #2563eb);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--bg-tertiary, #e0e0e0);
+  }
+
+  .progress-filename {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--text-primary, #333333);
+    margin-bottom: 0.5rem;
+  }
+
+  .progress-message {
+    font-size: 0.8125rem;
+    color: var(--text-secondary, #666666);
+    margin-bottom: 0.75rem;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--bg-tertiary, #e0e0e0);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent-color, #2563eb);
+    transition: width 0.3s ease;
+  }
+
+  .cancel-button {
+    padding: 0.5rem 1rem;
+    background: var(--error-color, #dc3545);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .cancel-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  </style>
 
 <div class="local-file-tab">
   {#if !$hasValidPresetConfig}
@@ -651,6 +805,33 @@
     </div>
   {/if}
 
+  <!-- Unified Progress Bar -->
+  {#if analysisProgress.visible}
+    <div class="analysis-progress">
+      {#if analysisProgress.batchTotal > 1}
+        <!-- Batch mode: Show file count and current file progress -->
+        <div class="batch-counter">
+          Processing file {analysisProgress.batchCurrent} of {analysisProgress.batchTotal}
+        </div>
+        <div class="progress-filename">{analysisProgress.filename}</div>
+        <div class="progress-message">{analysisProgress.message} ({Math.round(analysisProgress.progress * 100)}%)</div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: {analysisProgress.progress * 100}%"></div>
+        </div>
+      {:else}
+        <!-- Single file mode: Show only file progress -->
+        <div class="progress-filename">{analysisProgress.filename}</div>
+        <div class="progress-message">{analysisProgress.message} ({Math.round(analysisProgress.progress * 100)}%)</div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: {analysisProgress.progress * 100}%"></div>
+        </div>
+      {/if}
+      <button class="cancel-button" on:click={handleCancel} disabled={analysisProgress.cancelling}>
+        {analysisProgress.cancelling ? 'Cancelling...' : 'Cancel Analysis'}
+      </button>
+    </div>
+  {/if}
+
   <!-- Results Display Component -->
   <ResultsDisplay
     results={isBatchMode ? batchResults : results}
@@ -661,7 +842,8 @@
     {processedFiles}
     {totalFiles}
     onReprocess={handleReprocess}
-    onCancel={handleCancelBatch}
+    onCancel={handleCancel}
     {cancelRequested}
+    showBuiltInProgress={false}
   />
 </div>

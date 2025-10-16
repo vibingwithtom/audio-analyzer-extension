@@ -9,6 +9,13 @@ vi.mock('@audio-analyzer/core', () => ({
   LevelAnalyzer: vi.fn(),
   CriteriaValidator: {
     validateResults: vi.fn()
+  },
+  AnalysisCancelledError: class extends Error {
+    constructor(message, stage) {
+      super(message);
+      this.name = 'AnalysisCancelledError';
+      this.stage = stage;
+    }
   }
 }));
 
