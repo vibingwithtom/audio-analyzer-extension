@@ -396,20 +396,46 @@ function analyzeFailuresWithRecommendations(
   // 3. Quality/Experimental Issues
   const qualityIssues: string[] = [];
 
-  // Clipping Analysis
-  if (result.clippingAnalysis && result.clippingAnalysis.clippingEventCount > 0) {
-    const percentage = result.clippingAnalysis.clippedPercentage;
-    const severity = percentage > 5 ? 'critical' : percentage > 1 ? 'major' : 'minor';
-    qualityIssues.push(`Clipping: ${percentage.toFixed(2)}% (${severity})`);
+  // Normalization Analysis
+  if (result.normalizationStatus && result.normalizationStatus.status !== 'normalized') {
+    qualityIssues.push(`Normalization: ${result.normalizationStatus.status}`);
     issueCount++;
-    recommendations.push(generateDynamicRecommendation('clipping', severity, percentage, null));
+    recommendations.push(generateDynamicRecommendation('silence', 'leadingExcess', null, null));
   }
 
-  // Noise Floor Analysis (more sensitive threshold)
-  if (result.noiseFloorDb !== undefined && result.noiseFloorDb > -55) {
-    const severity = result.noiseFloorDb > -40 ? 'critical' :
-                    result.noiseFloorDb > -50 ? 'veryHigh' : 'high';
-    qualityIssues.push(`High noise floor: ${result.noiseFloorDb.toFixed(1)} dB (${severity})`);
+  // Clipping Analysis (aligned with UI thresholds)
+  if (result.clippingAnalysis) {
+    const { clippedPercentage, clippingEventCount, nearClippingPercentage } = result.clippingAnalysis;
+    let clipSeverity = '';
+
+    // Hard clipping > 1% OR > 50 events → error
+    if (clippedPercentage > 1 || clippingEventCount > 50) {
+      clipSeverity = 'critical';
+    }
+    // Hard clipping 0.1-1% OR 10-50 events → warning
+    else if (clippedPercentage > 0.1 || clippingEventCount > 10) {
+      clipSeverity = 'major';
+    }
+    // Any hard clipping → warning
+    else if (clippedPercentage > 0 && clippingEventCount > 0) {
+      clipSeverity = 'major';
+    }
+    // Near clipping > 1% → warning
+    else if (nearClippingPercentage > 1) {
+      clipSeverity = 'major';
+    }
+
+    if (clipSeverity) {
+      qualityIssues.push(`Clipping: ${clippedPercentage.toFixed(2)}% (${clipSeverity})`);
+      issueCount++;
+      recommendations.push(generateDynamicRecommendation('clipping', clipSeverity, clippedPercentage, null));
+    }
+  }
+
+  // Noise Floor Analysis (aligned with UI thresholds: > -50 is warning)
+  if (result.noiseFloorDb !== undefined && result.noiseFloorDb > -50) {
+    const severity = result.noiseFloorDb > -40 ? 'critical' : 'high';
+    qualityIssues.push(`High noise floor: ${result.noiseFloorDb.toFixed(1)} dB`);
     issueCount++;
     recommendations.push(generateDynamicRecommendation('noiseFloor', severity, result.noiseFloorDb, null));
   }
@@ -454,13 +480,26 @@ function analyzeFailuresWithRecommendations(
     recommendations.push(generateDynamicRecommendation('micBleed', severity, null, null));
   }
 
-  // Speech Overlap Analysis
-  if (result.conversationalAnalysis?.overlap && result.conversationalAnalysis.overlap.overlapPercentage > 15) {
+  // Speech Overlap Analysis (aligned with UI thresholds: 5-15% warning, > 15% error)
+  if (result.conversationalAnalysis?.overlap) {
     const percentage = result.conversationalAnalysis.overlap.overlapPercentage;
-    const severity = percentage > 25 ? 'excessive' : 'high';
-    qualityIssues.push(`Speech overlap: ${percentage.toFixed(1)}% (${severity})`);
-    issueCount++;
-    recommendations.push(generateDynamicRecommendation('speechOverlap', severity, percentage, null));
+    if (percentage > 5) {
+      const severity = percentage > 15 ? 'excessive' : 'high';
+      qualityIssues.push(`Speech overlap: ${percentage.toFixed(1)}%`);
+      issueCount++;
+      recommendations.push(generateDynamicRecommendation('speechOverlap', severity, percentage, null));
+    }
+  }
+
+  // Channel Consistency Analysis (aligned with UI thresholds: < 90% error, 90-99% warning)
+  if (result.conversationalAnalysis?.consistency) {
+    const percentage = result.conversationalAnalysis.consistency.consistencyPercentage;
+    if (percentage < 100) {
+      qualityIssues.push(`Channel consistency: ${percentage.toFixed(1)}%`);
+      issueCount++;
+      // Use speechOverlap recommendation for now (should be similar guidance)
+      recommendations.push(generateDynamicRecommendation('speechOverlap', 'high', percentage, null));
+    }
   }
 
   // Compile results - combine both validation and quality issues
