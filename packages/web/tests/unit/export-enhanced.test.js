@@ -311,4 +311,132 @@ describe('Enhanced CSV Export', () => {
       }).not.toThrow();
     });
   });
+
+  describe('Configurable Failure Analysis and Recommendations', () => {
+    it('should include both failure analysis and recommendations by default', () => {
+      const options = {
+        mode: 'standard'
+      };
+
+      expect(() => {
+        exportResultsEnhanced(mockResults, options, 'auditions-character-recordings', 'audio-only', mockCriteria);
+      }).not.toThrow();
+    });
+
+    it('should exclude failure analysis when includeFailureAnalysis is false', () => {
+      const options = {
+        mode: 'standard',
+        includeFailureAnalysis: false
+      };
+
+      expect(() => {
+        exportResultsEnhanced(mockResults, options, 'auditions-character-recordings', 'audio-only', mockCriteria);
+      }).not.toThrow();
+    });
+
+    it('should exclude recommendations when includeRecommendations is false', () => {
+      const options = {
+        mode: 'standard',
+        includeRecommendations: false
+      };
+
+      expect(() => {
+        exportResultsEnhanced(mockResults, options, 'auditions-character-recordings', 'audio-only', mockCriteria);
+      }).not.toThrow();
+    });
+
+    it('should exclude both when both are false', () => {
+      const options = {
+        mode: 'standard',
+        includeFailureAnalysis: false,
+        includeRecommendations: false
+      };
+
+      expect(() => {
+        exportResultsEnhanced(mockResults, options, 'auditions-character-recordings', 'audio-only', mockCriteria);
+      }).not.toThrow();
+    });
+
+    it('should respect includeFailureAnalysis setting in experimental mode', () => {
+      const options = {
+        mode: 'experimental',
+        includeFailureAnalysis: false
+      };
+
+      expect(() => {
+        exportResultsEnhanced(mockResults, options, 'auditions-character-recordings', 'experimental', mockCriteria);
+      }).not.toThrow();
+    });
+
+    it('should respect includeRecommendations setting in experimental mode', () => {
+      const options = {
+        mode: 'experimental',
+        includeRecommendations: false
+      };
+
+      expect(() => {
+        exportResultsEnhanced(mockResults, options, 'auditions-character-recordings', 'experimental', mockCriteria);
+      }).not.toThrow();
+    });
+
+    it('should respect both settings in metadata-only mode', () => {
+      const options = {
+        mode: 'metadata-only',
+        includeFailureAnalysis: false,
+        includeRecommendations: false
+      };
+
+      expect(() => {
+        exportResultsEnhanced(mockResults, options, 'auditions-character-recordings', 'filename-only', mockCriteria);
+      }).not.toThrow();
+    });
+
+    it('should create blob with CSV content when both disabled', () => {
+      const options = {
+        mode: 'standard',
+        includeFailureAnalysis: false,
+        includeRecommendations: false
+      };
+
+      exportResultsEnhanced(mockResults, options, 'auditions-character-recordings', 'audio-only', mockCriteria);
+
+      expect(global.Blob).toHaveBeenCalled();
+    });
+
+    it('should handle mixed settings (failure analysis enabled, recommendations disabled)', () => {
+      const options = {
+        mode: 'standard',
+        includeFailureAnalysis: true,
+        includeRecommendations: false
+      };
+
+      expect(() => {
+        exportResultsEnhanced(mockResults, options, 'auditions-character-recordings', 'audio-only', mockCriteria);
+      }).not.toThrow();
+    });
+
+    it('should handle mixed settings (failure analysis disabled, recommendations enabled)', () => {
+      const options = {
+        mode: 'standard',
+        includeFailureAnalysis: false,
+        includeRecommendations: true
+      };
+
+      expect(() => {
+        exportResultsEnhanced(mockResults, options, 'auditions-character-recordings', 'audio-only', mockCriteria);
+      }).not.toThrow();
+    });
+
+    it('should work with undefined settings (defaulting to true)', () => {
+      const options = {
+        mode: 'standard',
+        includeFailureAnalysis: undefined,
+        includeRecommendations: undefined
+      };
+
+      expect(() => {
+        exportResultsEnhanced(mockResults, options, 'auditions-character-recordings', 'audio-only', mockCriteria);
+      }).not.toThrow();
+    });
+  });
 });
