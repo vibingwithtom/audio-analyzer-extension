@@ -1,6 +1,6 @@
 import type { AudioResults } from '../types';
 import type { AudioCriteria } from '../settings/types';
-import { formatDuration } from './format-utils';
+import { formatDuration, formatSampleRate as formatSampleRateUI, formatBytes, formatChannels, formatBitDepth } from './format-utils';
 import { analyticsService } from '../services/analytics-service';
 
 export interface ExportOptions {
@@ -145,11 +145,11 @@ function extractDataRow(result: AudioResults, mode: ExportOptions['mode']): stri
     return [
       ...baseRow,
       result.fileType || 'Unknown',
-      formatNumber(result.sampleRate, 0),
-      formatNumber(result.bitDepth, 0),
-      formatNumber(result.channels, 0),
+      formatSampleRateUI(result.sampleRate || 'Unknown'),
+      formatBitDepth(result.bitDepth || 'Unknown'),
+      formatChannels(result.channels || 'Unknown'),
       formatDuration(result.duration),
-      formatNumber(result.fileSize, 0),
+      formatBytes(result.fileSize || 0),
       result.audioUrl ? 'Yes' : 'No',
       result.externalUrl ? 'Yes' : 'No'
     ];
@@ -160,11 +160,11 @@ function extractDataRow(result: AudioResults, mode: ExportOptions['mode']): stri
     result.filename,
     result.status,
     result.fileType || 'Unknown',
-    formatNumber(result.sampleRate, 0),
-    formatNumber(result.bitDepth, 0),
-    formatNumber(result.channels, 0),
+    formatSampleRateUI(result.sampleRate || 'Unknown'),
+    formatBitDepth(result.bitDepth || 'Unknown'),
+    formatChannels(result.channels || 'Unknown'),
     formatDuration(result.duration),
-    formatNumber(result.fileSize, 0),
+    formatBytes(result.fileSize || 0),
     formatNumber(result.peakDb),
     formatNumber(result.noiseFloorDb),
     result.normalizationStatus?.status || 'N/A',
@@ -632,11 +632,11 @@ function extractEnhancedDataRow(
     const row = [
       ...baseRow,
       result.fileType || 'Unknown',
-      formatNumber(result.sampleRate, 0),
-      formatNumber(result.bitDepth, 0),
-      formatNumber(result.channels, 0),
+      formatSampleRateUI(result.sampleRate || 'Unknown'),
+      formatBitDepth(result.bitDepth || 'Unknown'),
+      formatChannels(result.channels || 'Unknown'),
       formatDuration(result.duration),
-      formatNumber(result.fileSize, 0)
+      formatBytes(result.fileSize || 0)
     ];
 
     if (options.includeFilenameValidation) {
@@ -656,11 +656,11 @@ function extractEnhancedDataRow(
     result.filename,
     result.status,
     result.fileType || 'Unknown',
-    formatNumber(result.sampleRate, 0),
-    formatNumber(result.bitDepth, 0),
-    formatNumber(result.channels, 0),
-    formatNumber(result.duration, 2),
-    formatNumber(result.fileSize, 0),
+    formatSampleRateUI(result.sampleRate || 'Unknown'),
+    formatBitDepth(result.bitDepth || 'Unknown'),
+    formatChannels(result.channels || 'Unknown'),
+    formatDuration(result.duration),
+    formatBytes(result.fileSize || 0),
     formatNumber(result.peakDb),
     formatNumber(result.noiseFloorDb),
     result.normalizationStatus?.status || 'N/A',
