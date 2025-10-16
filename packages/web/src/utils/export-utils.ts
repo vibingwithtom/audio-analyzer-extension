@@ -883,7 +883,9 @@ export function exportResultsEnhanced(
       dateFormat: options.dateFormat,
       includeFilenameValidation,
       currentPresetCriteria,
-      analysisMode: options.mode as 'standard' | 'experimental' | 'metadata-only'
+      analysisMode: options.mode as 'standard' | 'experimental' | 'metadata-only',
+      includeFailureAnalysis: (options as any).includeFailureAnalysis,
+      includeRecommendations: (options as any).includeRecommendations
     };
 
     // Track export started
