@@ -266,6 +266,24 @@ function formatSampleRate(hz: string | number): string {
 }
 
 /**
+ * Formats channel layout for display
+ * Returns stereoType if available, otherwise infers from channel count
+ */
+function formatChannelLayout(result: AudioResults): string {
+  // Try to use stereoType first if available
+  if (result.stereoSeparation?.stereoType) {
+    return result.stereoSeparation.stereoType;
+  }
+
+  // Fall back to inferring from channel count
+  if (result.channels === 1) return 'Mono';
+  if (result.channels === 2) return 'Stereo';
+  if (result.channels) return `${result.channels} Channels`;
+
+  return 'N/A';
+}
+
+/**
  * Generates context-aware recommendations based on criteria and failure types
  */
 function generateDynamicRecommendation(
@@ -538,7 +556,7 @@ function generateEnhancedHeaders(options: EnhancedExportOptions): string[] {
     'Leading Silence (s)',
     'Trailing Silence (s)',
     'Longest Silence (s)',
-    'Stereo Type',
+    'Channel Layout',
     'Speech Overlap (%)',
     'Mic Bleed Detected'
   ];
@@ -613,7 +631,7 @@ function extractEnhancedDataRow(
     formatNumber(result.leadingSilence),
     formatNumber(result.trailingSilence),
     formatNumber(result.longestSilence),
-    result.stereoSeparation?.stereoType || 'N/A',
+    formatChannelLayout(result),
     formatNumber(result.conversationalAnalysis?.overlap?.overlapPercentage, 1),
     getMicBleedDetected(result)
   ];
@@ -800,9 +818,9 @@ export function exportResultsEnhanced(
     const stats = getExportStats(results);
 
     // Determine if filename validation should be included
-    // Include for 'full', 'filename-only', and 'experimental' modes when preset supports it
-    // Exclude only for 'audio-only' mode
-    const includeFilenameValidation = (analysisMode === 'full' || analysisMode === 'filename-only' || analysisMode === 'experimental')
+    // Include for 'full' and 'filename-only' modes when preset supports it
+    // Exclude for 'audio-only' and 'experimental' modes (experimental is quality metrics only)
+    const includeFilenameValidation = (analysisMode === 'full' || analysisMode === 'filename-only')
       ? Boolean(presetId && presetId !== 'custom')
       : false;
 
