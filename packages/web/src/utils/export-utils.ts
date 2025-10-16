@@ -194,7 +194,7 @@ function extractDataRow(result: AudioResults, mode: ExportOptions['mode']): stri
  */
 const RECOMMENDATION_TEMPLATES = {
   filename: {
-    generic: "Filename must match the required format. Review the 'Filename Validation Issues' column for specific details."
+    generic: "Filename must match the required format."
   },
   sampleRate: {
     generic: "File must use the required sample rate.",
