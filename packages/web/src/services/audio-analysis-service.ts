@@ -246,7 +246,7 @@ async function analyzeExperimental(
 
   try {
     // Run level analysis with experimental features (reverb, noise floor, silence)
-    const advancedResults = await levelAnalyzer.analyzeAudioBuffer(audioBuffer, progressCallback ?? null, true) as any;
+    const advancedResults = await (levelAnalyzer as any).analyzeAudioBuffer(audioBuffer, progressCallback ?? null, true);
 
     // Re-enable analysisInProgress for additional analyses
     (levelAnalyzer as any).analysisInProgress = true;
