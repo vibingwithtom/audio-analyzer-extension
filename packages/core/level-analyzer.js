@@ -228,13 +228,24 @@ export class LevelAnalyzer {
   }
 
   analyzeSilence(channelData, channels, length, sampleRate, noiseFloorDb, peakDb, progressCallback = null) {
-    // Set threshold 25% of the way between the noise floor and the peak
-    const dynamicRange = peakDb - noiseFloorDb;
-    const thresholdRatio = 0.25;
-    // Handle case where peak is quieter than noise floor (unlikely but possible)
-    const effectiveDynamicRange = Math.max(0, dynamicRange);
-    const silenceThresholdDb = noiseFloorDb + (effectiveDynamicRange * thresholdRatio);
-    const silenceThresholdLinear = Math.pow(10, silenceThresholdDb / 20);
+    // Handle edge case: if noise floor is -Infinity (digital silence), use absolute threshold
+    let silenceThresholdDb;
+    let silenceThresholdLinear;
+
+    if (noiseFloorDb === -Infinity || !isFinite(noiseFloorDb)) {
+      // Fallback: Use absolute threshold at -60 dB (typical room noise level)
+      // This handles files with significant digital silence in one or more channels
+      silenceThresholdDb = -60;
+      silenceThresholdLinear = Math.pow(10, -60 / 20);
+    } else {
+      // Normal case: Set threshold 25% of the way between the noise floor and the peak
+      const dynamicRange = peakDb - noiseFloorDb;
+      const thresholdRatio = 0.25;
+      // Handle case where peak is quieter than noise floor (unlikely but possible)
+      const effectiveDynamicRange = Math.max(0, dynamicRange);
+      silenceThresholdDb = noiseFloorDb + (effectiveDynamicRange * thresholdRatio);
+      silenceThresholdLinear = Math.pow(10, silenceThresholdDb / 20);
+    }
 
     const chunkSizeMs = 50; // 50ms chunks
     const chunkSamples = Math.floor(sampleRate * (chunkSizeMs / 1000));
