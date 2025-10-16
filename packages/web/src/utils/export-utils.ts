@@ -436,9 +436,21 @@ function analyzeFailuresWithRecommendations(
     analysis.failureSummary = 'No issues detected';
   } else {
     const issueTypes: string[] = [];
-    const criticalCount = qualityIssues.filter(q => q.includes('critical')).length +
-                         validationIssues.filter(v => result.validation &&
-                           Object.values(result.validation).some(val => val.status === 'fail')).length;
+
+    // Determine critical vs warning counts
+    let criticalCount = qualityIssues.filter(q => q.includes('critical')).length +
+                       validationIssues.filter(v => result.validation &&
+                         Object.values(result.validation).some(val => val.status === 'fail')).length;
+
+    // In filename-only mode, filename validation failures are CRITICAL
+    const isFilenameOnlyMode = options.analysisMode === 'metadata-only' && options.includeFilenameValidation;
+    if (isFilenameOnlyMode && result.validation?.filename) {
+      const filenameValidation = result.validation.filename;
+      if (filenameValidation.status === 'fail') {
+        criticalCount++;
+      }
+    }
+
     const warningCount = issueCount - criticalCount;
 
     if (criticalCount > 0) issueTypes.push(`${criticalCount} critical`);
