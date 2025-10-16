@@ -1,3 +1,18 @@
+export interface ClippingAnalysis {
+  clippedPercentage: number;
+  clippingEventCount: number;
+  nearClippingPercentage: number;
+}
+
+export interface ConversationalAnalysis {
+  overlap?: {
+    overlapPercentage: number;
+  };
+  consistency?: {
+    consistencyPercentage: number;
+  };
+}
+
 export interface AudioResults {
   filename: string;
   status: 'pass' | 'fail' | 'warning' | 'error';
@@ -20,6 +35,13 @@ export interface AudioResults {
   normalizationStatus?: any;
   stereoSeparation?: any;
   micBleed?: any;
+  // CSV export properties
+  clippingAnalysis?: ClippingAnalysis;
+  conversationalAnalysis?: ConversationalAnalysis;
+  leadingSilence?: number;
+  trailingSilence?: number;
+  longestSilence?: number;
+  digitalSilencePercentage?: number;
 }
 
 export interface ValidationResult {
