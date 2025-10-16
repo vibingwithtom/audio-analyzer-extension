@@ -3,9 +3,60 @@
  * Peak detection, noise floor estimation, and normalization checks
  */
 
+/**
+ * Custom error thrown when audio analysis is cancelled by user.
+ * Allows calling code to distinguish cancellation from other errors.
+ */
+export class AnalysisCancelledError extends Error {
+  constructor(message = 'Analysis was cancelled by user', stage = null) {
+    super(message);
+    this.name = 'AnalysisCancelledError';
+    this.stage = stage; // Optional: which analysis stage was interrupted
+  }
+}
+
 export class LevelAnalyzer {
+  // Cancellation check frequencies (balance between responsiveness and overhead)
+  static CANCELLATION_CHECK_INTERVALS = {
+    SAMPLE_LOOP: 10000,    // Peak/clipping: check every 10K samples (~0.2s @ 48kHz)
+    WINDOW_LOOP: 1000,     // Noise floor: check every 1K windows (~1s)
+    BLOCK_LOOP: 100,       // Stereo/bleed/overlap: check every 100 blocks (~25s @ 250ms blocks)
+    ONSET_LOOP: 100,       // Reverb: check every 100 onsets
+    CHUNK_LOOP: 1000,      // Silence: check every 1K chunks (~1s)
+    SEGMENT_LOOP: 1        // Consistency: check every segment (~15s)
+  };
+
+  // Progress stage allocation for smooth 0-100% progress
+  // Base analysis (always runs): 0-40%
+  static PROGRESS_STAGES = {
+    PEAK_START: 0,
+    PEAK_END: 0.15,
+    NOISE_FLOOR_START: 0.15,
+    NOISE_FLOOR_END: 0.35,
+    NORMALIZATION_START: 0.35,
+    NORMALIZATION_END: 0.40,
+    // Experimental analysis (optional): 40-100%
+    REVERB_START: 0.40,
+    REVERB_END: 0.65,
+    SILENCE_START: 0.65,
+    SILENCE_END: 0.80,
+    CLIPPING_START: 0.80,
+    CLIPPING_END: 1.0
+  };
+
   constructor() {
     this.analysisInProgress = false;
+  }
+
+  /**
+   * Scales progress from a stage's internal 0-1 range to its allocated percentage range
+   * @param {number} stageProgress Progress within stage (0-1)
+   * @param {number} stageStart Start of stage range (0-1)
+   * @param {number} stageEnd End of stage range (0-1)
+   * @returns {number} Scaled progress (0-1)
+   */
+  scaleProgress(stageProgress, stageStart, stageEnd) {
+    return stageStart + (stageProgress * (stageEnd - stageStart));
   }
 
   async analyzeAudioBuffer(audioBuffer, progressCallback = null, includeExperimental = false) {
@@ -23,17 +74,13 @@ export class LevelAnalyzer {
 
     try {
       // 1. Peak Level Analysis
-      if (progressCallback) progressCallback('Analyzing peak levels...', 0);
+      if (progressCallback) progressCallback('Analyzing peak levels...', LevelAnalyzer.PROGRESS_STAGES.PEAK_START);
       let globalPeak = 0;
       let peakFound = false; // Flag to break outer loop
 
       for (let channel = 0; channel < channels; channel++) {
         const data = channelData[channel];
         for (let i = 0; i < length; i++) {
-          if (!this.analysisInProgress) {
-            throw new Error('Analysis cancelled');
-          }
-
           const sample = Math.abs(data[i]);
           if (sample > globalPeak) {
             globalPeak = sample;
@@ -46,9 +93,13 @@ export class LevelAnalyzer {
           }
 
           // Update progress every 10000 samples
-          if (i % 10000 === 0) {
-            const progress = (channel * length + i) / (channels * length) * 0.5; // First 50% for peak
-            if (progressCallback) progressCallback('Analyzing peak levels...', progress);
+          if (i % LevelAnalyzer.CANCELLATION_CHECK_INTERVALS.SAMPLE_LOOP === 0) {
+            if (!this.analysisInProgress) {
+              throw new AnalysisCancelledError('Analysis cancelled', 'peak-levels');
+            }
+            const stageProgress = (channel * length + i) / (channels * length);
+            const scaledProgress = this.scaleProgress(stageProgress, LevelAnalyzer.PROGRESS_STAGES.PEAK_START, LevelAnalyzer.PROGRESS_STAGES.PEAK_END);
+            if (progressCallback) progressCallback('Analyzing peak levels...', scaledProgress);
 
             // Allow UI to update
             if (i % 100000 === 0) {
@@ -64,11 +115,11 @@ export class LevelAnalyzer {
       const peakDb = globalPeak > 0 ? 20 * Math.log10(globalPeak) : -Infinity;
 
       // 2. Noise Floor Analysis (histogram-based, always included)
-      if (progressCallback) progressCallback('Analyzing noise floor...', 0.5);
-      const noiseFloorAnalysis = await this.analyzeNoiseFloor(channelData, channels, length);
+      if (progressCallback) progressCallback('Analyzing noise floor...', LevelAnalyzer.PROGRESS_STAGES.NOISE_FLOOR_START);
+      const noiseFloorAnalysis = await this.analyzeNoiseFloor(channelData, channels, length, progressCallback);
 
       // 3. Normalization Check
-      if (progressCallback) progressCallback('Checking normalization...', 0.9);
+      if (progressCallback) progressCallback('Checking normalization...', LevelAnalyzer.PROGRESS_STAGES.NORMALIZATION_START);
       const normalizationStatus = this.checkNormalization(peakDb);
 
       // Base results (always included)
@@ -84,16 +135,16 @@ export class LevelAnalyzer {
       // Experimental analysis (only when requested)
       if (includeExperimental) {
         // Reverb Estimation
-        if (progressCallback) progressCallback('Estimating reverb...', 0.93);
-        const reverbAnalysisResults = await this.estimateReverb(channelData, channels, length, sampleRate, noiseFloorAnalysis.overall);
+        if (progressCallback) progressCallback('Estimating reverb...', LevelAnalyzer.PROGRESS_STAGES.REVERB_START);
+        const reverbAnalysisResults = await this.estimateReverb(channelData, channels, length, sampleRate, noiseFloorAnalysis.overall, progressCallback);
         const reverbInfo = this.interpretReverb(reverbAnalysisResults.overallMedianRt60);
 
         // Silence Analysis
-        if (progressCallback) progressCallback('Analyzing silence...', 0.95);
-        const { leadingSilence, trailingSilence, longestSilence, silenceSegments } = this.analyzeSilence(channelData, channels, length, sampleRate, noiseFloorAnalysis.overall, peakDb);
+        if (progressCallback) progressCallback('Analyzing silence...', LevelAnalyzer.PROGRESS_STAGES.SILENCE_START);
+        const { leadingSilence, trailingSilence, longestSilence, silenceSegments } = this.analyzeSilence(channelData, channels, length, sampleRate, noiseFloorAnalysis.overall, peakDb, progressCallback);
 
         // Clipping Analysis
-        if (progressCallback) progressCallback('Detecting clipping...', 0.97);
+        if (progressCallback) progressCallback('Detecting clipping...', LevelAnalyzer.PROGRESS_STAGES.CLIPPING_START);
         const clippingAnalysis = await this.analyzeClipping(audioBuffer, sampleRate, progressCallback);
 
         // Add experimental results
@@ -133,7 +184,7 @@ export class LevelAnalyzer {
     return { time: rt60, label: 'Very Poor (Echoey)', description: 'Excessive echo and reverb. Unsuitable for professional voice recording.' };
   }
 
-  analyzeSilence(channelData, channels, length, sampleRate, noiseFloorDb, peakDb) {
+  analyzeSilence(channelData, channels, length, sampleRate, noiseFloorDb, peakDb, progressCallback = null) {
     // Set threshold 25% of the way between the noise floor and the peak
     const dynamicRange = peakDb - noiseFloorDb;
     const thresholdRatio = 0.25;
@@ -151,8 +202,19 @@ export class LevelAnalyzer {
 
     const chunks = new Array(numChunks).fill(0); // 0 for silence, 1 for sound
 
-    // Step 1: Classify chunks as sound or silence
+    // Step 1: Classify chunks as sound or silence (0-40% of silence stage)
     for (let i = 0; i < numChunks; i++) {
+      if (i % LevelAnalyzer.CANCELLATION_CHECK_INTERVALS.CHUNK_LOOP === 0) {
+        if (!this.analysisInProgress) {
+          throw new AnalysisCancelledError('Analysis cancelled', 'silence');
+        }
+        // Report granular progress for Step 1
+        if (progressCallback) {
+          const step1Progress = (i / numChunks) * 0.4; // Step 1 is 0-40% of silence stage
+          const scaledProgress = this.scaleProgress(step1Progress, LevelAnalyzer.PROGRESS_STAGES.SILENCE_START, LevelAnalyzer.PROGRESS_STAGES.SILENCE_END);
+          progressCallback('Analyzing silence...', scaledProgress);
+        }
+      }
       const start = i * chunkSamples;
       const end = Math.min(start + chunkSamples, length);
       let maxSampleInChunk = 0;
@@ -173,9 +235,20 @@ export class LevelAnalyzer {
       }
     }
 
-    // Step 2: Filter out small "islands" of sound
+    // Step 2: Filter out small "islands" of sound (40-60% of silence stage)
     let currentSoundStreak = 0;
     for (let i = 0; i < numChunks; i++) {
+      if (i % LevelAnalyzer.CANCELLATION_CHECK_INTERVALS.CHUNK_LOOP === 0) {
+        if (!this.analysisInProgress) {
+          throw new AnalysisCancelledError('Analysis cancelled', 'silence');
+        }
+        // Report granular progress for Step 2
+        if (progressCallback) {
+          const step2Progress = 0.4 + (i / numChunks) * 0.2; // Step 2 is 40-60% of silence stage
+          const scaledProgress = this.scaleProgress(step2Progress, LevelAnalyzer.PROGRESS_STAGES.SILENCE_START, LevelAnalyzer.PROGRESS_STAGES.SILENCE_END);
+          progressCallback('Analyzing silence...', scaledProgress);
+        }
+      }
       if (chunks[i] === 1) {
         currentSoundStreak++;
       } else {
@@ -287,7 +360,7 @@ export class LevelAnalyzer {
     };
   }
 
-  async estimateReverb(channelDataArray, channels, length, sampleRate, noiseFloorDb) { // Renamed channelData to channelDataArray
+  async estimateReverb(channelDataArray, channels, length, sampleRate, noiseFloorDb, progressCallback = null) { // Renamed channelData to channelDataArray
     const minDbAboveNoise = 10;
     const onsetThreshold = 1.5;
     const onsetWindowSize = 1024;
@@ -296,8 +369,12 @@ export class LevelAnalyzer {
 
             let allDecayTimes = []; // Collect decay times from all channels for overall median
             let perChannelResults = []; // Collect per-channel results
-    
+
+            let onsetCount = 0;
             for (let channelIndex = 0; channelIndex < channels; channelIndex++) { // Loop through all channels
+              if (!this.analysisInProgress) {
+                throw new AnalysisCancelledError('Analysis cancelled', 'reverb');
+              }
               const data = channelDataArray[channelIndex]; // Get data for current channel
               let decayTimesForChannel = []; // Collect decay times for this specific channel
               let prevRms = 0; // Reset prevRms for each channel
@@ -309,6 +386,17 @@ export class LevelAnalyzer {
       const currentRms = Math.sqrt(sumSquares / onsetWindowSize);
 
       if (currentRms > prevRms * onsetThreshold && currentRms > 0.01) {
+        if (onsetCount++ % LevelAnalyzer.CANCELLATION_CHECK_INTERVALS.ONSET_LOOP === 0) {
+          if (!this.analysisInProgress) {
+            throw new AnalysisCancelledError('Analysis cancelled', 'reverb');
+          }
+          // Report granular progress for reverb estimation
+          if (progressCallback) {
+            const channelProgress = (channelIndex / channels) + ((i / length) / channels);
+            const scaledProgress = this.scaleProgress(channelProgress, LevelAnalyzer.PROGRESS_STAGES.REVERB_START, LevelAnalyzer.PROGRESS_STAGES.REVERB_END);
+            progressCallback('Estimating reverb...', scaledProgress);
+          }
+        }
         let peakAmplitude = 0;
         let peakIndex = i;
         for (let j = i; j < i + onsetWindowSize; j++) {
@@ -398,7 +486,7 @@ export class LevelAnalyzer {
     };
   }
 
-  async analyzeNoiseFloor(channelData, channels, length) {
+  async analyzeNoiseFloor(channelData, channels, length, progressCallback = null) {
     // Hybrid approach: Uses histogram on the quietest 30% of windows to find noise floor.
     // Excludes speech/loud content while capturing actual background noise level.
     const numBins = 200; // Bins for levels from -100dB to 0dB (0.5 dB resolution)
@@ -421,8 +509,21 @@ export class LevelAnalyzer {
       perChannelRmsValues.push([]);
     }
 
-    // Pass 1: Calculate RMS for all windows and detect digital silence
+    // Pass 1: Calculate RMS for all windows and detect digital silence (70% of noise floor stage)
+    let windowCount = 0;
     for (let i = 0; i < length; i += windowSize) {
+      if (windowCount++ % LevelAnalyzer.CANCELLATION_CHECK_INTERVALS.WINDOW_LOOP === 0) {
+        if (!this.analysisInProgress) {
+          throw new AnalysisCancelledError('Analysis cancelled', 'noise-floor');
+        }
+        // Report granular progress for Pass 1 (0-70% of noise floor stage)
+        if (progressCallback) {
+          const pass1Progress = (i / length) * 0.7; // Pass 1 is 70% of the stage
+          const scaledProgress = this.scaleProgress(pass1Progress, LevelAnalyzer.PROGRESS_STAGES.NOISE_FLOOR_START, LevelAnalyzer.PROGRESS_STAGES.NOISE_FLOOR_END);
+          progressCallback('Analyzing noise floor...', scaledProgress);
+        }
+      }
+
       const end = Math.min(i + windowSize, length);
       let allChannelsSilent = true;
 
@@ -447,10 +548,17 @@ export class LevelAnalyzer {
       }
     }
 
-    // Pass 2: Build histograms from quietest windows
+    // Pass 2: Build histograms from quietest windows (70-100% of noise floor stage)
     const perChannelResults = [];
 
     for (let channel = 0; channel < channels; channel++) {
+      // Report progress for Pass 2
+      if (progressCallback) {
+        const pass2Progress = 0.7 + (channel / channels) * 0.3; // Pass 2 is 70-100% of the stage
+        const scaledProgress = this.scaleProgress(pass2Progress, LevelAnalyzer.PROGRESS_STAGES.NOISE_FLOOR_START, LevelAnalyzer.PROGRESS_STAGES.NOISE_FLOOR_END);
+        progressCallback('Analyzing noise floor...', scaledProgress);
+      }
+
       const channelRms = perChannelRmsValues[channel];
 
       if (channelRms.length === 0) {
@@ -601,8 +709,10 @@ export class LevelAnalyzer {
     let balancedBlocks = 0;
     let silentBlocks = 0;
     let totalBlocks = 0;
-
     for (let i = 0; i < length; i += blockSize) {
+      if (totalBlocks % LevelAnalyzer.CANCELLATION_CHECK_INTERVALS.BLOCK_LOOP === 0 && !this.analysisInProgress) {
+        throw new AnalysisCancelledError('Analysis cancelled', 'stereo-separation');
+      }
       let sumSquaresLeft = 0;
       let sumSquaresRight = 0;
       const blockEnd = Math.min(i + blockSize, length);
@@ -706,8 +816,12 @@ export class LevelAnalyzer {
     // NEW METHOD: Track separation ratios and concerning blocks
     const separationRatios = [];
     const concerningBlocks = [];
+    let blockCount = 0;
 
     for (let i = 0; i < length; i += blockSize) {
+      if (blockCount++ % LevelAnalyzer.CANCELLATION_CHECK_INTERVALS.BLOCK_LOOP === 0 && !this.analysisInProgress) {
+        throw new AnalysisCancelledError('Analysis cancelled', 'mic-bleed');
+      }
       let sumSquaresLeft = 0;
       let sumSquaresRight = 0;
       const blockEnd = Math.min(i + blockSize, length);
@@ -999,6 +1113,9 @@ export class LevelAnalyzer {
     const rmsBlocks = [];
 
     for (let i = 0; i < length; i += blockSize) {
+      if (rmsBlocks.length % LevelAnalyzer.CANCELLATION_CHECK_INTERVALS.BLOCK_LOOP === 0 && !this.analysisInProgress) {
+        throw new AnalysisCancelledError('Analysis cancelled', 'conversational');
+      }
       const blockEnd = Math.min(i + blockSize, length);
       const currentBlockSize = blockEnd - i;
 
@@ -1052,6 +1169,9 @@ export class LevelAnalyzer {
     let currentOverlapSegment = null;
 
     for (let i = 0; i < rmsBlocks.length; i++) {
+      if (i % LevelAnalyzer.CANCELLATION_CHECK_INTERVALS.BLOCK_LOOP === 0 && !this.analysisInProgress) {
+        throw new AnalysisCancelledError('Analysis cancelled', 'overlap-speech');
+      }
       const block = rmsBlocks[i];
       const { rmsLeft, rmsRight, startSample, endSample } = block;
 
@@ -1167,6 +1287,9 @@ export class LevelAnalyzer {
     const allSegmentsStatus = [];
 
     for (let segmentStart = 0; segmentStart < rmsBlocks.length; segmentStart += blocksPerSegment) {
+      if (segmentStart % LevelAnalyzer.CANCELLATION_CHECK_INTERVALS.SEGMENT_LOOP === 0 && !this.analysisInProgress) {
+        throw new AnalysisCancelledError('Analysis cancelled', 'channel-consistency');
+      }
       const segmentEnd = Math.min(segmentStart + blocksPerSegment, rmsBlocks.length);
       const leftRms = [];
       const rightRms = [];
@@ -1369,11 +1492,6 @@ export class LevelAnalyzer {
 
       // Iterate through all samples
       for (let i = 0; i < length; i++) {
-        // Cancellation support
-        if (!this.analysisInProgress) {
-          throw new Error('Analysis cancelled');
-        }
-
         const absSample = Math.abs(data[i]);
 
         // Check for hard clipping (samples >= 0.9999)
@@ -1473,15 +1591,21 @@ export class LevelAnalyzer {
         }
 
         // Progress updates
-        if (i % 10000 === 0) {
+        if (i % LevelAnalyzer.CANCELLATION_CHECK_INTERVALS.SAMPLE_LOOP === 0) {
+          if (!this.analysisInProgress) {
+            throw new AnalysisCancelledError('Analysis cancelled', 'clipping');
+          }
+
           // OPTIMIZATION: Bail out early if the region limit is hit.
           if (regionsLimitReached) {
             break;
           }
 
-          const progress = (channel * length + i) / (channels * length);
+          // Report granular progress for clipping analysis
           if (progressCallback) {
-            progressCallback('Detecting clipping...', progress);
+            const stageProgress = (channel * length + i) / (channels * length);
+            const scaledProgress = this.scaleProgress(stageProgress, LevelAnalyzer.PROGRESS_STAGES.CLIPPING_START, LevelAnalyzer.PROGRESS_STAGES.CLIPPING_END);
+            progressCallback('Detecting clipping...', scaledProgress);
           }
 
           // UI yield every 100K samples

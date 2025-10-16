@@ -18,6 +18,7 @@
   export let cancelRequested = false;
   export let folderName: string | null = null; // Name of folder being processed
   export let folderUrl: string | null = null; // URL of folder being processed
+  export let showBuiltInProgress = true; // Controls whether to show the built-in progress bar
 
   // Determine if we're in batch mode
   $: isBatchMode = Array.isArray(results);
@@ -487,8 +488,8 @@
     <div class="error-message">{error}</div>
   {/if}
 
-  <!-- Processing Indicator -->
-  {#if isProcessing}
+  <!-- Processing Indicator (only show if showBuiltInProgress is true) -->
+  {#if isProcessing && showBuiltInProgress}
     {#if isBatchMode && totalFiles > 1}
       <div class="batch-progress-section">
         <div class="progress-bar-container">

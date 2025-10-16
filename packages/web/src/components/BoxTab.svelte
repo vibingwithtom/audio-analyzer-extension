@@ -10,19 +10,52 @@
   import { BoxAPI } from '../services/box-api';
   import type { AudioResults, ValidationResults } from '../types';
   import { analyticsService } from '../services/analytics-service';
+  import { AnalysisCancelledError } from '@audio-analyzer/core';
+  import { cancelCurrentAnalysis } from '../services/audio-analysis-service';
+
+  let analysisProgress = $state({
+    visible: false,
+    filename: '',
+    message: '',
+    progress: 0,
+    cancelling: false,
+    batchCurrent: 0,
+    batchTotal: 0
+  });
+
+  function createProgressCallback(filename: string, getCurrentCount: () => number, total: number = 1) {
+    return (message: string, progress: number) => {
+      // For batch processing, only update UI if this is the currently displayed file
+      // or if no file is currently displayed (first file to report)
+      if (total > 1) {
+        if (currentDisplayedFile === null) {
+          currentDisplayedFile = filename;
+        } else if (currentDisplayedFile !== filename) {
+          return; // Ignore progress from other files
+        }
+      }
+
+      analysisProgress.visible = true;
+      analysisProgress.filename = filename;
+      analysisProgress.message = message;
+      analysisProgress.progress = progress;
+      analysisProgress.batchCurrent = getCurrentCount();
+      analysisProgress.batchTotal = total;
+    };
+  }
 
   const bridge = AppBridge.getInstance();
   let boxAPI: BoxAPI | null = null;
 
   // Detect if we're in the middle of OAuth callback processing
   // Only show processing state if: (1) OAuth params exist AND (2) not yet authenticated
-  $: isProcessingCallback = (() => {
+  let isProcessingCallback = $derived.by(() => {
     if (typeof window === 'undefined') return false;
     if ($authState.box.isAuthenticated) return false; // Already authenticated, don't show processing
 
     const params = new URLSearchParams(window.location.search);
     return params.has('code') && params.has('state');
-  })();
+  });
 
   function goToSettings() {
     currentTab.setTab('settings');
@@ -39,41 +72,46 @@
   }
 
   // Initialize Box API when authenticated
-  $: if ($authState.box.isAuthenticated && !boxAPI) {
-    const boxAuth = authService.getBoxAuthInstance();
-    boxAPI = new BoxAPI(boxAuth);
-    analyticsService.track('box_signin_success', {
-      user: $authState.box.userInfo?.login || $authState.box.userInfo?.name
-    });
-  }
+  $effect(() => {
+    if ($authState.box.isAuthenticated && !boxAPI) {
+      const boxAuth = authService.getBoxAuthInstance();
+      boxAPI = new BoxAPI(boxAuth);
+      analyticsService.track('box_signin_success', {
+        user: $authState.box.userInfo?.login || $authState.box.userInfo?.name
+      });
+    }
+  });
 
   // Track authentication errors
-  $: if ($authState.box.error) {
-    analyticsService.track('box_auth_error', {
-      error: $authState.box.error
-    });
-  }
+  $effect(() => {
+    if ($authState.box.error) {
+      analyticsService.track('box_auth_error', {
+        error: $authState.box.error
+      });
+    }
+  });
 
-  let processing = false;
-  let error = '';
-  let results: AudioResults | null = null;
-  let validation: ValidationResults | null = null;
-  let currentAudioUrl: string | null = null;
-  let currentFile: File | null = null;
-  let resultsStale = false;
-  let resultsMode: AnalysisMode | null = null;
-  let fileUrl = '';
-  let originalFileUrl: string | null = null; // Store URL for re-downloading
+  let processing = $state(false);
+  let error = $state('');
+  let results = $state<AudioResults | null>(null);
+  let validation = $state<ValidationResults | null>(null);
+  let currentAudioUrl = $state<string | null>(null);
+  let currentFile = $state<File | null>(null);
+  let resultsStale = $state(false);
+  let resultsMode = $state<AnalysisMode | null>(null);
+  let fileUrl = $state('');
+  let originalFileUrl = $state<string | null>(null); // Store URL for re-downloading
 
   // Batch processing state
-  let batchProcessing = false;
-  let batchResults: AudioResults[] = [];
-  let totalFiles = 0;
-  let processedFiles = 0;
-  let batchCancelled = false;
-  let batchBoxFiles: any[] = []; // Store for batch reprocessing
-  let batchFolderName = ''; // Name of folder being processed
-  let batchFolderUrl = ''; // URL of folder being processed
+  let batchProcessing = $state(false);
+  let batchResults = $state<AudioResults[]>([]);
+  let totalFiles = $state(0);
+  let processedFiles = $state(0);
+  let batchCancelled = $state(false);
+  let batchBoxFiles = $state<any[]>([]); // Store for batch reprocessing
+  let batchFolderName = $state(''); // Name of folder being processed
+  let batchFolderUrl = $state(''); // URL of folder being processed
+  let currentDisplayedFile = $state<string | null>(null); // Track which file is currently shown in progress bar
 
   // Cleanup blob URL when component is destroyed
   function cleanup() {
@@ -133,7 +171,7 @@
   }
 
   // Smart staleness detection - only mark stale if new mode needs data we don't have
-  $: {
+  $effect(() => {
     if ((results || batchResults.length > 0) && resultsMode !== null) {
       if ($analysisMode === resultsMode) {
         resultsStale = false;
@@ -144,18 +182,23 @@
         resultsStale = isStale;
       }
     }
-  }
+  });
 
   /**
    * Analyze a file using the shared analysis service
    */
-  async function analyzeFile(file: File, isBatchMode: boolean = false): Promise<AudioResults> {
+  async function analyzeFile(
+    file: File,
+    isBatchMode: boolean = false,
+    progressCallback?: (message: string, progress: number) => void
+  ): Promise<AudioResults> {
     return await analyzeAudioFile(file, {
       analysisMode: $analysisMode,
       preset: $currentPresetId ? availablePresets[$currentPresetId] : null,
       presetId: $currentPresetId,
       criteria: $currentCriteria,
-      skipIndividualTracking: isBatchMode // Skip per-file events during batch to save Umami quota
+      skipIndividualTracking: isBatchMode, // Skip per-file events during batch to save Umami quota
+      progressCallback
     });
   }
 
@@ -170,13 +213,17 @@
     error = '';
     results = null;
     validation = null;
+    batchResults = []; // Clear batch results when processing single file
     resultsStale = false;
     resultsMode = null;
     currentFile = file;
+    analysisProgress.visible = false;
+    analysisProgress.cancelling = false;
 
     try {
       // Analyze file (pure function)
-      const analysisResults = await analyzeFile(file);
+      const progressCallback = createProgressCallback(file.name, () => 1, 1);
+      const analysisResults = await analyzeFile(file, false, progressCallback);
 
       // Create blob URL for audio playback (skip for empty files)
       // Only create blob for full files, not partial downloads
@@ -195,10 +242,17 @@
       resultsMode = $analysisMode;
 
     } catch (err) {
+      if (err instanceof AnalysisCancelledError) {
+        analysisProgress.visible = false;
+        analysisProgress.cancelling = false;
+        return;
+      }
       error = err instanceof Error ? err.message : 'Unknown error occurred';
       results = null;
     } finally {
       processing = false;
+      analysisProgress.visible = false;
+      analysisProgress.cancelling = false;
     }
   }
 
@@ -227,6 +281,8 @@
 
         const filesToProcess = await boxAPI.listAudioFilesInFolder(parsed.id, parsed.sharedLink);
 
+        console.log('[BoxTab] Box API returned files:', filesToProcess.length, filesToProcess.map(f => f.name));
+
         if (filesToProcess.length === 0) {
           error = 'No audio files found in the folder';
           processing = false;
@@ -235,6 +291,7 @@
 
         // Multiple files: use batch processing
         processing = false;
+        console.log('[BoxTab] Starting batch processing with', filesToProcess.length, 'files');
         await processBatchFiles(filesToProcess);
       } else {
         // File URL - single file processing
@@ -281,6 +338,15 @@
     batchBoxFiles = boxFiles; // Store for reprocessing
     error = '';
     resultsMode = $analysisMode;
+    currentDisplayedFile = null; // Reset the currently displayed file
+
+    // Show progress bar immediately
+    analysisProgress.visible = true;
+    analysisProgress.filename = 'Preparing batch...';
+    analysisProgress.message = 'Starting analysis';
+    analysisProgress.progress = 0;
+    analysisProgress.batchCurrent = 0;
+    analysisProgress.batchTotal = boxFiles.length;
 
     // Track batch start
     analyticsService.track('batch_processing_started', {
@@ -292,20 +358,21 @@
 
     const concurrency = 3; // Process 3 files at once
     let index = 0;
-    const inProgress: Promise<void>[] = [];
+    const inProgress: Map<number, Promise<void>> = new Map();
 
     try {
-      while (index < boxFiles.length || inProgress.length > 0) {
+      while (index < boxFiles.length || inProgress.size > 0) {
         // Check if cancelled
         if (batchCancelled) {
           // Wait for in-progress downloads to complete
-          await Promise.allSettled(inProgress);
+          await Promise.allSettled(Array.from(inProgress.values()));
           break;
         }
 
         // Start new downloads up to concurrency limit
-        while (inProgress.length < concurrency && index < boxFiles.length) {
+        while (inProgress.size < concurrency && index < boxFiles.length) {
           const boxFile = boxFiles[index];
+          const taskId = index;
           index++;
 
           const promise = (async () => {
@@ -325,7 +392,9 @@
               }
 
               // Analyze file (pure function) - pass true for batch mode
-              const result = await analyzeFile(file, true);
+              // Use dynamic count function to avoid race condition
+              const progressCallback = createProgressCallback(boxFile.name, () => processedFiles + 1, boxFiles.length);
+              const result = await analyzeFile(file, true, progressCallback);
 
               // Add external URL for Box files
               result.externalUrl = `https://app.box.com/file/${boxFile.id}`;
@@ -333,9 +402,23 @@
               // Add to results and increment processed count
               batchResults = [...batchResults, result];
               processedFiles = batchResults.length;
+
+              // If this was the currently displayed file, clear it so next file can be shown
+              if (currentDisplayedFile === boxFile.name) {
+                currentDisplayedFile = null;
+              }
+
+              console.log(`[BoxTab] Completed file ${processedFiles}/${boxFiles.length}: ${boxFile.name}, total results: ${batchResults.length}`);
             } catch (err) {
+              if (err instanceof AnalysisCancelledError) {
+                batchCancelled = true;
+                console.log(`[BoxTab] File cancelled: ${boxFile.name}`);
+                // No need to add to results, just stop this worker
+                return;
+              }
               // Log error for debugging
               console.error(`Error processing ${boxFile.name}:`, err);
+              console.log(`[BoxTab] File failed: ${boxFile.name}, error: ${err instanceof Error ? err.message : 'Unknown error'}`);
 
               // Add error result
               const errorResult: AudioResults = {
@@ -351,25 +434,20 @@
               };
               batchResults = [...batchResults, errorResult];
               processedFiles = batchResults.length;
+              console.log(`[BoxTab] Error result added, total results: ${batchResults.length}`);
+            } finally {
+              // Remove this task from inProgress when complete
+              inProgress.delete(taskId);
+              console.log(`[BoxTab] Task ${taskId} removed from queue, remaining: ${inProgress.size}`);
             }
           })();
 
-          inProgress.push(promise);
+          inProgress.set(taskId, promise);
         }
 
         // Wait for at least one to complete
-        if (inProgress.length > 0) {
-          await Promise.race(inProgress);
-          // Remove completed promises
-          const stillInProgress = [];
-          for (const p of inProgress) {
-            const result = await Promise.race([p, Promise.resolve('still-running')]);
-            if (result === 'still-running') {
-              stillInProgress.push(p);
-            }
-          }
-          inProgress.length = 0;
-          inProgress.push(...stillInProgress);
+        if (inProgress.size > 0) {
+          await Promise.race(Array.from(inProgress.values()));
         }
       }
 
@@ -400,13 +478,15 @@
       });
 
       batchProcessing = false;
+      analysisProgress.visible = false;
+      analysisProgress.cancelling = false;
     }
   }
 
   /**
    * Cancel batch processing
    */
-  function handleCancelBatch() {
+  function handleCancel() {
     const cancelPercentage = totalFiles > 0 ? Math.round((processedFiles / totalFiles) * 100) : 0;
 
     // Track batch cancellation
@@ -418,6 +498,9 @@
     });
 
     batchCancelled = true;
+    analysisProgress.cancelling = true;
+    analysisProgress.message = 'Cancelling...';
+    cancelCurrentAnalysis();
   }
 
   async function handleReprocess() {
@@ -783,6 +866,68 @@
     font-size: 0.875rem;
     color: var(--text-primary, #333333);
   }
+
+  .analysis-progress {
+    margin: 1.5rem 0;
+    padding: 1.25rem;
+    background: var(--bg-secondary, #ffffff);
+    border: 1px solid var(--bg-tertiary, #e0e0e0);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .batch-counter {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--primary, #2563eb);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--bg-tertiary, #e0e0e0);
+  }
+
+  .progress-filename {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--text-primary, #333333);
+    margin-bottom: 0.5rem;
+  }
+
+  .progress-message {
+    font-size: 0.8125rem;
+    color: var(--text-secondary, #666666);
+    margin-bottom: 0.75rem;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--bg-tertiary, #e0e0e0);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent-color, #2563eb);
+    transition: width 0.3s ease;
+  }
+
+  .cancel-button {
+    padding: 0.5rem 1rem;
+    background: var(--error-color, #dc3545);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .cancel-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 </style>
 
 <div class="box-tab">
@@ -950,6 +1095,33 @@
       </div>
     {/if}
 
+    <!-- Unified Progress Bar -->
+    {#if analysisProgress.visible}
+      <div class="analysis-progress">
+        {#if analysisProgress.batchTotal > 1}
+          <!-- Batch mode: Show file count and current file progress -->
+          <div class="batch-counter">
+            Processing file {analysisProgress.batchCurrent} of {analysisProgress.batchTotal}
+          </div>
+          <div class="progress-filename">{analysisProgress.filename}</div>
+          <div class="progress-message">{analysisProgress.message} ({Math.round(analysisProgress.progress * 100)}%)</div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: {analysisProgress.progress * 100}%"></div>
+          </div>
+        {:else}
+          <!-- Single file mode: Show only file progress -->
+          <div class="progress-filename">{analysisProgress.filename}</div>
+          <div class="progress-message">{analysisProgress.message} ({Math.round(analysisProgress.progress * 100)}%)</div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: {analysisProgress.progress * 100}%"></div>
+          </div>
+        {/if}
+        <button class="cancel-button" on:click={handleCancel} disabled={analysisProgress.cancelling}>
+          {analysisProgress.cancelling ? 'Cancelling...' : 'Cancel Analysis'}
+        </button>
+      </div>
+    {/if}
+
     <ResultsDisplay
       results={batchResults.length > 0 ? batchResults : results}
       isProcessing={processing || batchProcessing}
@@ -959,10 +1131,11 @@
       {processedFiles}
       {totalFiles}
       onReprocess={handleReprocess}
-      onCancel={handleCancelBatch}
+      onCancel={handleCancel}
       cancelRequested={batchCancelled}
       folderName={batchResults.length > 0 ? batchFolderName : null}
       folderUrl={batchResults.length > 0 ? batchFolderUrl : null}
+      showBuiltInProgress={false}
     />
   {/if}
 </div>
