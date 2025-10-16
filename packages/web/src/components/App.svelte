@@ -12,7 +12,7 @@
   import { setPreset } from '../stores/settings';
   import { setAnalysisMode } from '../stores/analysisMode';
 
-  let updateAvailable = false;
+  let updateAvailable = $state(false);
   let buildInfo = $state('Audio Analyzer');
 
   /**
@@ -117,6 +117,16 @@
       versionCheckService.onUpdateAvailable(() => {
         updateAvailable = true;
       });
+
+      // Expose to console for testing (beta builds only for security)
+      if (import.meta.env.MODE === 'beta') {
+        (window as any).__versionCheck = {
+          triggerBanner: () => { updateAvailable = true; },
+          checkNow: () => versionCheckService.checkForUpdates(),
+          getCurrentVersion: () => versionCheckService.getCurrentVersion()
+        };
+        console.log('Version check helpers available: __versionCheck.triggerBanner(), __versionCheck.checkNow(), __versionCheck.getCurrentVersion()');
+      }
     });
 
     return () => {
