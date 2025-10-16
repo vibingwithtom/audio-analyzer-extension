@@ -423,8 +423,9 @@ function analyzeFailuresWithRecommendations(
     recommendations.push(generateDynamicRecommendation('speechOverlap', severity, percentage, null));
   }
 
-  // Compile results
-  analysis.qualityIssues = qualityIssues.join(' | ');
+  // Compile results - combine both validation and quality issues
+  const allIssues = [...validationIssues, ...qualityIssues];
+  analysis.qualityIssues = allIssues.join(' | ');
 
   // Generate failure summary
   if (issueCount === 0) {
