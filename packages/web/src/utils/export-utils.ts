@@ -197,25 +197,25 @@ const RECOMMENDATION_TEMPLATES = {
     generic: "Filename must match the required format. Review the 'Filename Validation Issues' column for specific details."
   },
   sampleRate: {
-    generic: "Convert file to accepted sample rate.",
-    tooLow: "Increase sample rate to meet minimum requirements.",
-    tooHigh: "Reduce sample rate to supported value."
+    generic: "File must use the required sample rate.",
+    tooLow: "Sample rate too low - re-encode with the required sample rate.",
+    tooHigh: "Sample rate too high - re-encode with the required sample rate."
   },
   bitDepth: {
-    generic: "Convert to supported bit depth.",
-    tooLow: "Increase bit depth for better quality.",
-    unsupported: "Use standard bit depths (16, 24, or 32-bit)."
+    generic: "File must use the required bit depth.",
+    tooLow: "Bit depth too low - re-encode with the required bit depth.",
+    unsupported: "File must use the required bit depth."
   },
   channels: {
-    generic: "Adjust channel configuration.",
-    needStereo: "Convert mono file to stereo format.",
-    needMono: "Mix stereo file down to mono.",
-    tooManyChannels: "Reduce number of audio channels."
+    generic: "File must use the required channel configuration.",
+    needStereo: "File must be stereo (two channels), not mono.",
+    needMono: "File must be mono (single channel), not stereo.",
+    tooManyChannels: "Too many channels - file must use the required channel configuration."
   },
   fileType: {
-    unsupported: "Convert to supported audio format (WAV, FLAC, etc.).",
-    compressed: "Use uncompressed format for better quality.",
-    generic: "Check file format compatibility."
+    unsupported: "File must be in a supported audio format.",
+    compressed: "File must be uncompressed.",
+    generic: "File must be in a supported audio format."
   },
   clipping: {
     minor: "Reduce recording gain slightly to avoid clipping.",
@@ -247,6 +247,25 @@ const RECOMMENDATION_TEMPLATES = {
 };
 
 /**
+ * Converts channel count to human-readable format (e.g., 1 -> "Mono (1 channel)")
+ */
+function formatChannelName(channels: string | number): string {
+  const num = typeof channels === 'string' ? parseInt(channels, 10) : channels;
+  if (num === 1) return 'Mono (1 channel)';
+  if (num === 2) return 'Stereo (2 channels)';
+  return `${num} channels`;
+}
+
+/**
+ * Converts Hz to kHz for readable display
+ */
+function formatSampleRate(hz: string | number): string {
+  const num = typeof hz === 'string' ? parseInt(hz, 10) : hz;
+  const khz = num / 1000;
+  return khz % 1 === 0 ? `${khz} kHz` : `${khz.toFixed(1)} kHz`;
+}
+
+/**
  * Generates context-aware recommendations based on criteria and failure types
  */
 function generateDynamicRecommendation(
@@ -262,23 +281,23 @@ function generateDynamicRecommendation(
 
   // Add criteria-specific context without mentioning preset name
   if (issueType === 'sampleRate' && criteria?.sampleRate?.length) {
-    const allowedRates = criteria.sampleRate.join(', ');
-    return `${template} Supported rates: ${allowedRates} Hz.`;
+    const allowedRates = criteria.sampleRate.map(formatSampleRate).join(' or ');
+    return `File must be ${allowedRates}.`;
   }
 
   if (issueType === 'bitDepth' && criteria?.bitDepth?.length) {
-    const allowedDepths = criteria.bitDepth.join(', ');
-    return `${template} Supported bit depths: ${allowedDepths}-bit.`;
+    const allowedDepths = criteria.bitDepth.join(' or ');
+    return `File must be ${allowedDepths}-bit.`;
   }
 
   if (issueType === 'channels' && criteria?.channels?.length) {
-    const allowedChannels = criteria.channels.join(' or ');
-    return `${template} Required: ${allowedChannels} channel${criteria.channels.length > 1 ? 's' : ''}.`;
+    const allowedChannels = criteria.channels.map(formatChannelName).join(' or ');
+    return `File must be ${allowedChannels}.`;
   }
 
   if (issueType === 'fileType' && criteria?.fileType?.length) {
     const allowedTypes = criteria.fileType.join(', ');
-    return `${template} Supported formats: ${allowedTypes}.`;
+    return `File must be in a supported audio format (${allowedTypes}).`;
   }
 
   return template;
@@ -327,7 +346,7 @@ function analyzeFailuresWithRecommendations(
       if (validation.status === 'fail' || validation.status === 'warning') {
         // Include the issue message if available, otherwise include the actual value
         const actualValue = (result as any)[field];
-        const issueMessage = validation.issue || `Actual: ${actualValue}`;
+        const issueMessage = validation.issue || String(actualValue);
         validationIssues.push(`${field}: ${issueMessage}`);
         issueCount++;
 
