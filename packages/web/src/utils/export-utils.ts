@@ -7,6 +7,8 @@ export interface ExportOptions {
   mode: 'standard' | 'experimental' | 'metadata-only';
   includeTimestamps?: boolean;
   dateFormat?: 'iso' | 'locale';
+  includeFailureAnalysis?: boolean;
+  includeRecommendations?: boolean;
 }
 
 export interface FailureAnalysis {
@@ -972,8 +974,8 @@ export function exportResultsEnhanced(
       includeFilenameValidation,
       currentPresetCriteria,
       analysisMode: options.mode as 'standard' | 'experimental' | 'metadata-only',
-      includeFailureAnalysis: (options as any).includeFailureAnalysis,
-      includeRecommendations: (options as any).includeRecommendations
+      includeFailureAnalysis: options.includeFailureAnalysis,
+      includeRecommendations: options.includeRecommendations
     };
 
     // Track export started
