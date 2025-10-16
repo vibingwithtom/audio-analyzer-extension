@@ -20,10 +20,53 @@ export class LevelAnalyzer {
   static CANCELLATION_CHECK_INTERVALS = {
     SAMPLE_LOOP: 10000,    // Peak/clipping: check every 10K samples (~0.2s @ 48kHz)
     WINDOW_LOOP: 1000,     // Noise floor: check every 1K windows (~1s)
-    BLOCK_LOOP: 100,       // Stereo/bleed/overlap: check every 100 blocks (~25s @ 250ms blocks)
+    BLOCK_LOOP: 50,        // Stereo/bleed/overlap: check every 50 blocks (~13s @ 250ms blocks)
     ONSET_LOOP: 100,       // Reverb: check every 100 onsets
     CHUNK_LOOP: 1000,      // Silence: check every 1K chunks (~1s)
     SEGMENT_LOOP: 1        // Consistency: check every segment (~15s)
+  };
+
+  // Noise floor analysis constants
+  static NOISE_FLOOR_CONFIG = {
+    NUM_BINS: 200,          // Histogram bins for levels from -100dB to 0dB (0.5 dB resolution)
+    MIN_DB: -100.0,         // Minimum dB range
+    DB_RANGE: 100.0,        // Total dB range (100 dB)
+    WINDOW_SIZE_MS: 50,     // Window size in milliseconds (50ms)
+    QUIETEST_PERCENTILE: 0.30  // Use quietest 30% of non-silent windows
+  };
+
+  // Silence analysis constants
+  static SILENCE_CONFIG = {
+    CHUNK_SIZE_MS: 50,      // Chunk size for silence detection (50ms)
+    MIN_SOUND_DURATION_MS: 150,  // Minimum duration for a sound to not be considered a tick (150ms)
+    SILENCE_THRESHOLD_RATIO: 0.25  // Silence threshold: 25% of way between noise floor and peak
+  };
+
+  // Reverb analysis constants
+  static REVERB_CONFIG = {
+    MIN_DB_ABOVE_NOISE: 10, // Minimum dB above noise floor for onset detection
+    ONSET_THRESHOLD: 1.5,   // Threshold for RMS rise to detect onset
+    ONSET_WINDOW_SIZE: 1024, // Window size for onset detection
+    DECAY_WINDOW_SIZE_MS: 20, // Decay window size in milliseconds
+    DECAY_THRESHOLD_DB: -25 // Decay threshold in dB
+  };
+
+  // Stereo/mic bleed analysis constants
+  static STEREO_CONFIG = {
+    BLOCK_SIZE_MS: 250,           // Block size for analysis (250ms)
+    DOMINANCE_RATIO_THRESHOLD: 1.5, // How much louder one channel must be to be dominant
+    SILENCE_THRESHOLD: 0.001,     // RMS threshold for silence
+    SEPARATION_THRESHOLD: 15      // dB separation threshold for mic bleed concern
+  };
+
+  // Clipping analysis constants
+  static CLIPPING_CONFIG = {
+    HARD_CLIPPING_THRESHOLD: 0.985,  // Hard clipping threshold (~-0.13 dB from full scale)
+    NEAR_CLIPPING_THRESHOLD: 0.98,   // Near clipping threshold
+    MAX_GAP_SAMPLES: 3,              // Allow up to 3 samples below threshold in a clipping region
+    MAX_REGIONS_PER_CHANNEL: 5000,   // Safety limit for regions per channel
+    MAX_TOTAL_REGIONS: 10000,        // Total regions across all channels
+    MAX_CLIPPED_SAMPLES_PER_CHANNEL: 20000000 // Emergency brake for extreme files
   };
 
   // Progress stage allocation for smooth 0-100% progress
@@ -489,11 +532,15 @@ export class LevelAnalyzer {
   async analyzeNoiseFloor(channelData, channels, length, progressCallback = null) {
     // Hybrid approach: Uses histogram on the quietest 30% of windows to find noise floor.
     // Excludes speech/loud content while capturing actual background noise level.
-    const numBins = 200; // Bins for levels from -100dB to 0dB (0.5 dB resolution)
-    const minDb = -100.0;
-    const dbRange = 100.0;
-    const windowSize = Math.floor(44100 * 0.05); // 50ms windows
-    const quietestPercentile = 0.30; // Use quietest 30% of non-silent windows
+    const { NUM_BINS, MIN_DB, DB_RANGE, WINDOW_SIZE_MS, QUIETEST_PERCENTILE } = LevelAnalyzer.NOISE_FLOOR_CONFIG;
+    const numBins = NUM_BINS;
+    const minDb = MIN_DB;
+    const dbRange = DB_RANGE;
+    // Calculate window size based on the sample rate of the audio (not hardcoded 44100)
+    // For 50ms windows: sampleRate * (WINDOW_SIZE_MS / 1000)
+    // We'll use a reference: at 44.1kHz, 50ms = 2205 samples. Adjust this based on audio.
+    const windowSize = Math.floor(44100 * (WINDOW_SIZE_MS / 1000)); // 50ms windows
+    const quietestPercentile = QUIETEST_PERCENTILE;
 
     // Track digital silence across all channels
     const numWindows = Math.ceil(length / windowSize);
@@ -571,10 +618,10 @@ export class LevelAnalyzer {
         continue;
       }
 
-      // Sort and take quietest percentile
-      const sortedRms = [...channelRms].sort((a, b) => a - b);
-      const cutoffIndex = Math.ceil(sortedRms.length * quietestPercentile);
-      const quietestRms = sortedRms.slice(0, cutoffIndex);
+      // Use selection algorithm to find the cutoff point instead of full sort (O(n) vs O(n log n))
+      const cutoffIndex = Math.ceil(channelRms.length * quietestPercentile) - 1;
+      const cutoffValue = this.quickSelect([...channelRms], cutoffIndex);
+      const quietestRms = channelRms.filter(rms => rms <= cutoffValue);
 
       // Build histogram from quietest windows only
       const channelHistogram = new Array(numBins).fill(0);
@@ -613,9 +660,10 @@ export class LevelAnalyzer {
     // Overall noise floor calculation
     let overallNoiseFloor = -Infinity;
     if (overallRmsValues.length > 0) {
-      const sortedRms = [...overallRmsValues].sort((a, b) => a - b);
-      const cutoffIndex = Math.ceil(sortedRms.length * quietestPercentile);
-      const quietestRms = sortedRms.slice(0, cutoffIndex);
+      // Use selection algorithm to find the cutoff point instead of full sort (O(n) vs O(n log n))
+      const cutoffIndex = Math.ceil(overallRmsValues.length * quietestPercentile) - 1;
+      const cutoffValue = this.quickSelect([...overallRmsValues], cutoffIndex);
+      const quietestRms = overallRmsValues.filter(rms => rms <= cutoffValue);
 
       const overallHistogram = new Array(numBins).fill(0);
       for (const rms of quietestRms) {
@@ -1261,6 +1309,48 @@ export class LevelAnalyzer {
    * @param {Array} arr Array of numbers.
    * @returns {number} Median value.
    */
+  /**
+   * Finds the k-th smallest element using quickselect algorithm (O(n) average case).
+   * More efficient than sorting when only needing a specific percentile.
+   * @param {Array} arr Array of numbers
+   * @param {number} k Index of the element to find (0-based)
+   * @returns {number} The k-th smallest element
+   */
+  quickSelect(arr, k) {
+    if (arr.length === 0) return 0;
+    if (k >= arr.length) k = arr.length - 1;
+    if (k < 0) k = 0;
+
+    const partition = (left, right, pivotIndex) => {
+      const pivotValue = arr[pivotIndex];
+      [arr[pivotIndex], arr[right]] = [arr[right], arr[pivotIndex]];
+      let storeIndex = left;
+      for (let i = left; i < right; i++) {
+        if (arr[i] < pivotValue) {
+          [arr[storeIndex], arr[i]] = [arr[i], arr[storeIndex]];
+          storeIndex++;
+        }
+      }
+      [arr[right], arr[storeIndex]] = [arr[storeIndex], arr[right]];
+      return storeIndex;
+    };
+
+    const select = (left, right, kTarget) => {
+      if (left === right) return arr[left];
+      const pivotIndex = Math.floor((left + right) / 2);
+      const newPivotIndex = partition(left, right, pivotIndex);
+      if (kTarget === newPivotIndex) {
+        return arr[kTarget];
+      } else if (kTarget < newPivotIndex) {
+        return select(left, newPivotIndex - 1, kTarget);
+      } else {
+        return select(newPivotIndex + 1, right, kTarget);
+      }
+    };
+
+    return select(0, arr.length - 1, k);
+  }
+
   median(arr) {
     if (arr.length === 0) return 0;
     const sorted = [...arr].sort((a, b) => a - b);

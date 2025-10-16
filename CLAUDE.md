@@ -6,32 +6,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **THESE RULES MUST BE FOLLOWED TO PREVENT PRODUCTION ISSUES:**
 
-### 1. Feature Branch Development (REQUIRED)
+### Feature Branch Development (REQUIRED)
 - **NEVER push directly to main** for features or significant changes
 - **ALWAYS create a feature branch** for any new work
 - Feature branches automatically run CI tests on every push
 - CI must pass before merging to main
+- Check CI status: https://github.com/vibingwithtom/audio-analyzer/actions
 
-### 2. Testing Requirements
+### Testing Requirements
 - All feature branches run CI automatically (tests, TypeScript checks, linting)
 - **739 tests must pass** before any code reaches production
 - If tests fail on your feature branch, fix them before creating a PR
-- Check CI status: https://github.com/vibingwithtom/audio-analyzer/actions
 
-### 3. Branch Protection
-- The `main` branch is protected and requires:
-  - Pull Request with passing CI checks
-  - Status check: "Run Tests" must pass
-- **Verify branch protection is active**: See `.github/BRANCH_PROTECTION_SETUP.md`
-- If you can push directly to main without a PR, branch protection may not be configured
-
-### 4. When to Update Test Mocks
+### When to Update Test Mocks
 - **Critical**: When adding new methods to classes imported by tests (e.g., LevelAnalyzer)
 - Check `packages/web/tests/unit/` for relevant test files
 - Update mocks in `beforeEach` blocks to include new methods
-- Example: If you add `myNewMethod()` to LevelAnalyzer, add it to `mockLevelAnalyzer` in tests
 
-### 5. Standard Workflow (Use This Every Time)
+### Standard Workflow (Use This Every Time)
 ```bash
 # 1. Create feature branch
 git checkout -b feature/descriptive-name
@@ -45,21 +37,16 @@ git add .
 git commit -m "feat: description"
 git push origin feature/descriptive-name
 
-# 4. Wait for CI to pass
-# Check: https://github.com/vibingwithtom/audio-analyzer/actions
-
-# 5. Deploy to beta for manual testing (optional but recommended)
+# 4. Deploy to beta for manual testing (optional but recommended)
 cd packages/web
 npm run deploy:beta
 # Test at: https://audio-analyzer.tinytech.site/beta/
 
-# 6. Create Pull Request (REQUIRED for main branch)
+# 5. Create Pull Request (REQUIRED for main branch)
 gh pr create --base main --head feature/descriptive-name
-# OR use GitHub UI: https://github.com/vibingwithtom/audio-analyzer/pulls
 
-# 7. Merge PR after CI passes
-# GitHub will prevent merge if tests fail
-# Production auto-deploys after merge
+# 6. Merge PR after CI passes
+# Production auto-deploys after merge to main
 ```
 
 ### Why These Rules Exist
@@ -74,35 +61,22 @@ These rules prevent this from happening again.
 
 ## Project Overview
 
-Audio Analyzer is a monorepo containing multiple applications for analyzing audio file properties and validating them against criteria. The project consists of:
-
-- **Web application** (packages/web) - Progressive web app deployed to GitHub Pages
-- **Chrome extension** (packages/extension) - Google Drive integration for analyzing audio files
-- **Desktop application** (packages/desktop) - Electron-based standalone app
-- **Core library** (packages/core) - Shared audio analysis engine used by all platforms
-- **Cloud functions** - Google Cloud Functions for bilingual validation and Box proxy
+Audio Analyzer is a monorepo with:
+- **Web app** (packages/web) - PWA deployed to GitHub Pages
+- **Chrome extension** (packages/extension) - Google Drive integration
+- **Desktop app** (packages/desktop) - Electron-based standalone app
+- **Core library** (packages/core) - Shared audio analysis engine
+- **Cloud functions** - Bilingual validation and Box proxy
 
 ## Common Commands
 
 ### Development
 ```bash
-# Install dependencies (from root)
-npm install
-
-# Run web app locally
+npm install              # Install dependencies (from root)
 cd packages/web
 npm run dev              # Runs Vite dev server on http://localhost:3000
-
-# Run desktop app
-cd packages/desktop
-npm run dev              # Runs Electron in dev mode
-npm start                # Runs Electron normally
-
-# Build all packages
-npm run build            # Builds all workspaces
-
-# Lint all packages
-npm run lint             # Runs linting on all workspaces
+npm run build            # Build all workspaces
+npm run lint             # Lint all workspaces
 ```
 
 ### Web Deployment
@@ -111,7 +85,6 @@ npm run lint             # Runs linting on all workspaces
 - Deploys automatically when code is pushed to `main` branch
 - GitHub Actions runs tests first, blocks deployment if tests fail
 - URL: https://audio-analyzer.tinytech.site
-- No manual deployment needed
 
 **Beta (Manual):**
 ```bash
@@ -119,233 +92,54 @@ cd packages/web
 npm run deploy:beta      # Deploys to https://audio-analyzer.tinytech.site/beta/
 ```
 
-**Manual Production (Emergency only):**
-```bash
-cd packages/web
-npm run deploy           # Deploys to https://audio-analyzer.tinytech.site
-```
-
 **Note:** See `packages/web/DEPLOYMENT.md` for detailed deployment guide.
-
-### Desktop Application Build
-```bash
-cd packages/desktop
-
-npm run build            # Build for current platform
-npm run build-mac        # Build for macOS
-npm run build-win        # Build for Windows
-npm run build-linux      # Build for Linux
-npm run pack             # Build without creating installer (faster for testing)
-```
-
-### Cloud Functions
-```bash
-# Deploy bilingual validation function
-cd cloud-functions/bilingual-validation
-gcloud functions deploy bilingualValidation \
-  --runtime nodejs20 \
-  --trigger-http \
-  --allow-unauthenticated \
-  --region us-central1
-
-# Deploy Box proxy function
-cd cloud-functions/box-proxy
-gcloud functions deploy box-proxy \
-  --runtime nodejs20 \
-  --trigger-http \
-  --allow-unauthenticated \
-  --entry-point boxProxy \
-  --region us-central1
-```
 
 ## Architecture
 
 ### Monorepo Structure
-This is an npm workspaces monorepo. All packages are in `packages/` and share dependencies through the root `package.json`.
+npm workspaces monorepo. All packages in `packages/` share dependencies through root `package.json`.
 
 ### Core Library (`packages/core`)
-The core library is the heart of the application and is imported by all other packages. Key modules:
-
-- **AudioAnalyzer** (`audio-analyzer.js`) - Extracts file properties (sample rate, bit depth, channels, duration, file type). Parses WAV headers directly for accurate bit depth. Uses Web Audio API's AudioContext for decoding.
-
-- **LevelAnalyzer** (`level-analyzer.js`) - Advanced audio analysis including:
-  - Peak level detection
-  - Noise floor analysis (two methods: old model using quietest 20% of RMS windows, new histogram-based model)
-  - Normalization checking (target: -6.0 dB)
-  - Reverb estimation using RT60 calculation
-  - Silence analysis (leading, trailing, and longest silence gaps)
-  - Stereo separation analysis (detects mono-as-stereo, conversational stereo, etc.)
-  - Mic bleed detection for conversational audio
-
-- **CriteriaValidator** (`criteria-validator.js`) - Validates audio properties against target criteria. Returns pass/warning/fail status for each criterion.
-
-- **BatchProcessor** (`batch-processor.js`) - Handles batch processing of multiple audio files with progress tracking.
-
-- **GoogleDriveHandler** (`google-drive.js`) - Handles Google Drive URL parsing and file downloads.
-
-- **AudioAnalyzerEngine** (`index.js`) - Convenience class combining all functionality.
+Key modules:
+- **AudioAnalyzer** - Extracts file properties (sample rate, bit depth, channels, duration). Parses WAV headers directly.
+- **LevelAnalyzer** - Advanced analysis: peak levels, noise floor, reverb (RT60), silence detection, stereo separation, mic bleed
+- **CriteriaValidator** - Validates audio properties against criteria
+- **BatchProcessor** - Batch processing with progress tracking
+- **GoogleDriveHandler** - Google Drive URL parsing and file downloads
 
 ### Web Application (`packages/web`)
-Single-page vanilla JavaScript application (no framework). Key components:
-
-- **main.js** - Main application logic, tab switching, file handling, batch processing, UI updates
-- **google-auth.js** - Google OAuth integration using Google Identity Services
+Vanilla JS SPA built with Vite. Key files:
+- **main.js** - Main app logic, tab switching, file handling, batch processing
+- **google-auth.js** - Google OAuth using Identity Services
 - **box-auth.js** - Box OAuth integration
-- **config.js** - Configuration for cloud function URLs
-- Built with Vite for bundling
+- **vite.config.js** - Sets base path: '/beta/' for beta mode, '/' for production
 
-**Important:** Uses `vite.config.js` to set base path:
-- `mode === 'beta'` → base: '/beta/'
-- Production → base: '/'
-
-### Chrome Extension (`packages/extension`)
-Manifest V3 Chrome extension for analyzing Google Drive files:
-
-- **manifest.json** - Extension configuration with OAuth2 setup
-- **popup.js/html** - Extension popup interface
-- **content-script.js** - Injected into Google Drive pages
-- **background.js** - Service worker for background tasks
-- **file-handler.js/html** - Handles file analysis in separate window
-
-### Desktop Application (`packages/desktop`)
-Electron application with main and renderer processes:
-
-- **src/main.js** - Electron main process
-- Uses electron-builder for packaging
-- Configured in package.json build section for macOS, Windows, Linux
-- Auto-update support via electron-updater
-
-### Cloud Functions
-
-**bilingual-validation** - Provides validation data for bilingual conversational audio filename patterns. Returns JSON with language codes, conversation IDs by language, and valid contributor pairs.
-
-**box-proxy** - CORS proxy for downloading Box shared files. Required because Box API doesn't support direct CORS requests from browsers.
-
-## Key Concepts
-
-### Audio Analysis Flow
-1. File is read as ArrayBuffer
-2. For WAV: Headers parsed directly for accurate metadata
-3. For other formats: Web Audio API decodes audio
-4. Basic properties extracted (sample rate, channels, etc.)
-5. Optional: Advanced analysis (noise floor, reverb, silence, mic bleed)
-6. Results validated against criteria if preset selected
-
-### Presets System
-The application includes predefined criteria presets for different recording scenarios:
-- Auditions (Character Recordings, Emotional Voice)
-- Character Recordings
-- P2B2 Pairs (Mono/Stereo/Mixed)
-- Three Hour
-- Bilingual Conversational
-- Custom
-
-Each preset defines acceptable file types, sample rates, bit depths, channels, and minimum duration. Some presets support filename validation.
-
-### Filename Validation
-Two validation types:
-
-1. **Three Hour preset** (`script-match`) - Requires speaker ID and scripts folder URL from Google Drive. Validates filename format: `[scriptName]_[speakerID].wav`
-
-2. **Bilingual Conversational preset** (`bilingual-pattern`) - Validates against two patterns:
-   - Scripted: `[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]`
-   - Unscripted: `SPONTANEOUS_[number]-[LanguageCode]-user-[UserID]-agent-[AgentID]`
-
-### Batch Processing
-Supports analyzing entire folders from:
-- Google Drive folders (requires authentication)
-- Box folders (requires authentication)
-- Local multi-file selection
-
-Batch results show aggregate statistics (pass/warning/fail/error counts) and total duration.
-
-### Advanced Analysis Features
-- **Noise Floor**: Uses histogram-based analysis to find most common quiet level (recommended) vs. old method using bottom 20% RMS
-- **Reverb (RT60)**: Estimates room reverberation time by analyzing decay patterns after onsets
-- **Silence Detection**: Dynamically sets threshold at 25% between noise floor and peak, filters out audio "ticks" shorter than 150ms
-- **Mic Bleed**: Measures audio leakage between channels in conversational stereo recordings
-
-## File Organization Notes
-
-- Core library files are ES modules (type: "module" in package.json)
-- Web app uses Vite for bundling and dev server
-- Import paths use `@audio-analyzer/core` alias that resolves to `packages/core`
-- All packages import from core using relative paths in actual files
-
-## OAuth Configuration
-
-### Google Drive
-- Chrome extension uses manifest.json oauth2 config
-- Web app uses Google Identity Services with client ID in index.html
-- OAuth scopes: drive.readonly, drive.metadata.readonly
-
-### Box
-- Web app uses Box OAuth with redirect to `/box-callback`
-- Requires Box developer app with client ID/secret
-- Uses cloud function proxy for actual file downloads
+### Analysis Features
+- **Audio Analysis Flow**: File → ArrayBuffer → Parse/Decode → Extract properties → Validate against criteria
+- **Presets**: Auditions, Character Recordings, P2B2 Pairs, Three Hour, Bilingual Conversational, Custom
+- **Filename Validation**:
+  - Three Hour: `[scriptName]_[speakerID].wav`
+  - Bilingual: `[ConversationID]-[LanguageCode]-user-[UserID]-agent-[AgentID]`
+- **Batch Processing**: Google Drive folders, Box folders, local multi-file selection
 
 ## Git/GitHub Workflow
 
 ### Branch Strategy
-- **main** - Production-ready code, should always be stable
+- **main** - Production-ready code, always stable
 - **feature/** - Feature branches (e.g., `feature/mic-bleed-detection`)
-- Create feature branches from main for new features
-- Keep branches focused on a single feature or fix
+- Create feature branches from main, keep focused on single feature
 
 ### Commit Guidelines
-- Use descriptive commit messages following conventional commits format:
-  - `feat:` - New features
-  - `fix:` - Bug fixes
-  - `refactor:` - Code restructuring without functional changes
-  - `docs:` - Documentation updates
-  - `chore:` - Maintenance tasks
-- Example: `feat: add mic bleed detection for conversational stereo`
-- Include meaningful descriptions in commit body when needed
-
-### Deployment Workflow (Critical)
-1. **Develop on feature branch**
-   ```bash
-   git checkout -b feature/your-feature-name
-   # Make changes, test locally with npm run dev
-   ```
-
-2. **Commit changes**
-   ```bash
-   git add .
-   git commit -m "feat: description of changes"
-   ```
-
-3. **Deploy to beta for testing**
-   ```bash
-   cd packages/web
-   npm run deploy:beta
-   # Test at https://audio-analyzer.tinytech.site/beta/
-   ```
-
-4. **Merge to main (triggers automatic production deployment)**
-   ```bash
-   git checkout main
-   git merge feature/your-feature-name
-   git push origin main
-   # GitHub Actions automatically:
-   # - Runs all 635 tests
-   # - Deploys to production if tests pass
-   # - Blocks deployment if tests fail
-   ```
-
-5. **Verify production**
-   - Check GitHub Actions: https://github.com/vibingwithtom/audio-analyzer/actions
-   - Verify at https://audio-analyzer.tinytech.site
-
-### Working with Core Library
-- Changes to `packages/core` affect all platforms (web, extension, desktop)
-- Test changes across platforms before deploying
-- Core changes may require updates to consuming packages
+Use conventional commits format:
+- `feat:` - New features
+- `fix:` - Bug fixes
+- `refactor:` - Code restructuring
+- `docs:` - Documentation updates
+- `chore:` - Maintenance tasks
 
 ### Pull Request Best Practices
 - Create PR from feature branch to main
 - Include description of changes and testing performed
-- Link to related issues if applicable
 - Ensure beta deployment is tested before merging
 - Delete feature branch after successful merge
 
@@ -354,6 +148,5 @@ Batch results show aggregate statistics (pass/warning/fail/error counts) and tot
 - **ALWAYS** deploy web app to beta before merging to main
 - Production deployment is automatic via GitHub Actions when you push to main
 - Tests must pass before production deployment (enforced by CI/CD)
-- Core library is shared across all packages - changes affect all platforms
-- Cloud functions are deployed separately to Google Cloud Platform
-- Web deployments use GitHub Pages with separate beta/production paths
+- Core library changes affect all platforms (web, extension, desktop)
+- Import paths use `@audio-analyzer/core` alias that resolves to `packages/core`

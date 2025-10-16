@@ -77,7 +77,14 @@ describe('audio-analysis-service', () => {
     mockLevelAnalyzer = {
       analyzeAudioBuffer: vi.fn().mockResolvedValue({
         peakDb: -3.5,
-        noiseFloor: -60,
+        noiseFloorDb: -60,
+        noiseFloorPerChannel: [
+          { channelIndex: 0, channelName: 'left', noiseFloorDb: -60 },
+          { channelIndex: 1, channelName: 'right', noiseFloorDb: -62 }
+        ],
+        hasDigitalSilence: false,
+        digitalSilencePercentage: 0,
+        normalizationStatus: { status: 'normalized', message: 'Properly normalized', peakDb: -3.5, targetDb: -6.0 },
         reverbInfo: { rt60: 0.5 }
       }),
       analyzeStereoSeparation: vi.fn().mockReturnValue({ stereoType: 'Conversational Stereo' }),
@@ -348,7 +355,8 @@ describe('audio-analysis-service', () => {
 
       expect(mockLevelAnalyzer.analyzeAudioBuffer).toHaveBeenCalled();
       expect(result.peakDb).toBe(-3.5);
-      expect(result.noiseFloor).toBe(-60);
+      expect(result.noiseFloorDb).toBe(-60);
+      expect(result.noiseFloorPerChannel).toBeDefined();
       expect(result.reverbInfo).toBeDefined();
     });
 
