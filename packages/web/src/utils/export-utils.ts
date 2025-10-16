@@ -800,9 +800,11 @@ export function exportResultsEnhanced(
     const stats = getExportStats(results);
 
     // Determine if filename validation should be included
-    // Only include for filename-only mode or when explicitly supported by preset
-    // Don't include for audio-only or full analysis modes
-    const includeFilenameValidation = analysisMode === 'filename-only' ? Boolean(presetId && presetId !== 'custom') : false;
+    // Include for 'full', 'filename-only', and 'experimental' modes when preset supports it
+    // Exclude only for 'audio-only' mode
+    const includeFilenameValidation = (analysisMode === 'full' || analysisMode === 'filename-only' || analysisMode === 'experimental')
+      ? Boolean(presetId && presetId !== 'custom')
+      : false;
 
     // Create enhanced export options
     const enhancedOptions: EnhancedExportOptions = {
