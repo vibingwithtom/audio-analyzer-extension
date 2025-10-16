@@ -194,9 +194,7 @@ function extractDataRow(result: AudioResults, mode: ExportOptions['mode']): stri
  */
 const RECOMMENDATION_TEMPLATES = {
   filename: {
-    unsupportedChars: "Use only allowed filename characters (letters, numbers, hyphens, underscores).",
-    tooLong: "Shorten filename to under 255 characters.",
-    invalidFormat: "Use standard filename format without special characters."
+    generic: "Filename must match the required format. Review the 'Filename Validation Issues' column for specific details."
   },
   sampleRate: {
     generic: "Convert file to accepted sample rate.",
@@ -312,12 +310,9 @@ function analyzeFailuresWithRecommendations(
       analysis.filenameValidationIssues = `filename: ${filenameValidation.issue}`;
       issueCount++;
 
-      let subType: string = 'invalidFormat';
-      if (filenameValidation.issue?.includes('characters')) subType = 'unsupportedChars';
-      if (filenameValidation.issue?.includes('long')) subType = 'tooLong';
-
+      // Use standardized recommendation that references the validation issues column
       recommendations.push(generateDynamicRecommendation(
-        'filename', subType, result.filename, options.currentPresetCriteria
+        'filename', 'generic', result.filename, options.currentPresetCriteria
       ));
     }
   }
