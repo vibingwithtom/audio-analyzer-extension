@@ -370,10 +370,10 @@ function analyzeFailuresWithRecommendations(
     recommendations.push(generateDynamicRecommendation('clipping', severity, percentage, null));
   }
 
-  // Noise Floor Analysis
-  if (result.noiseFloorDb !== undefined && result.noiseFloorDb > -50) {
+  // Noise Floor Analysis (more sensitive threshold)
+  if (result.noiseFloorDb !== undefined && result.noiseFloorDb > -55) {
     const severity = result.noiseFloorDb > -40 ? 'critical' :
-                    result.noiseFloorDb > -45 ? 'veryHigh' : 'high';
+                    result.noiseFloorDb > -50 ? 'veryHigh' : 'high';
     qualityIssues.push(`High noise floor: ${result.noiseFloorDb.toFixed(1)} dB (${severity})`);
     issueCount++;
     recommendations.push(generateDynamicRecommendation('noiseFloor', severity, result.noiseFloorDb, null));
@@ -381,27 +381,27 @@ function analyzeFailuresWithRecommendations(
 
   // Reverb Analysis
   if (result.reverbInfo?.label &&
-      (result.reverbInfo.label.includes('Poor') || result.reverbInfo.time > 1.5)) {
-    const severity = result.reverbInfo.time > 2.0 ? 'excessive' : 'poor';
+      (result.reverbInfo.label.includes('Poor') || result.reverbInfo.time > 1.2)) {
+    const severity = result.reverbInfo.time > 1.5 ? 'excessive' : 'poor';
     qualityIssues.push(`${result.reverbInfo.label}: ${result.reverbInfo.time.toFixed(2)}s RT60`);
     issueCount++;
     recommendations.push(generateDynamicRecommendation('reverb', severity, result.reverbInfo.time, null));
   }
 
-  // Silence Analysis
-  if (result.leadingSilence !== undefined && result.leadingSilence > 10) {
+  // Silence Analysis (more sensitive thresholds)
+  if (result.leadingSilence !== undefined && result.leadingSilence > 3) {
     qualityIssues.push(`Excessive leading silence: ${result.leadingSilence.toFixed(1)}s`);
     issueCount++;
     recommendations.push(generateDynamicRecommendation('silence', 'leadingExcess', result.leadingSilence, null));
   }
 
-  if (result.trailingSilence !== undefined && result.trailingSilence > 10) {
+  if (result.trailingSilence !== undefined && result.trailingSilence > 3) {
     qualityIssues.push(`Excessive trailing silence: ${result.trailingSilence.toFixed(1)}s`);
     issueCount++;
     recommendations.push(generateDynamicRecommendation('silence', 'trailingExcess', result.trailingSilence, null));
   }
 
-  if (result.longestSilence !== undefined && result.longestSilence > 15) {
+  if (result.longestSilence !== undefined && result.longestSilence > 8) {
     qualityIssues.push(`Long silent gap: ${result.longestSilence.toFixed(1)}s`);
     issueCount++;
     recommendations.push(generateDynamicRecommendation('silence', 'gapsExcess', result.longestSilence, null));
@@ -770,8 +770,9 @@ export function exportResultsEnhanced(
     const stats = getExportStats(results);
 
     // Determine if filename validation should be included
-    // (include if preset supports it and presetId is provided)
-    const includeFilenameValidation = Boolean(presetId && presetId !== 'custom');
+    // Only include for filename-only mode or when explicitly supported by preset
+    // Don't include for audio-only or full analysis modes
+    const includeFilenameValidation = analysisMode === 'filename-only' ? Boolean(presetId && presetId !== 'custom') : false;
 
     // Create enhanced export options
     const enhancedOptions: EnhancedExportOptions = {
