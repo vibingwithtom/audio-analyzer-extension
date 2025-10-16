@@ -12,7 +12,7 @@
   import { setPreset } from '../stores/settings';
   import { setAnalysisMode } from '../stores/analysisMode';
 
-  let updateAvailable = false;
+  let updateAvailable = $state(false);
   let buildInfo = $state('Audio Analyzer');
 
   /**
