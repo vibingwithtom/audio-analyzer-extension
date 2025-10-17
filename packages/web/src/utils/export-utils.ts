@@ -469,97 +469,101 @@ export function analyzeFailuresWithRecommendations(
   }
 
   // 3. Quality/Experimental Issues
+  // Only include experimental quality issues when analysis mode is 'experimental'
   const qualityIssues: string[] = [];
 
-  // Normalization Analysis
-  if (result.normalizationStatus && result.normalizationStatus.status !== 'normalized') {
-    qualityIssues.push(`Normalization: ${result.normalizationStatus.status}`);
-    issueCount++;
-    recommendations.push(generateDynamicRecommendation('normalization', 'notNormalized', null, null));
-  }
-
-  // Clipping Analysis (aligned with UI thresholds)
-  if (result.clippingAnalysis) {
-    const { clippedPercentage, clippingEventCount, nearClippingPercentage } = result.clippingAnalysis;
-    let clipSeverity = '';
-
-    // Hard clipping > CRITICAL_PERCENTAGE% OR > CRITICAL_EVENTS events → error
-    if (clippedPercentage > QUALITY_THRESHOLDS.clipping.CRITICAL_PERCENTAGE ||
-        clippingEventCount > QUALITY_THRESHOLDS.clipping.CRITICAL_EVENTS) {
-      clipSeverity = 'critical';
-    }
-    // Hard clipping > MAJOR_PERCENTAGE% OR > MAJOR_EVENTS events → warning
-    else if (clippedPercentage > QUALITY_THRESHOLDS.clipping.MAJOR_PERCENTAGE ||
-             clippingEventCount > QUALITY_THRESHOLDS.clipping.MAJOR_EVENTS) {
-      clipSeverity = 'major';
-    }
-    // Any hard clipping → warning
-    else if (clippedPercentage > 0 && clippingEventCount > 0) {
-      clipSeverity = 'major';
-    }
-    // Near clipping > NEAR_CLIPPING% → warning
-    else if (nearClippingPercentage > QUALITY_THRESHOLDS.clipping.NEAR_CLIPPING) {
-      clipSeverity = 'major';
-    }
-
-    if (clipSeverity) {
-      qualityIssues.push(`Clipping: ${clippedPercentage.toFixed(2)}% (${clipSeverity})`);
+  if (options.analysisMode === 'experimental') {
+    // Normalization Analysis
+    if (result.normalizationStatus && result.normalizationStatus.status !== 'normalized') {
+      qualityIssues.push(`Normalization: ${result.normalizationStatus.status}`);
       issueCount++;
-      recommendations.push(generateDynamicRecommendation('clipping', clipSeverity, clippedPercentage, null));
+      recommendations.push(generateDynamicRecommendation('normalization', 'notNormalized', null, null));
     }
-  }
 
-  // Noise Floor Analysis (aligned with UI thresholds)
-  if (result.noiseFloorDb !== undefined && result.noiseFloorDb > QUALITY_THRESHOLDS.noiseFloor.WARNING_DB) {
-    const severity = result.noiseFloorDb > QUALITY_THRESHOLDS.noiseFloor.CRITICAL_DB ? 'critical' : 'high';
-    qualityIssues.push(`High noise floor: ${result.noiseFloorDb.toFixed(1)} dB`);
-    issueCount++;
-    recommendations.push(generateDynamicRecommendation('noiseFloor', severity, result.noiseFloorDb, null));
-  }
+    // Clipping Analysis (aligned with UI thresholds)
+    if (result.clippingAnalysis) {
+      const { clippedPercentage, clippingEventCount, nearClippingPercentage } = result.clippingAnalysis;
+      let clipSeverity = '';
 
-  // Reverb Analysis
-  if (result.reverbInfo?.label &&
-      (result.reverbInfo.label.includes('Poor') || result.reverbInfo.time > QUALITY_THRESHOLDS.reverb.POOR_TIME)) {
-    const severity = result.reverbInfo.time > QUALITY_THRESHOLDS.reverb.EXCESSIVE_TIME ? 'excessive' : 'poor';
-    qualityIssues.push(`${result.reverbInfo.label}: ${result.reverbInfo.time.toFixed(2)}s RT60`);
-    issueCount++;
-    recommendations.push(generateDynamicRecommendation('reverb', severity, result.reverbInfo.time, null));
-  }
+      // Hard clipping > CRITICAL_PERCENTAGE% OR > CRITICAL_EVENTS events → error
+      if (clippedPercentage > QUALITY_THRESHOLDS.clipping.CRITICAL_PERCENTAGE ||
+          clippingEventCount > QUALITY_THRESHOLDS.clipping.CRITICAL_EVENTS) {
+        clipSeverity = 'critical';
+      }
+      // Hard clipping > MAJOR_PERCENTAGE% OR > MAJOR_EVENTS events → warning
+      else if (clippedPercentage > QUALITY_THRESHOLDS.clipping.MAJOR_PERCENTAGE ||
+               clippingEventCount > QUALITY_THRESHOLDS.clipping.MAJOR_EVENTS) {
+        clipSeverity = 'major';
+      }
+      // Any hard clipping → warning
+      else if (clippedPercentage > 0 && clippingEventCount > 0) {
+        clipSeverity = 'major';
+      }
+      // Near clipping > NEAR_CLIPPING% → warning
+      else if (nearClippingPercentage > QUALITY_THRESHOLDS.clipping.NEAR_CLIPPING) {
+        clipSeverity = 'major';
+      }
 
-  // Silence Analysis (aligned with UI thresholds)
-  if (result.leadingSilence !== undefined && result.leadingSilence > QUALITY_THRESHOLDS.silence.LEADING_THRESHOLD) {
-    qualityIssues.push(`Leading silence: ${result.leadingSilence.toFixed(1)}s`);
-    issueCount++;
-    recommendations.push(generateDynamicRecommendation('silence', 'leadingExcess', result.leadingSilence, null));
-  }
+      if (clipSeverity) {
+        qualityIssues.push(`Clipping: ${clippedPercentage.toFixed(2)}% (${clipSeverity})`);
+        issueCount++;
+        recommendations.push(generateDynamicRecommendation('clipping', clipSeverity, clippedPercentage, null));
+      }
+    }
 
-  if (result.trailingSilence !== undefined && result.trailingSilence > QUALITY_THRESHOLDS.silence.TRAILING_THRESHOLD) {
-    qualityIssues.push(`Trailing silence: ${result.trailingSilence.toFixed(1)}s`);
-    issueCount++;
-    recommendations.push(generateDynamicRecommendation('silence', 'trailingExcess', result.trailingSilence, null));
-  }
+    // Noise Floor Analysis (aligned with UI thresholds)
+    if (result.noiseFloorDb !== undefined && result.noiseFloorDb > QUALITY_THRESHOLDS.noiseFloor.WARNING_DB) {
+      const severity = result.noiseFloorDb > QUALITY_THRESHOLDS.noiseFloor.CRITICAL_DB ? 'critical' : 'high';
+      qualityIssues.push(`High noise floor: ${result.noiseFloorDb.toFixed(1)} dB`);
+      issueCount++;
+      recommendations.push(generateDynamicRecommendation('noiseFloor', severity, result.noiseFloorDb, null));
+    }
 
-  if (result.longestSilence !== undefined && result.longestSilence > QUALITY_THRESHOLDS.silence.GAP_THRESHOLD) {
-    qualityIssues.push(`Silence gap: ${result.longestSilence.toFixed(1)}s`);
-    issueCount++;
-    recommendations.push(generateDynamicRecommendation('silence', 'gapsExcess', result.longestSilence, null));
-  }
+    // Reverb Analysis
+    if (result.reverbInfo?.label &&
+        (result.reverbInfo.label.includes('Poor') || result.reverbInfo.time > QUALITY_THRESHOLDS.reverb.POOR_TIME)) {
+      const severity = result.reverbInfo.time > QUALITY_THRESHOLDS.reverb.EXCESSIVE_TIME ? 'excessive' : 'poor';
+      qualityIssues.push(`${result.reverbInfo.label}: ${result.reverbInfo.time.toFixed(2)}s RT60`);
+      issueCount++;
+      recommendations.push(generateDynamicRecommendation('reverb', severity, result.reverbInfo.time, null));
+    }
 
-  // Mic Bleed Analysis
-  const micBleedDetected = result.micBleed && (
-    (result.micBleed.old?.leftChannelBleedDb > QUALITY_THRESHOLDS.micBleed.OLD_THRESHOLD_DB ||
-     result.micBleed.old?.rightChannelBleedDb > QUALITY_THRESHOLDS.micBleed.OLD_THRESHOLD_DB) ||
-    (result.micBleed.new?.percentageConfirmedBleed > QUALITY_THRESHOLDS.micBleed.NEW_THRESHOLD_PERCENTAGE)
-  );
-  if (micBleedDetected) {
-    const severity = (result.micBleed.new?.severityScore || 0) > QUALITY_THRESHOLDS.micBleed.SEVERE_SCORE ? 'severe' : 'detected';
-    qualityIssues.push(`Mic bleed detected`);
-    issueCount++;
-    recommendations.push(generateDynamicRecommendation('micBleed', severity, null, null));
+    // Silence Analysis (aligned with UI thresholds)
+    if (result.leadingSilence !== undefined && result.leadingSilence > QUALITY_THRESHOLDS.silence.LEADING_THRESHOLD) {
+      qualityIssues.push(`Leading silence: ${result.leadingSilence.toFixed(1)}s`);
+      issueCount++;
+      recommendations.push(generateDynamicRecommendation('silence', 'leadingExcess', result.leadingSilence, null));
+    }
+
+    if (result.trailingSilence !== undefined && result.trailingSilence > QUALITY_THRESHOLDS.silence.TRAILING_THRESHOLD) {
+      qualityIssues.push(`Trailing silence: ${result.trailingSilence.toFixed(1)}s`);
+      issueCount++;
+      recommendations.push(generateDynamicRecommendation('silence', 'trailingExcess', result.trailingSilence, null));
+    }
+
+    if (result.longestSilence !== undefined && result.longestSilence > QUALITY_THRESHOLDS.silence.GAP_THRESHOLD) {
+      qualityIssues.push(`Silence gap: ${result.longestSilence.toFixed(1)}s`);
+      issueCount++;
+      recommendations.push(generateDynamicRecommendation('silence', 'gapsExcess', result.longestSilence, null));
+    }
+
+    // Mic Bleed Analysis
+    const micBleedDetected = result.micBleed && (
+      (result.micBleed.old?.leftChannelBleedDb > QUALITY_THRESHOLDS.micBleed.OLD_THRESHOLD_DB ||
+       result.micBleed.old?.rightChannelBleedDb > QUALITY_THRESHOLDS.micBleed.OLD_THRESHOLD_DB) ||
+      (result.micBleed.new?.percentageConfirmedBleed > QUALITY_THRESHOLDS.micBleed.NEW_THRESHOLD_PERCENTAGE)
+    );
+    if (micBleedDetected) {
+      const severity = (result.micBleed.new?.severityScore || 0) > QUALITY_THRESHOLDS.micBleed.SEVERE_SCORE ? 'severe' : 'detected';
+      qualityIssues.push(`Mic bleed detected`);
+      issueCount++;
+      recommendations.push(generateDynamicRecommendation('micBleed', severity, null, null));
+    }
   }
 
   // Stereo Type Validation (preset-based, binary: pass/fail)
-  if (options.currentPreset && options.currentPreset.stereoType) {
+  // Only validate stereo type in experimental mode
+  if (options.analysisMode === 'experimental' && options.currentPreset && options.currentPreset.stereoType) {
     const stereoValidation = CriteriaValidator.validateStereoType(result.stereoSeparation, options.currentPreset) as StereoValidationResult | null;
     if (stereoValidation && stereoValidation.status === 'fail') {
       qualityIssues.push(`Stereo type: ${stereoValidation.message}`);
@@ -569,27 +573,30 @@ export function analyzeFailuresWithRecommendations(
   }
 
   // Speech Overlap Analysis (preset-based thresholds)
-  if (options.currentPreset && result.conversationalAnalysis) {
-    const overlapValidation = CriteriaValidator.validateSpeechOverlap(result.conversationalAnalysis, options.currentPreset) as SpeechOverlapValidationResult | null;
-    if (overlapValidation) {
-      if (overlapValidation.status === 'warning') {
-        qualityIssues.push(`Speech overlap: ${overlapValidation.message}`);
-        issueCount++;
-        recommendations.push(generateDynamicRecommendation('speechOverlap', 'high', overlapValidation.percentage, null));
-      } else if (overlapValidation.status === 'fail') {
-        qualityIssues.push(`Speech overlap: ${overlapValidation.message}`);
-        issueCount++;
-        recommendations.push(generateDynamicRecommendation('speechOverlap', 'excessive', overlapValidation.percentage, null));
+  // Only validate speech overlap in experimental mode
+  if (options.analysisMode === 'experimental') {
+    if (options.currentPreset && result.conversationalAnalysis) {
+      const overlapValidation = CriteriaValidator.validateSpeechOverlap(result.conversationalAnalysis, options.currentPreset) as SpeechOverlapValidationResult | null;
+      if (overlapValidation) {
+        if (overlapValidation.status === 'warning') {
+          qualityIssues.push(`Speech overlap: ${overlapValidation.message}`);
+          issueCount++;
+          recommendations.push(generateDynamicRecommendation('speechOverlap', 'high', overlapValidation.percentage, null));
+        } else if (overlapValidation.status === 'fail') {
+          qualityIssues.push(`Speech overlap: ${overlapValidation.message}`);
+          issueCount++;
+          recommendations.push(generateDynamicRecommendation('speechOverlap', 'excessive', overlapValidation.percentage, null));
+        }
       }
-    }
-  } else if (result.conversationalAnalysis?.overlap) {
-    // Fallback to generic thresholds if no preset is provided
-    const percentage = result.conversationalAnalysis.overlap.overlapPercentage;
-    if (percentage > QUALITY_THRESHOLDS.speechOverlap.WARNING_PERCENTAGE) {
-      const severity = percentage > QUALITY_THRESHOLDS.speechOverlap.CRITICAL_PERCENTAGE ? 'excessive' : 'high';
-      qualityIssues.push(`Speech overlap: ${percentage.toFixed(1)}%`);
-      issueCount++;
-      recommendations.push(generateDynamicRecommendation('speechOverlap', severity, percentage, null));
+    } else if (result.conversationalAnalysis?.overlap) {
+      // Fallback to generic thresholds if no preset is provided
+      const percentage = result.conversationalAnalysis.overlap.overlapPercentage;
+      if (percentage > QUALITY_THRESHOLDS.speechOverlap.WARNING_PERCENTAGE) {
+        const severity = percentage > QUALITY_THRESHOLDS.speechOverlap.CRITICAL_PERCENTAGE ? 'excessive' : 'high';
+        qualityIssues.push(`Speech overlap: ${percentage.toFixed(1)}%`);
+        issueCount++;
+        recommendations.push(generateDynamicRecommendation('speechOverlap', severity, percentage, null));
+      }
     }
   }
 

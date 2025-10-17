@@ -59,8 +59,8 @@ export async function analyzeAudioFile(
       });
     }
 
-    // For empty files (filename-only mode with Google Drive metadata)
-    if (file.size === 0) {
+    // For filename-only mode OR empty files (Google Drive metadata)
+    if (mode === 'filename-only' || file.size === 0) {
       result = await analyzeMetadataOnly(file, filename, options);
     } else {
       // Full audio analysis
@@ -115,7 +115,7 @@ async function analyzeMetadataOnly(
   filename: string,
   options: AnalysisOptions
 ): Promise<AudioResults> {
-  const { analysisMode: mode, preset, presetId, scriptsList, speakerId } = options;
+  const { analysisMode: mode, preset, presetId, criteria, scriptsList, speakerId } = options;
   // Extract file type from filename extension
   const extension = filename.split('.').pop()?.toLowerCase() || '';
   const fileType = extension || 'unknown';
@@ -123,7 +123,7 @@ async function analyzeMetadataOnly(
   // Use actualSize if available (for partial downloads), otherwise use file.size
   const actualSize = (file as any).actualSize || file.size;
 
-  const result: AudioResults = {
+  let result: AudioResults = {
     filename,
     fileSize: actualSize,
     fileType,
@@ -134,8 +134,22 @@ async function analyzeMetadataOnly(
     status: 'pass'
   };
 
-  // Validate filename if preset supports it
-  if (preset?.filenameValidationType && (mode === 'filename-only' || mode === 'full')) {
+  // Validation against preset criteria (skip audio validation)
+  if (criteria) {
+    const validation = CriteriaValidator.validateResults(result, criteria, true) as unknown as ValidationResults;
+
+    // Add filename validation if preset supports it
+    if (preset?.filenameValidationType && (mode === 'filename-only' || mode === 'full')) {
+      const filenameValidation = validateFilename(filename, preset, presetId, scriptsList, speakerId);
+      if (filenameValidation && validation) {
+        (validation as any).filename = filenameValidation;
+      }
+    }
+
+    result.validation = validation;
+    result.status = determineOverallStatus(validation);
+  } else if (preset?.filenameValidationType && (mode === 'filename-only' || mode === 'full')) {
+    // If no criteria but preset has filename validation, validate filename only
     const validation = validateFilename(filename, preset, presetId, scriptsList, speakerId);
     if (validation) {
       result.validation = { filename: validation };
