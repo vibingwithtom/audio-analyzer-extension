@@ -1157,11 +1157,11 @@ export class LevelAnalyzer {
    * Unified conversational audio analysis (single-pass optimization).
    * Analyzes overlapping speech and channel consistency.
    * @param {AudioBuffer} audioBuffer The audio buffer to analyze.
-   * @param {number} noiseFloorDb Noise floor in dB.
+   * @param {object} noiseFloorData Noise floor data with overall and per-channel values.
    * @param {number} peakDb Peak level in dB.
    * @returns {object|null} Combined analysis results, or null if not stereo.
    */
-  analyzeConversationalAudio(audioBuffer, noiseFloorDb, peakDb) {
+  analyzeConversationalAudio(audioBuffer, noiseFloorData, peakDb) {
     // Validate inputs
     if (!audioBuffer || audioBuffer.numberOfChannels !== 2) {
       return null;
@@ -1203,7 +1203,7 @@ export class LevelAnalyzer {
     }
 
     // Run both analyses using the same RMS data
-    const overlap = this.analyzeOverlappingSpeech(noiseFloorDb, rmsBlocks);
+    const overlap = this.analyzeOverlappingSpeech(noiseFloorData, rmsBlocks);
     const consistency = this.analyzeChannelConsistency(rmsBlocks);
 
     return {
@@ -1214,24 +1214,39 @@ export class LevelAnalyzer {
 
   /**
    * Analyzes overlapping speech in conversational stereo audio.
-   * @param {number} noiseFloorDb Noise floor in dB.
+   * @param {object} noiseFloorData Noise floor data with overall and per-channel values.
    * @param {Array} rmsBlocks Pre-calculated RMS blocks.
    * @returns {object} Overlap analysis results.
    */
-  analyzeOverlappingSpeech(noiseFloorDb, rmsBlocks) {
-    // Handle edge case: if noise floor is -Infinity (digital silence), use absolute threshold
-    let speechThresholdDb;
-    let speechThresholdLinear;
+  analyzeOverlappingSpeech(noiseFloorData, rmsBlocks) {
+    // Extract per-channel noise floors (or use overall as fallback)
+    const leftNoiseFloorDb = noiseFloorData?.perChannel?.[0]?.noiseFloorDb ?? noiseFloorData?.overall ?? -Infinity;
+    const rightNoiseFloorDb = noiseFloorData?.perChannel?.[1]?.noiseFloorDb ?? noiseFloorData?.overall ?? -Infinity;
 
-    if (noiseFloorDb === -Infinity || !isFinite(noiseFloorDb)) {
-      // Fallback: Use absolute threshold at -40 dB (typical speech level)
-      // This handles files with significant digital silence in one or more channels
-      speechThresholdDb = -40;
-      speechThresholdLinear = Math.pow(10, -40 / 20);
+    // Calculate per-channel speech thresholds
+    let leftThresholdDb, leftThresholdLinear;
+    let rightThresholdDb, rightThresholdLinear;
+
+    // Left channel threshold
+    if (leftNoiseFloorDb === -Infinity || !isFinite(leftNoiseFloorDb)) {
+      // Digital silence: use absolute threshold at -60 dB (conservative for silence detection)
+      leftThresholdDb = -60;
+      leftThresholdLinear = Math.pow(10, -60 / 20);
     } else {
       // Normal case: Speech threshold = noise floor + 20 dB (active speech level)
-      speechThresholdDb = noiseFloorDb + 20;
-      speechThresholdLinear = Math.pow(10, speechThresholdDb / 20);
+      leftThresholdDb = leftNoiseFloorDb + 20;
+      leftThresholdLinear = Math.pow(10, leftThresholdDb / 20);
+    }
+
+    // Right channel threshold
+    if (rightNoiseFloorDb === -Infinity || !isFinite(rightNoiseFloorDb)) {
+      // Digital silence: use absolute threshold at -60 dB (conservative for silence detection)
+      rightThresholdDb = -60;
+      rightThresholdLinear = Math.pow(10, -60 / 20);
+    } else {
+      // Normal case: Speech threshold = noise floor + 20 dB (active speech level)
+      rightThresholdDb = rightNoiseFloorDb + 20;
+      rightThresholdLinear = Math.pow(10, rightThresholdDb / 20);
     }
 
     const blockDuration = 0.25; // 250ms per block
@@ -1256,9 +1271,9 @@ export class LevelAnalyzer {
       const block = rmsBlocks[i];
       const { rmsLeft, rmsRight, startSample, endSample } = block;
 
-      // Check if BOTH channels have active speech
-      const leftActive = rmsLeft > speechThresholdLinear;
-      const rightActive = rmsRight > speechThresholdLinear;
+      // Check if BOTH channels have active speech using per-channel thresholds
+      const leftActive = rmsLeft > leftThresholdLinear;
+      const rightActive = rmsRight > rightThresholdLinear;
 
       if (leftActive || rightActive) {
         totalActiveBlocks++;
@@ -1331,7 +1346,8 @@ export class LevelAnalyzer {
       totalActiveBlocks,
       overlapBlocks,
       overlapPercentage,
-      speechThresholdDb,
+      leftSpeechThresholdDb: leftThresholdDb,
+      rightSpeechThresholdDb: rightThresholdDb,
       overlapSegments,
       minOverlapDuration
     };

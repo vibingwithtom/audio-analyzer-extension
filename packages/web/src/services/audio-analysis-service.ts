@@ -266,7 +266,10 @@ async function analyzeExperimental(
         // Add conversational audio analysis (overlap, consistency, sync)
         const conversationalAnalysis = levelAnalyzer.analyzeConversationalAudio(
           audioBuffer,
-          advancedResults.noiseFloorDb,
+          {
+            overall: advancedResults.noiseFloorDb,
+            perChannel: advancedResults.noiseFloorPerChannel
+          },
           advancedResults.peakDb
         );
         if (conversationalAnalysis) {
