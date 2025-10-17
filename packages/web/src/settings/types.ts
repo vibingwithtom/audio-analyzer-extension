@@ -41,6 +41,8 @@ export interface PresetConfig {
  */
 export interface PresetConfigurations {
   'auditions-character-recordings': PresetConfig;
+  'auditions-studio-ai': PresetConfig;
+  'auditions-bilingual-partner': PresetConfig;
   'auditions-emotional-voice': PresetConfig;
   'character-recordings': PresetConfig;
   'p2b2-pairs-mono': PresetConfig;
@@ -113,6 +115,22 @@ export const DEFAULT_PRESETS: PresetConfigurations = {
     bitDepth: ['24'],
     channels: ['1'],
     minDuration: '120' // 2 minutes
+  },
+  'auditions-studio-ai': {
+    name: 'Auditions: Studio AI',
+    fileType: ['wav'],
+    sampleRate: ['48000'],
+    bitDepth: ['24'],
+    channels: ['1'],
+    minDuration: '120' // 2 minutes
+  },
+  'auditions-bilingual-partner': {
+    name: 'Auditions: Bilingual Partner',
+    fileType: ['wav'],
+    sampleRate: ['48000'],
+    bitDepth: ['24'],
+    channels: ['1'],
+    minDuration: '150' // 2 minutes 30 seconds
   },
   'auditions-emotional-voice': {
     name: 'Auditions: Emotional Voice',
