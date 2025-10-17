@@ -445,8 +445,10 @@
         on:change={handlePresetChange}
       >
         <!-- Auditions Group -->
+        <option value="auditions-bilingual-partner">{availablePresets['auditions-bilingual-partner'].name}</option>
         <option value="auditions-character-recordings">{availablePresets['auditions-character-recordings'].name}</option>
         <option value="auditions-emotional-voice">{availablePresets['auditions-emotional-voice'].name}</option>
+        <option value="auditions-studio-ai">{availablePresets['auditions-studio-ai'].name}</option>
         <option disabled>─────────────────────</option>
 
         <!-- Other Presets -->
