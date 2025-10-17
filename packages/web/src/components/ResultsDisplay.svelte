@@ -3,6 +3,8 @@
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
   import { currentPresetId, currentCriteria, selectedPreset, enableIncludeFailureAnalysis, enableIncludeRecommendations } from '../stores/settings';
   import { isSimplifiedMode } from '../stores/simplifiedMode';
+  import { resultsFilter } from '../stores/resultsFilter';
+  import { analyticsService } from '../services/analytics-service';
   import type { AudioResults } from '../types';
   import { exportResultsToCsv, exportResultsEnhanced, type ExportOptions } from '../utils/export-utils';
 
@@ -25,6 +27,21 @@
   $: isBatchMode = Array.isArray(results);
   $: batchResults = isBatchMode ? results as AudioResults[] : [];
   $: singleResult = !isBatchMode && results ? results as AudioResults : null;
+
+  // Memoize experimental status calculations for performance
+  $: enrichedResults = batchResults.map(result => ({
+    ...result,
+    computedStatus: $analysisMode === 'experimental'
+      ? getExperimentalStatus(result)
+      : result.status
+  }));
+
+  // Filter results based on active filter
+  $: filteredResults = !$resultsFilter
+    ? enrichedResults
+    : enrichedResults.filter(r =>
+        r.status !== 'error' && r.computedStatus === $resultsFilter
+      );
 
   // Helper function to get experimental metric status
   function getExperimentalStatus(result: AudioResults): 'pass' | 'warning' | 'fail' | 'error' {
@@ -127,20 +144,20 @@
     return 'pass';
   }
 
-  // Calculate batch statistics
-  $: passCount = $analysisMode === 'experimental'
-    ? batchResults.filter(r => r.status !== 'error' && getExperimentalStatus(r) === 'pass').length
-    : batchResults.filter(r => r.status === 'pass').length;
+  // Calculate batch statistics using enrichedResults for consistency
+  $: passCount = enrichedResults.filter(r =>
+    r.status !== 'error' && r.computedStatus === 'pass'
+  ).length;
 
-  $: warningCount = $analysisMode === 'experimental'
-    ? batchResults.filter(r => r.status !== 'error' && getExperimentalStatus(r) === 'warning').length
-    : batchResults.filter(r => r.status === 'warning').length;
+  $: warningCount = enrichedResults.filter(r =>
+    r.status !== 'error' && r.computedStatus === 'warning'
+  ).length;
 
-  $: failCount = $analysisMode === 'experimental'
-    ? batchResults.filter(r => r.status !== 'error' && getExperimentalStatus(r) === 'fail').length
-    : batchResults.filter(r => r.status === 'fail').length;
+  $: failCount = enrichedResults.filter(r =>
+    r.status !== 'error' && r.computedStatus === 'fail'
+  ).length;
 
-  $: errorCount = batchResults.filter(r => r.status === 'error').length;
+  $: errorCount = enrichedResults.filter(r => r.status === 'error').length;
 
   // Calculate total duration (not shown in experimental mode)
   $: totalDuration = (() => {
@@ -177,6 +194,16 @@
     }
   }
 
+  // Filter click handler
+  function handleFilterClick(status: 'pass' | 'warning' | 'fail' | 'error') {
+    // If clicking the current filter, toggle it off. Otherwise, set the new filter.
+    if ($resultsFilter === status) {
+      resultsFilter.set(null);
+    } else {
+      resultsFilter.set(status);
+    }
+  }
+
   // Export state
   let isExporting = false;
   let exportError: string | null = null;
@@ -184,7 +211,7 @@
 
   // Export handler
   function handleExport() {
-    if (!isBatchMode || batchResults.length === 0) {
+    if (!isBatchMode || filteredResults.length === 0) {
       return;
     }
 
@@ -193,6 +220,31 @@
     exportSuccess = false;
 
     try {
+      // Map filter types to UI labels for filename
+      const filterLabels = {
+        'pass': 'Pass',
+        'warning': 'Warnings',
+        'fail': 'Failed',
+        'error': 'Errors'
+      };
+
+      // Dynamically generate filename using UI labels
+      const filterName = $resultsFilter ? `_${filterLabels[$resultsFilter]}` : '';
+      const baseName = $enableIncludeFailureAnalysis || $enableIncludeRecommendations
+        ? 'audio_analysis_enhanced'
+        : 'audio_analysis_results';
+      const dynamicFilename = `${baseName}${filterName}.csv`;
+
+      // Track export with analytics
+      analyticsService.track('batch_export', {
+        filterActive: !!$resultsFilter,
+        filterType: $resultsFilter || 'none',
+        resultCount: filteredResults.length,
+        totalResultCount: enrichedResults.length,
+        enhanced: $enableIncludeFailureAnalysis || $enableIncludeRecommendations,
+        analysisMode: $analysisMode
+      });
+
       // Handle all 4 analysis modes correctly
       const exportOptions: ExportOptions = {
         mode: $analysisMode === 'filename-only' ? 'metadata-only' :
@@ -212,20 +264,21 @@
         };
 
         exportResultsEnhanced(
-          batchResults,
+          filteredResults,
           exportOpts,
           $currentPresetId,
           $analysisMode,
           $currentCriteria,
-          undefined, // filename - use default
+          dynamicFilename,
           $selectedPreset
         );
       } else {
         exportResultsToCsv(
-          batchResults,
+          filteredResults,
           exportOptions,
           $currentPresetId,
-          $analysisMode
+          $analysisMode,
+          dynamicFilename
         );
       }
 
@@ -467,6 +520,31 @@
     min-width: 80px;
   }
 
+  /* Scoped stat styles - only affect stats in summary section */
+  .summary-stats .stat {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    padding: 0.5rem;
+    border: 2px solid transparent;
+  }
+
+  .summary-stats .stat:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    transform: translateY(-1px);
+  }
+
+  .summary-stats .stat:focus {
+    outline: 2px solid var(--primary, #2563eb);
+    outline-offset: 2px;
+  }
+
+  .summary-stats .stat.active {
+    background-color: var(--primary-light, rgba(37, 99, 235, 0.1));
+    border: 2px solid var(--primary, #2563eb);
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+  }
+
   .stat-value {
     font-size: 2.5rem;
     font-weight: 700;
@@ -616,6 +694,45 @@
     font-size: 0.875rem;
     margin-top: 0.5rem;
   }
+
+  /* Empty filter state */
+  .empty-filter-state {
+    margin: 1rem 0;
+    padding: 2rem;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(139, 92, 246, 0.1) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 8px;
+    text-align: center;
+  }
+
+  .empty-filter-state p {
+    margin: 0 0 1rem 0;
+    color: var(--text-secondary, #666666);
+    font-size: 1rem;
+  }
+
+  .clear-filter-inline {
+    padding: 0.5rem 1rem;
+    background: var(--primary, #2563eb);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .clear-filter-inline:hover {
+    background: var(--primary-dark, #1d4ed8);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+  }
+
+  /* Dark mode support */
+  :global([data-theme="dark"]) .summary-stats .stat:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
 </style>
 
 <div class="results-display">
@@ -673,7 +790,7 @@
               <button
                 class="export-button"
                 on:click={handleExport}
-                disabled={isExporting || batchResults.length === 0 || isProcessing}
+                disabled={isExporting || filteredResults.length === 0 || isProcessing}
                 title="Export results to CSV file"
               >
                 {#if isExporting}
@@ -708,19 +825,55 @@
         </div>
         <div class="summary-content">
           <div class="summary-stats">
-            <div class="stat pass">
+            <div
+              class="stat pass"
+              class:active={$resultsFilter === 'pass'}
+              on:click={() => handleFilterClick('pass')}
+              on:keydown={(e) => e.key === 'Enter' && handleFilterClick('pass')}
+              role="button"
+              tabindex="0"
+              aria-pressed={$resultsFilter === 'pass'}
+              aria-label="Filter results to show only passed files ({passCount} files)"
+            >
               <div class="stat-value">{passCount}</div>
               <div class="stat-label">Pass</div>
             </div>
-            <div class="stat warning">
+            <div
+              class="stat warning"
+              class:active={$resultsFilter === 'warning'}
+              on:click={() => handleFilterClick('warning')}
+              on:keydown={(e) => e.key === 'Enter' && handleFilterClick('warning')}
+              role="button"
+              tabindex="0"
+              aria-pressed={$resultsFilter === 'warning'}
+              aria-label="Filter results to show only warnings ({warningCount} files)"
+            >
               <div class="stat-value">{warningCount}</div>
               <div class="stat-label">Warnings</div>
             </div>
-            <div class="stat fail">
+            <div
+              class="stat fail"
+              class:active={$resultsFilter === 'fail'}
+              on:click={() => handleFilterClick('fail')}
+              on:keydown={(e) => e.key === 'Enter' && handleFilterClick('fail')}
+              role="button"
+              tabindex="0"
+              aria-pressed={$resultsFilter === 'fail'}
+              aria-label="Filter results to show only failed files ({failCount} files)"
+            >
               <div class="stat-value">{failCount}</div>
               <div class="stat-label">Failed</div>
             </div>
-            <div class="stat error">
+            <div
+              class="stat error"
+              class:active={$resultsFilter === 'error'}
+              on:click={() => handleFilterClick('error')}
+              on:keydown={(e) => e.key === 'Enter' && handleFilterClick('error')}
+              role="button"
+              tabindex="0"
+              aria-pressed={$resultsFilter === 'error'}
+              aria-label="Filter results to show only errors ({errorCount} files)"
+            >
               <div class="stat-value">{errorCount}</div>
               <div class="stat-label">Errors</div>
             </div>
@@ -734,9 +887,22 @@
         </div>
       </div>
 
+      <!-- Empty Filter State -->
+      {#if $resultsFilter && filteredResults.length === 0}
+        <div class="empty-filter-state">
+          <p>No {$resultsFilter === 'fail' ? 'failed' : $resultsFilter} results found.</p>
+          <button
+            class="clear-filter-inline"
+            on:click={() => resultsFilter.set(null)}
+          >
+            Clear Filter
+          </button>
+        </div>
+      {/if}
+
       <!-- Batch Results Table -->
       <ResultsTable
-        results={batchResults}
+        results={filteredResults}
         mode="batch"
         metadataOnly={$analysisMode === 'filename-only'}
         experimentalMode={$analysisMode === 'experimental'}

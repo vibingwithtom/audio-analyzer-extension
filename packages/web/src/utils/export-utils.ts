@@ -358,6 +358,12 @@ function generateDynamicRecommendation(
 ): string {
   // Type-safe template lookup
   const templates = RECOMMENDATION_TEMPLATES[issueType];
+
+  // Handle missing template gracefully
+  if (!templates) {
+    return "Please review file properties.";
+  }
+
   const template = (templates as Record<string, string>)[subType] ||
                    (templates as Record<string, string>).generic ||
                    templates;
