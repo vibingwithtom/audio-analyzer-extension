@@ -13,7 +13,7 @@ const resultsFilterStore = writable<ResultFilterType>(null);
 let previousFilter: ResultFilterType = null;
 
 // Subscribe to changes and track analytics
-resultsFilterStore.subscribe((filterValue) => {
+const unsubAnalytics = resultsFilterStore.subscribe((filterValue) => {
   if (typeof window !== 'undefined') {
     // Only track if this is a real user change (not initial load)
     if (previousFilter !== null) {
@@ -61,6 +61,7 @@ const unsubTab = currentTab.subscribe((tab) => {
 
 // Cleanup function (exported for testing or manual cleanup if needed)
 export function cleanup() {
+  unsubAnalytics();
   unsubPreset();
   unsubMode();
   unsubTab();

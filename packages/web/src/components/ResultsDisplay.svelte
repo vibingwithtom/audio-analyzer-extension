@@ -3,7 +3,7 @@
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
   import { currentPresetId, currentCriteria, selectedPreset, enableIncludeFailureAnalysis, enableIncludeRecommendations } from '../stores/settings';
   import { isSimplifiedMode } from '../stores/simplifiedMode';
-  import { resultsFilter } from '../stores/resultsFilter';
+  import { resultsFilter, type ResultFilterType } from '../stores/resultsFilter';
   import { analyticsService } from '../services/analytics-service';
   import type { AudioResults } from '../types';
   import { exportResultsToCsv, exportResultsEnhanced, type ExportOptions } from '../utils/export-utils';
@@ -40,11 +40,16 @@
   $: filteredResults = !$resultsFilter
     ? enrichedResults
     : enrichedResults.filter(r => {
-        // Handle error filter separately (errors bypass experimental status computation)
+        // Errors are a special case: they bypass experimental status computation
+        // because errors occur before quality analysis (e.g., file read failures).
+        // Error status is set before any audio analysis happens.
         if ($resultsFilter === 'error') {
           return r.status === 'error';
         }
-        // For other filters, exclude errors and check computed status
+        // For quality-based filters (pass/warning/fail), only consider non-error results
+        // and use computedStatus which reflects experimental mode quality metrics.
+        // This ensures errors don't appear in pass/warning/fail filters, even if
+        // they somehow had a computed status.
         return r.status !== 'error' && r.computedStatus === $resultsFilter;
       });
 
@@ -226,7 +231,7 @@
 
     try {
       // Map filter types to UI labels for filename
-      const filterLabels = {
+      const filterLabels: Record<Exclude<ResultFilterType, null>, string> = {
         'pass': 'Pass',
         'warning': 'Warnings',
         'fail': 'Failed',
