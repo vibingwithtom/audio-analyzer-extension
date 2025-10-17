@@ -220,24 +220,24 @@ async function analyzeFullFile(
 
     // Add stereo type validation in experimental mode if preset requires it
     if (preset?.stereoType && preset.stereoType.length > 0 && mode === 'experimental' && validation) {
-      const stereoValidation = CriteriaValidator.validateStereoType(result.stereoSeparation, preset);
-      if (stereoValidation && validation) {
+      const stereoValidation = CriteriaValidator.validateStereoType(result.stereoSeparation, preset) as any;
+      if (stereoValidation) {
         (validation as any).stereoType = {
-          status: stereoValidation.status,
-          value: stereoValidation.message,
-          issue: stereoValidation.status === 'fail' ? stereoValidation.message : undefined
+          status: stereoValidation.status as 'pass' | 'fail' | 'warning',
+          value: stereoValidation.message as string,
+          issue: stereoValidation.status === 'fail' ? (stereoValidation.message as string) : undefined
         };
       }
     }
 
     // Add speech overlap validation in experimental mode if preset defines thresholds
     if (preset?.maxOverlapWarning !== undefined && preset?.maxOverlapFail !== undefined && mode === 'experimental' && validation) {
-      const overlapValidation = CriteriaValidator.validateSpeechOverlap(result.conversationalAnalysis, preset);
-      if (overlapValidation && validation) {
+      const overlapValidation = CriteriaValidator.validateSpeechOverlap(result.conversationalAnalysis as any, preset) as any;
+      if (overlapValidation) {
         (validation as any).speechOverlap = {
-          status: overlapValidation.status,
-          value: overlapValidation.message,
-          issue: overlapValidation.status !== 'pass' ? overlapValidation.message : undefined
+          status: overlapValidation.status as 'pass' | 'fail' | 'warning',
+          value: overlapValidation.message as string,
+          issue: overlapValidation.status !== 'pass' ? (overlapValidation.message as string) : undefined
         };
       }
     }
