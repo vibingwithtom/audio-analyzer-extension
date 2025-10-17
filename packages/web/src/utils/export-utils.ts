@@ -130,6 +130,7 @@ function generateHeaders(mode: ExportOptions['mode']): string[] {
     'Stereo Type',
     'Stereo Confidence (%)',
     'Speech Overlap (%)',
+    'Speech Overlap Max Duration (s)',
     'Channel Consistency (%)',
     'Mic Bleed Detected',
     'Mic Bleed Severity',
@@ -199,6 +200,7 @@ function extractDataRow(result: AudioResults, mode: ExportOptions['mode']): stri
     result.stereoSeparation?.stereoType || 'N/A',
     formatNumber(result.stereoSeparation?.stereoConfidence ? result.stereoSeparation.stereoConfidence * 100 : undefined, 1),
     formatNumber(result.conversationalAnalysis?.overlap?.overlapPercentage, 1),
+    formatNumber(getLongestOverlapDuration(result), 1),
     formatNumber(result.conversationalAnalysis?.consistency?.consistencyPercentage, 1),
     getMicBleedDetected(result),
     formatNumber(result.micBleed?.new?.severityScore, 1),
@@ -719,6 +721,7 @@ function generateEnhancedHeaders(options: EnhancedExportOptions): string[] {
     'Longest Silence (s)',
     'Channel Layout',
     'Speech Overlap (%)',
+    'Speech Overlap Max Duration (s)',
     'Mic Bleed Detected'
   ];
 
@@ -810,6 +813,7 @@ function extractEnhancedDataRow(
     formatNumber(result.longestSilence),
     formatChannelLayout(result),
     formatNumber(result.conversationalAnalysis?.overlap?.overlapPercentage, 1),
+    formatNumber(getLongestOverlapDuration(result), 1),
     getMicBleedDetected(result)
   ];
 
@@ -828,6 +832,17 @@ function extractEnhancedDataRow(
   }
 
   return row;
+}
+
+/**
+ * Helper to get longest overlap segment duration
+ */
+function getLongestOverlapDuration(result: AudioResults): number | undefined {
+  const overlap = result.conversationalAnalysis?.overlap as any;
+  if (!overlap?.overlapSegments || overlap.overlapSegments.length === 0) {
+    return undefined;
+  }
+  return Math.max(...overlap.overlapSegments.map((seg: any) => seg.duration));
 }
 
 /**
