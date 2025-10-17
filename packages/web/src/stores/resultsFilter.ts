@@ -12,6 +12,18 @@ const resultsFilterStore = writable<ResultFilterType>(null);
 // Track previous filter for analytics
 let previousFilter: ResultFilterType = null;
 
+/**
+ * Module-level subscriptions for auto-reset and analytics.
+ *
+ * INTENTIONAL DESIGN: These subscriptions are created at module initialization
+ * and live for the entire app lifetime. This is the standard pattern for Svelte
+ * stores in a single-page application (SPA) where modules are loaded once.
+ *
+ * The cleanup() function is exported for testing purposes only - it allows tests
+ * to clean up subscriptions between test runs. In production, these subscriptions
+ * are meant to persist for the app lifetime and do not cause memory leaks.
+ */
+
 // Subscribe to changes and track analytics
 const unsubAnalytics = resultsFilterStore.subscribe((filterValue) => {
   if (typeof window !== 'undefined') {
@@ -59,7 +71,13 @@ const unsubTab = currentTab.subscribe((tab) => {
   previousTab = tab;
 });
 
-// Cleanup function (exported for testing or manual cleanup if needed)
+/**
+ * Cleanup function for unsubscribing from all module-level subscriptions.
+ *
+ * TESTING ONLY: This function is exported solely for test cleanup between test runs.
+ * It should NOT be called in production code. The subscriptions are intentionally
+ * long-lived and designed to persist for the entire app lifetime.
+ */
 export function cleanup() {
   unsubAnalytics();
   unsubPreset();
