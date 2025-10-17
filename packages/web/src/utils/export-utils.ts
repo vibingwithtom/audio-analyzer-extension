@@ -4,6 +4,19 @@ import { formatDuration, formatSampleRate as formatSampleRateUI, formatBytes, fo
 import { analyticsService } from '../services/analytics-service';
 import { CriteriaValidator } from '@audio-analyzer/core';
 
+// Type definitions for validation results from CriteriaValidator
+interface StereoValidationResult {
+  status: 'pass' | 'fail';
+  message: string;
+}
+
+interface SpeechOverlapValidationResult {
+  status: 'pass' | 'warning' | 'fail';
+  message: string;
+  percentage: number;
+  longestSegment: number;
+}
+
 export interface ExportOptions {
   mode: 'standard' | 'experimental' | 'metadata-only';
   includeTimestamps?: boolean;
@@ -544,7 +557,7 @@ export function analyzeFailuresWithRecommendations(
 
   // Stereo Type Validation (preset-based, binary: pass/fail)
   if (options.currentPreset && options.currentPreset.stereoType) {
-    const stereoValidation = CriteriaValidator.validateStereoType(result.stereoSeparation, options.currentPreset);
+    const stereoValidation = CriteriaValidator.validateStereoType(result.stereoSeparation, options.currentPreset) as StereoValidationResult | null;
     if (stereoValidation && stereoValidation.status === 'fail') {
       qualityIssues.push(`Stereo type: ${stereoValidation.message}`);
       issueCount++;
@@ -553,8 +566,8 @@ export function analyzeFailuresWithRecommendations(
   }
 
   // Speech Overlap Analysis (preset-based thresholds)
-  if (options.currentPreset) {
-    const overlapValidation = CriteriaValidator.validateSpeechOverlap(result.conversationalAnalysis, options.currentPreset);
+  if (options.currentPreset && result.conversationalAnalysis) {
+    const overlapValidation = CriteriaValidator.validateSpeechOverlap(result.conversationalAnalysis, options.currentPreset) as SpeechOverlapValidationResult | null;
     if (overlapValidation) {
       if (overlapValidation.status === 'warning') {
         qualityIssues.push(`Speech overlap: ${overlapValidation.message}`);
