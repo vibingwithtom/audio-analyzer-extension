@@ -1,7 +1,7 @@
 <script lang="ts">
   import ResultsTable from './ResultsTable.svelte';
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
-  import { currentPresetId, currentCriteria, enableIncludeFailureAnalysis, enableIncludeRecommendations } from '../stores/settings';
+  import { currentPresetId, currentCriteria, selectedPreset, enableIncludeFailureAnalysis, enableIncludeRecommendations } from '../stores/settings';
   import { isSimplifiedMode } from '../stores/simplifiedMode';
   import type { AudioResults } from '../types';
   import { exportResultsToCsv, exportResultsEnhanced, type ExportOptions } from '../utils/export-utils';
@@ -224,7 +224,9 @@
           exportOpts,
           $currentPresetId,
           $analysisMode,
-          $currentCriteria
+          $currentCriteria,
+          undefined, // filename - use default
+          $selectedPreset
         );
       } else {
         exportResultsToCsv(

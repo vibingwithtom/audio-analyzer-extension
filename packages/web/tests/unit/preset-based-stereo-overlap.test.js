@@ -373,5 +373,253 @@ describe('Preset-Based Stereo Type and Speech Overlap Validation', () => {
         expect(result.percentage).toBe(99.9);
       });
     });
+
+    describe('Segment Duration Validation', () => {
+      const segmentPreset = {
+        maxOverlapWarning: 5,
+        maxOverlapFail: 10,
+        maxOverlapSegmentWarning: 2,
+        maxOverlapSegmentFail: 5
+      };
+
+      describe('Pass Cases - Segment Duration', () => {
+        it('should pass when longest segment is ≤ 2s', () => {
+          const conversationalAnalysis = {
+            overlap: {
+              overlapPercentage: 3,
+              overlapSegments: [
+                { start: 1.0, duration: 0.5 },
+                { start: 5.0, duration: 1.5 },
+                { start: 10.0, duration: 0.8 }
+              ]
+            }
+          };
+          const result = CriteriaValidator.validateSpeechOverlap(conversationalAnalysis, segmentPreset);
+          expect(result.status).toBe('pass');
+          expect(result.longestSegment).toBe(1.5);
+          expect(result.message).toBe('3.0% overlap');
+        });
+
+        it('should pass when longest segment is exactly 2s', () => {
+          const conversationalAnalysis = {
+            overlap: {
+              overlapPercentage: 2,
+              overlapSegments: [
+                { start: 1.0, duration: 2.0 }
+              ]
+            }
+          };
+          const result = CriteriaValidator.validateSpeechOverlap(conversationalAnalysis, segmentPreset);
+          expect(result.status).toBe('pass');
+          expect(result.longestSegment).toBe(2.0);
+        });
+      });
+
+      describe('Warning Cases - Segment Duration', () => {
+        it('should warn when longest segment is > 2s and ≤ 5s', () => {
+          const conversationalAnalysis = {
+            overlap: {
+              overlapPercentage: 3,
+              overlapSegments: [
+                { start: 1.0, duration: 0.5 },
+                { start: 5.0, duration: 3.5 },
+                { start: 10.0, duration: 1.0 }
+              ]
+            }
+          };
+          const result = CriteriaValidator.validateSpeechOverlap(conversationalAnalysis, segmentPreset);
+          expect(result.status).toBe('warning');
+          expect(result.longestSegment).toBe(3.5);
+          expect(result.message).toContain('3.0% overlap');
+          expect(result.message).toContain('max segment 3.5s >2s');
+        });
+
+        it('should warn when longest segment is just over 2s', () => {
+          const conversationalAnalysis = {
+            overlap: {
+              overlapPercentage: 2,
+              overlapSegments: [
+                { start: 1.0, duration: 2.1 }
+              ]
+            }
+          };
+          const result = CriteriaValidator.validateSpeechOverlap(conversationalAnalysis, segmentPreset);
+          expect(result.status).toBe('warning');
+          expect(result.longestSegment).toBe(2.1);
+        });
+
+        it('should warn when longest segment is exactly 5s', () => {
+          const conversationalAnalysis = {
+            overlap: {
+              overlapPercentage: 4,
+              overlapSegments: [
+                { start: 1.0, duration: 5.0 }
+              ]
+            }
+          };
+          const result = CriteriaValidator.validateSpeechOverlap(conversationalAnalysis, segmentPreset);
+          expect(result.status).toBe('warning');
+          expect(result.longestSegment).toBe(5.0);
+        });
+      });
+
+      describe('Fail Cases - Segment Duration', () => {
+        it('should fail when longest segment is > 5s', () => {
+          const conversationalAnalysis = {
+            overlap: {
+              overlapPercentage: 3,
+              overlapSegments: [
+                { start: 1.0, duration: 0.5 },
+                { start: 5.0, duration: 6.2 },
+                { start: 15.0, duration: 1.0 }
+              ]
+            }
+          };
+          const result = CriteriaValidator.validateSpeechOverlap(conversationalAnalysis, segmentPreset);
+          expect(result.status).toBe('fail');
+          expect(result.longestSegment).toBe(6.2);
+          expect(result.message).toContain('3.0% overlap');
+          expect(result.message).toContain('max segment 6.2s >5s');
+        });
+
+        it('should fail when longest segment is much greater than 5s', () => {
+          const conversationalAnalysis = {
+            overlap: {
+              overlapPercentage: 2,
+              overlapSegments: [
+                { start: 1.0, duration: 12.5 }
+              ]
+            }
+          };
+          const result = CriteriaValidator.validateSpeechOverlap(conversationalAnalysis, segmentPreset);
+          expect(result.status).toBe('fail');
+          expect(result.longestSegment).toBe(12.5);
+        });
+      });
+
+      describe('Combined Percentage and Segment Validation (OR Logic)', () => {
+        it('should fail if percentage passes but segment fails', () => {
+          const conversationalAnalysis = {
+            overlap: {
+              overlapPercentage: 2, // Pass (< 5%)
+              overlapSegments: [
+                { start: 1.0, duration: 7.0 } // Fail (> 5s)
+              ]
+            }
+          };
+          const result = CriteriaValidator.validateSpeechOverlap(conversationalAnalysis, segmentPreset);
+          expect(result.status).toBe('fail');
+          expect(result.message).toContain('2.0% overlap');
+          expect(result.message).toContain('max segment 7.0s >5s');
+        });
+
+        it('should fail if segment passes but percentage fails', () => {
+          const conversationalAnalysis = {
+            overlap: {
+              overlapPercentage: 15, // Fail (> 10%)
+              overlapSegments: [
+                { start: 1.0, duration: 1.5 } // Pass (< 2s)
+              ]
+            }
+          };
+          const result = CriteriaValidator.validateSpeechOverlap(conversationalAnalysis, segmentPreset);
+          expect(result.status).toBe('fail');
+          expect(result.message).toContain('15.0% overlap');
+          expect(result.message).toContain('>10%');
+        });
+
+        it('should warn if one criterion warns and the other passes', () => {
+          const conversationalAnalysis = {
+            overlap: {
+              overlapPercentage: 2, // Pass (< 5%)
+              overlapSegments: [
+                { start: 1.0, duration: 3.0 } // Warn (> 2s, ≤ 5s)
+              ]
+            }
+          };
+          const result = CriteriaValidator.validateSpeechOverlap(conversationalAnalysis, segmentPreset);
+          expect(result.status).toBe('warning');
+          expect(result.message).toContain('max segment 3.0s >2s');
+        });
+
+        it('should take worst status when both criteria trigger warnings', () => {
+          const conversationalAnalysis = {
+            overlap: {
+              overlapPercentage: 7, // Warn (> 5%, ≤ 10%)
+              overlapSegments: [
+                { start: 1.0, duration: 3.5 } // Warn (> 2s, ≤ 5s)
+              ]
+            }
+          };
+          const result = CriteriaValidator.validateSpeechOverlap(conversationalAnalysis, segmentPreset);
+          expect(result.status).toBe('warning');
+          expect(result.message).toContain('7.0% overlap');
+          expect(result.message).toContain('>5%');
+          expect(result.message).toContain('max segment 3.5s >2s');
+        });
+
+        it('should fail if both criteria exceed fail thresholds', () => {
+          const conversationalAnalysis = {
+            overlap: {
+              overlapPercentage: 15, // Fail (> 10%)
+              overlapSegments: [
+                { start: 1.0, duration: 8.0 } // Fail (> 5s)
+              ]
+            }
+          };
+          const result = CriteriaValidator.validateSpeechOverlap(conversationalAnalysis, segmentPreset);
+          expect(result.status).toBe('fail');
+          expect(result.message).toContain('15.0% overlap');
+          expect(result.message).toContain('>10%');
+          expect(result.message).toContain('max segment 8.0s >5s');
+        });
+      });
+
+      describe('Empty or Missing Segment Data', () => {
+        it('should handle empty segments array', () => {
+          const conversationalAnalysis = {
+            overlap: {
+              overlapPercentage: 3,
+              overlapSegments: []
+            }
+          };
+          const result = CriteriaValidator.validateSpeechOverlap(conversationalAnalysis, segmentPreset);
+          expect(result.status).toBe('pass');
+          expect(result.longestSegment).toBe(0);
+        });
+
+        it('should handle missing segments array', () => {
+          const conversationalAnalysis = {
+            overlap: {
+              overlapPercentage: 3
+            }
+          };
+          const result = CriteriaValidator.validateSpeechOverlap(conversationalAnalysis, segmentPreset);
+          expect(result.status).toBe('pass');
+          expect(result.longestSegment).toBe(0);
+        });
+      });
+
+      describe('Preset Without Segment Thresholds', () => {
+        const percentageOnlyPreset = {
+          maxOverlapWarning: 5,
+          maxOverlapFail: 10
+        };
+
+        it('should only validate percentage when segment thresholds are not defined', () => {
+          const conversationalAnalysis = {
+            overlap: {
+              overlapPercentage: 3, // Pass
+              overlapSegments: [
+                { start: 1.0, duration: 10.0 } // Would fail if segment validation was active
+              ]
+            }
+          };
+          const result = CriteriaValidator.validateSpeechOverlap(conversationalAnalysis, percentageOnlyPreset);
+          expect(result.status).toBe('pass');
+          expect(result.message).toBe('3.0% overlap');
+        });
+      });
+    });
   });
 });

@@ -2,6 +2,8 @@
   import StatusBadge from './StatusBadge.svelte';
   import { formatSampleRate, formatDuration, formatBitDepth, formatChannels, formatBytes } from '../utils/format-utils';
   import type { AudioResults, ValidationResults } from '../types';
+  import { selectedPreset } from '../stores/settings';
+  import { CriteriaValidator } from '@audio-analyzer/core';
 
   import { onMount } from 'svelte';
 
@@ -193,12 +195,59 @@
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
 
-  // Helper functions for conversational audio analysis
-  function getOverlapClass(overlapPercentage: number | undefined): string {
-    if (overlapPercentage === undefined) return '';
-    if (overlapPercentage < 5) return 'success';      // Good: < 5%
-    if (overlapPercentage <= 15) return 'warning';    // Warning: 5-15%
-    return 'error';                                    // Issue: > 15%
+  // Helper functions for conversational audio analysis using preset-aware validation
+  function getOverlapClass(result: AudioResults): string {
+    if (!$selectedPreset || !result.conversationalAnalysis) return '';
+
+    const validation = CriteriaValidator.validateSpeechOverlap(
+      result.conversationalAnalysis,
+      $selectedPreset
+    );
+
+    if (!validation) return ''; // No validation needed for this preset
+
+    if (validation.status === 'pass') return 'success';
+    if (validation.status === 'warning') return 'warning';
+    return 'error';
+  }
+
+  // Helper to get color class for overlap percentage only
+  function getOverlapPercentageClass(result: AudioResults): string {
+    if (!$selectedPreset || !result.conversationalAnalysis?.overlap) return '';
+    if ($selectedPreset.maxOverlapWarning === undefined || $selectedPreset.maxOverlapFail === undefined) return '';
+
+    const overlapPct = result.conversationalAnalysis.overlap.overlapPercentage;
+
+    if (overlapPct > $selectedPreset.maxOverlapFail) return 'error';
+    if (overlapPct > $selectedPreset.maxOverlapWarning) return 'warning';
+    return 'success';
+  }
+
+  // Helper to get color class for overlap segment duration only
+  function getOverlapSegmentClass(result: AudioResults): string {
+    if (!$selectedPreset || !result.conversationalAnalysis?.overlap) return '';
+    if ($selectedPreset.maxOverlapSegmentWarning === undefined || $selectedPreset.maxOverlapSegmentFail === undefined) return '';
+
+    const longestSegment = getLongestOverlapDuration(result);
+    if (longestSegment === null || longestSegment === 0) return 'success';
+
+    if (longestSegment > $selectedPreset.maxOverlapSegmentFail) return 'error';
+    if (longestSegment > $selectedPreset.maxOverlapSegmentWarning) return 'warning';
+    return 'success';
+  }
+
+  // Helper to get stereo type validation class
+  function getStereoTypeClass(result: AudioResults): string {
+    if (!$selectedPreset || !result.stereoSeparation) return '';
+
+    const validation = CriteriaValidator.validateStereoType(
+      result.stereoSeparation,
+      $selectedPreset
+    );
+
+    if (!validation) return ''; // No validation needed for this preset
+
+    return validation.status === 'pass' ? 'success' : 'error';
   }
 
   function getClippingSeverity(clippingAnalysis: any): { level: string; label: string; eventCount: number } {
@@ -224,6 +273,16 @@
 
   function getClippingClass(clippingAnalysis: any): string {
     return getClippingSeverity(clippingAnalysis).level;
+  }
+
+  // Helper to get the longest overlap segment duration
+  function getLongestOverlapDuration(result: AudioResults): number | null {
+    if (!result.conversationalAnalysis?.overlap?.overlapSegments) return null;
+
+    const segments = result.conversationalAnalysis.overlap.overlapSegments;
+    if (segments.length === 0) return null;
+
+    return Math.max(...segments.map(seg => seg.duration));
   }
 </script>
 
@@ -708,7 +767,9 @@
               </td>
               <td>
                 {#if result.stereoSeparation}
-                  {result.stereoSeparation.stereoType}
+                  <span class="value-{getStereoTypeClass(result)}">
+                    {result.stereoSeparation.stereoType}
+                  </span>
                   <span class="subtitle">{Math.round(result.stereoSeparation.stereoConfidence * 100)}% conf</span>
                 {:else}
                   Mono file
@@ -744,9 +805,13 @@
                 })() : 'Speech overlap analysis only runs for Conversational Stereo files'}
               >
                 {#if result.conversationalAnalysis?.overlap}
-                  <span class="value-{getOverlapClass(result.conversationalAnalysis.overlap.overlapPercentage)}">
-                    {result.conversationalAnalysis.overlap.overlapPercentage.toFixed(1)}%
-                  </span>
+                  {@const longestDuration = getLongestOverlapDuration(result)}
+                  <div>
+                    <span class="subtitle">%: <span class="value-{getOverlapPercentageClass(result)}">{result.conversationalAnalysis.overlap.overlapPercentage.toFixed(1)}%</span></span>
+                    {#if longestDuration !== null && $selectedPreset?.maxOverlapSegmentWarning !== undefined}
+                      <span class="subtitle">Max: <span class="value-{getOverlapSegmentClass(result)}">{longestDuration.toFixed(1)}s</span></span>
+                    {/if}
+                  </div>
                 {:else}
                   N/A
                 {/if}

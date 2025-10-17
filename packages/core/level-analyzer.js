@@ -415,7 +415,17 @@ export class LevelAnalyzer {
   }
 
   async estimateReverb(channelDataArray, channels, length, sampleRate, noiseFloorDb, progressCallback = null) { // Renamed channelData to channelDataArray
-    const minDbAboveNoise = 10;
+    // Handle edge case: if noise floor is -Infinity (digital silence), use absolute threshold
+    let onsetThresholdDb;
+    if (noiseFloorDb === -Infinity || !isFinite(noiseFloorDb)) {
+      // Fallback: Use absolute threshold at -50 dB
+      // This handles files with significant digital silence
+      onsetThresholdDb = -50;
+    } else {
+      // Normal case: Onset threshold = noise floor + 10 dB (peaks above noise)
+      onsetThresholdDb = noiseFloorDb + 10;
+    }
+
     const onsetThreshold = 1.5;
     const onsetWindowSize = 1024;
     const decayWindowSize = Math.floor(sampleRate * 0.02); // 20ms windows for decay
@@ -462,7 +472,7 @@ export class LevelAnalyzer {
 
         const peakDb = 20 * Math.log10(peakAmplitude);
 
-        if (peakDb > noiseFloorDb + minDbAboveNoise) {
+        if (peakDb > onsetThresholdDb) {
           let decayEndSample = -1;
           const MAX_DECAY_LOOP_ITERATIONS = 1000; // Emergency brake
           let decayLoopCount = 0; // New counter
@@ -1209,9 +1219,21 @@ export class LevelAnalyzer {
    * @returns {object} Overlap analysis results.
    */
   analyzeOverlappingSpeech(noiseFloorDb, rmsBlocks) {
-    // Speech threshold: noise floor + 20 dB (active speech level)
-    const speechThresholdDb = noiseFloorDb + 20;
-    const speechThresholdLinear = Math.pow(10, speechThresholdDb / 20);
+    // Handle edge case: if noise floor is -Infinity (digital silence), use absolute threshold
+    let speechThresholdDb;
+    let speechThresholdLinear;
+
+    if (noiseFloorDb === -Infinity || !isFinite(noiseFloorDb)) {
+      // Fallback: Use absolute threshold at -40 dB (typical speech level)
+      // This handles files with significant digital silence in one or more channels
+      speechThresholdDb = -40;
+      speechThresholdLinear = Math.pow(10, -40 / 20);
+    } else {
+      // Normal case: Speech threshold = noise floor + 20 dB (active speech level)
+      speechThresholdDb = noiseFloorDb + 20;
+      speechThresholdLinear = Math.pow(10, speechThresholdDb / 20);
+    }
+
     const blockDuration = 0.25; // 250ms per block
     const minOverlapDuration = 0.5; // 500ms minimum to count as significant overlap (filters brief interjections)
     const minOverlapBlocks = Math.ceil(minOverlapDuration / blockDuration); // 2 blocks
