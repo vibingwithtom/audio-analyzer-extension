@@ -14,10 +14,12 @@ declare global {
  * - localhost/127.0.0.1 = development environment
  */
 function getEnvironment(): 'development' | 'beta' | 'production' {
-  if (typeof window === 'undefined') return 'production';
+  if (typeof window === 'undefined' || !window.location) {
+    return 'production';
+  }
 
   const hostname = window.location.hostname;
-  const pathname = window.location.pathname;
+  const pathname = window.location.pathname || '/';
 
   // Development
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
