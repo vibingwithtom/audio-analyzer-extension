@@ -346,52 +346,6 @@ describe('analyzeFailuresWithRecommendations', () => {
     });
   });
 
-  describe('Channel Consistency Detection', () => {
-    it('should flag channel consistency when < 100%', () => {
-      const mockResult = {
-        filename: 'conversation.wav',
-        status: 'warning',
-        conversationalAnalysis: {
-          consistency: { consistencyPercentage: 95 }
-        }
-      };
-
-      const mockOptions = {
-        mode: 'experimental',
-        includeFilenameValidation: false,
-        analysisMode: 'experimental',
-        includeFailureAnalysis: true,
-        includeRecommendations: true
-      };
-
-      const analysis = analyzeFailuresWithRecommendations(mockResult, mockOptions);
-
-      expect(analysis.qualityIssues).toContain('Channel consistency: 95.0%');
-    });
-
-    it('should not flag when = 100%', () => {
-      const mockResult = {
-        filename: 'conversation.wav',
-        status: 'pass',
-        conversationalAnalysis: {
-          consistency: { consistencyPercentage: 100 }
-        }
-      };
-
-      const mockOptions = {
-        mode: 'experimental',
-        includeFilenameValidation: false,
-        analysisMode: 'experimental',
-        includeFailureAnalysis: true,
-        includeRecommendations: true
-      };
-
-      const analysis = analyzeFailuresWithRecommendations(mockResult, mockOptions);
-
-      expect(analysis.qualityIssues).not.toContain('Channel consistency');
-    });
-  });
-
   describe('Validation Issue Detection and Recommendations', () => {
     it('should detect sample rate validation failure with criteria-specific recommendation', () => {
       const mockResult = {

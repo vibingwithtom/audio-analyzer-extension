@@ -8,9 +8,6 @@ export interface ConversationalAnalysis {
   overlap?: {
     overlapPercentage: number;
   };
-  consistency?: {
-    consistencyPercentage: number;
-  };
 }
 
 export interface AudioResults {

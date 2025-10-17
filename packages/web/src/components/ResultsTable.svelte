@@ -238,7 +238,7 @@
 
   // Helper to get stereo type validation class
   function getStereoTypeClass(result: AudioResults): string {
-    if (!$selectedPreset || !result.stereoSeparation) return '';
+    if (!$selectedPreset) return '';
 
     const validation = CriteriaValidator.validateStereoType(
       result.stereoSeparation,
@@ -273,6 +273,73 @@
 
   function getClippingClass(clippingAnalysis: any): string {
     return getClippingSeverity(clippingAnalysis).level;
+  }
+
+  // Helper to determine worst status across all experimental metrics for row background color
+  function getExperimentalRowStatus(result: AudioResults): 'pass' | 'warning' | 'fail' {
+    let worstStatus: 'pass' | 'warning' | 'fail' = 'pass';
+
+    // Helper to update worst status
+    const updateWorst = (status: string) => {
+      if (status === 'error' || status === 'fail') {
+        worstStatus = 'fail';
+      } else if (status === 'warning' && worstStatus === 'pass') {
+        worstStatus = 'warning';
+      }
+    };
+
+    // Check validation status (preset criteria)
+    if (result.status && result.status !== 'pass') {
+      updateWorst(result.status);
+    }
+
+    // Check normalization
+    const normClass = getNormalizationClass(result.normalizationStatus);
+    updateWorst(normClass);
+
+    // Check clipping
+    const clippingClass = getClippingClass(result.clippingAnalysis);
+    updateWorst(clippingClass);
+
+    // Check noise floor
+    const noiseClass = getNoiseFloorClass(result.noiseFloorDb);
+    updateWorst(noiseClass);
+
+    // Check reverb
+    if (result.reverbInfo) {
+      const reverbClass = getReverbClass(result.reverbInfo.label);
+      updateWorst(reverbClass);
+    }
+
+    // Check silence (leading, trailing, max)
+    if (result.leadingSilence !== undefined) {
+      const leadClass = getSilenceClass(result.leadingSilence, 'lead-trail');
+      updateWorst(leadClass);
+    }
+    if (result.trailingSilence !== undefined) {
+      const trailClass = getSilenceClass(result.trailingSilence, 'lead-trail');
+      updateWorst(trailClass);
+    }
+    if (result.longestSilence !== undefined) {
+      const maxClass = getSilenceClass(result.longestSilence, 'max');
+      updateWorst(maxClass);
+    }
+
+    // Check stereo type
+    const stereoClass = getStereoTypeClass(result);
+    updateWorst(stereoClass);
+
+    // Check speech overlap
+    const overlapClass = getOverlapClass(result);
+    updateWorst(overlapClass);
+
+    // Check mic bleed
+    if (result.micBleed) {
+      const micBleedClass = getUnifiedMicBleedClass(result.micBleed);
+      updateWorst(micBleedClass);
+    }
+
+    return worstStatus;
   }
 
   // Helper to get the longest overlap segment duration
@@ -578,7 +645,8 @@
         </thead>
         <tbody>
           {#each results as result}
-            <tr>
+            {@const rowStatus = getExperimentalRowStatus(result)}
+            <tr class:status-pass={rowStatus === 'pass'} class:status-warning={rowStatus === 'warning'} class:status-fail={rowStatus === 'fail'}>
               <td>{result.filename}</td>
               <td>{result.peakDb !== undefined ? result.peakDb.toFixed(1) + ' dB' : 'N/A'}</td>
               <td>
@@ -772,7 +840,9 @@
                   </span>
                   <span class="subtitle">{Math.round(result.stereoSeparation.stereoConfidence * 100)}% conf</span>
                 {:else}
-                  Mono file
+                  <span class="value-{getStereoTypeClass(result)}">
+                    Mono file
+                  </span>
                 {/if}
               </td>
               <!-- Speech Overlap -->

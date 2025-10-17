@@ -218,6 +218,30 @@ async function analyzeFullFile(
       }
     }
 
+    // Add stereo type validation in experimental mode if preset requires it
+    if (preset?.stereoType && preset.stereoType.length > 0 && mode === 'experimental' && validation) {
+      const stereoValidation = CriteriaValidator.validateStereoType(result.stereoSeparation, preset);
+      if (stereoValidation && validation) {
+        (validation as any).stereoType = {
+          status: stereoValidation.status,
+          value: stereoValidation.message,
+          issue: stereoValidation.status === 'fail' ? stereoValidation.message : undefined
+        };
+      }
+    }
+
+    // Add speech overlap validation in experimental mode if preset defines thresholds
+    if (preset?.maxOverlapWarning !== undefined && preset?.maxOverlapFail !== undefined && mode === 'experimental' && validation) {
+      const overlapValidation = CriteriaValidator.validateSpeechOverlap(result.conversationalAnalysis, preset);
+      if (overlapValidation && validation) {
+        (validation as any).speechOverlap = {
+          status: overlapValidation.status,
+          value: overlapValidation.message,
+          issue: overlapValidation.status !== 'pass' ? overlapValidation.message : undefined
+        };
+      }
+    }
+
     result.validation = validation;
     result.status = determineOverallStatus(validation);
   }

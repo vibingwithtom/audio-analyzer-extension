@@ -1202,13 +1202,11 @@ export class LevelAnalyzer {
       rmsBlocks.push({ rmsLeft, rmsRight, startSample: i, endSample: blockEnd });
     }
 
-    // Run both analyses using the same RMS data
+    // Run speech overlap analysis
     const overlap = this.analyzeOverlappingSpeech(noiseFloorData, rmsBlocks);
-    const consistency = this.analyzeChannelConsistency(rmsBlocks);
 
     return {
-      overlap,
-      consistency
+      overlap
     };
   }
 
@@ -1410,171 +1408,6 @@ export class LevelAnalyzer {
       const upper = this.quickSelect([...copy], mid);
       return (lower + upper) / 2;
     }
-  }
-
-  /**
-   * Analyzes channel consistency (detects channel swapping).
-   * @param {Array} rmsBlocks Pre-calculated RMS blocks.
-   * @returns {object} Consistency analysis results.
-   */
-  analyzeChannelConsistency(rmsBlocks) {
-    const dominanceRatioThreshold = 2.0;
-    const silenceThreshold = 0.001;
-    const swapConfidenceThreshold = 0.5;
-    const segmentDuration = 15; // 15 seconds per segment
-    const blockDuration = 0.25; // 250ms per block
-    const blocksPerSegment = Math.floor(segmentDuration / blockDuration); // 60 blocks
-
-    // Pass 1: Collect volume profiles from all segments
-    // Segment by TIME, not by active speech blocks
-    const segmentProfiles = [];
-    const allSegmentsStatus = [];
-
-    for (let segmentStart = 0; segmentStart < rmsBlocks.length; segmentStart += blocksPerSegment) {
-      if (segmentStart % LevelAnalyzer.CANCELLATION_CHECK_INTERVALS.SEGMENT_LOOP === 0 && !this.analysisInProgress) {
-        throw new AnalysisCancelledError('Analysis cancelled', 'channel-consistency');
-      }
-      const segmentEnd = Math.min(segmentStart + blocksPerSegment, rmsBlocks.length);
-      const leftRms = [];
-      const rightRms = [];
-
-      // Process all blocks in this time segment
-      for (let i = segmentStart; i < segmentEnd; i++) {
-        const block = rmsBlocks[i];
-        const { rmsLeft, rmsRight } = block;
-
-        // Skip silent blocks when collecting RMS
-        if (rmsLeft < silenceThreshold && rmsRight < silenceThreshold) {
-          continue;
-        }
-
-        // Check dominance and collect RMS values
-        const ratio = rmsLeft > 0 && rmsRight > 0 ? rmsLeft / rmsRight : 0;
-        if (ratio > dominanceRatioThreshold) {
-          leftRms.push(rmsLeft);
-        } else if (ratio > 0 && ratio < 1 / dominanceRatioThreshold) {
-          rightRms.push(rmsRight);
-        }
-      }
-
-      // Add segment status
-      allSegmentsStatus.push({ status: 'NoClearDominance' });
-
-      // Only create profile if segment has speech
-      if (leftRms.length > 0 || rightRms.length > 0) {
-        segmentProfiles.push({
-          l: this.median(leftRms),
-          r: this.median(rightRms),
-          segmentIndex: allSegmentsStatus.length - 1,
-          startBlock: segmentStart,
-          endBlock: segmentEnd - 1
-        });
-      }
-    }
-
-    // Need at least 2 segments to compare
-    if (segmentProfiles.length < 2) {
-      return {
-        isConsistent: true,
-        consistencyPercentage: 100,
-        totalSegments: allSegmentsStatus.length,
-        totalSegmentsChecked: 0,
-        inconsistentSegments: 0,
-        severityScore: 0,
-        avgConfidence: 0,
-        baselineProfile: { left: 0, right: 0 },
-        segments: allSegmentsStatus,
-        inconsistentSegmentDetails: []
-      };
-    }
-
-    // Pass 2: Determine majority baseline (voting between two hypotheses)
-    let totalL = 0, totalR = 0;
-    segmentProfiles.forEach(p => {
-      totalL += p.l;
-      totalR += p.r;
-    });
-    const avgL = totalL / segmentProfiles.length;
-    const avgR = totalR / segmentProfiles.length;
-
-    const hypothesisA = { l: avgL, r: avgR };
-    const hypothesisB = { l: avgR, r: avgL }; // Swapped
-
-    let votesA = 0, votesB = 0;
-    segmentProfiles.forEach(p => {
-      const distA = Math.abs(p.l - hypothesisA.l) + Math.abs(p.r - hypothesisA.r);
-      const distB = Math.abs(p.l - hypothesisB.l) + Math.abs(p.r - hypothesisB.r);
-      if (distA < distB) {
-        votesA++;
-      } else {
-        votesB++;
-      }
-    });
-
-    const majorityBaseline = votesA > votesB ? hypothesisA : hypothesisB;
-    const minorityBaseline = votesA > votesB ? hypothesisB : hypothesisA;
-
-    // Pass 3: Identify inconsistent segments
-    let inconsistentSegments = 0;
-    const inconsistentSegmentDetails = [];
-
-    segmentProfiles.forEach(p => {
-      const distMajority = Math.abs(p.l - majorityBaseline.l) + Math.abs(p.r - majorityBaseline.r);
-      const distMinority = Math.abs(p.l - minorityBaseline.l) + Math.abs(p.r - minorityBaseline.r);
-
-      if (distMinority < distMajority * swapConfidenceThreshold) {
-        // Calculate confidence
-        const distRatio = distMinority / distMajority;
-        const confidence = Math.min(100, ((swapConfidenceThreshold - distRatio) / swapConfidenceThreshold) * 100);
-
-        // Calculate timestamps (approximate based on block positions)
-        const startTime = p.startBlock * blockDuration;
-        const endTime = p.endBlock * blockDuration;
-
-        allSegmentsStatus[p.segmentIndex].status = 'Inconsistent';
-        allSegmentsStatus[p.segmentIndex].confidence = confidence;
-        allSegmentsStatus[p.segmentIndex].startTime = startTime;
-        allSegmentsStatus[p.segmentIndex].endTime = endTime;
-
-        inconsistentSegments++;
-        inconsistentSegmentDetails.push({
-          segmentNumber: p.segmentIndex + 1,
-          startTime,
-          endTime,
-          confidence,
-          profile: { left: p.l, right: p.r }
-        });
-      } else {
-        allSegmentsStatus[p.segmentIndex].status = 'Consistent';
-      }
-    });
-
-    const totalSegmentsChecked = segmentProfiles.length;
-    const consistencyPercentage = totalSegmentsChecked > 0
-      ? ((totalSegmentsChecked - inconsistentSegments) / totalSegmentsChecked) * 100
-      : 100;
-
-    // Calculate overall severity score
-    const avgConfidence = inconsistentSegmentDetails.length > 0
-      ? inconsistentSegmentDetails.reduce((sum, seg) => sum + seg.confidence, 0) / inconsistentSegmentDetails.length
-      : 0;
-    const severityScore = (inconsistentSegments / totalSegmentsChecked) * avgConfidence;
-
-    return {
-      isConsistent: inconsistentSegments === 0,
-      consistencyPercentage,
-      totalSegments: allSegmentsStatus.length,
-      totalSegmentsChecked,
-      inconsistentSegments,
-      severityScore,
-      avgConfidence,
-      baselineProfile: {
-        left: majorityBaseline.l,
-        right: majorityBaseline.r
-      },
-      segments: allSegmentsStatus,
-      inconsistentSegmentDetails
-    };
   }
 
   /**

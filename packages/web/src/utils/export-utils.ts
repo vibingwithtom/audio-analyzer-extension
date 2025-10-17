@@ -131,7 +131,6 @@ function generateHeaders(mode: ExportOptions['mode']): string[] {
     'Stereo Confidence (%)',
     'Speech Overlap (%)',
     'Speech Overlap Max Duration (s)',
-    'Channel Consistency (%)',
     'Mic Bleed Detected',
     'Mic Bleed Severity',
     'Digital Silence (%)'
@@ -201,7 +200,6 @@ function extractDataRow(result: AudioResults, mode: ExportOptions['mode']): stri
     formatNumber(result.stereoSeparation?.stereoConfidence ? result.stereoSeparation.stereoConfidence * 100 : undefined, 1),
     formatNumber(result.conversationalAnalysis?.overlap?.overlapPercentage, 1),
     formatNumber(getLongestOverlapDuration(result), 1),
-    formatNumber(result.conversationalAnalysis?.consistency?.consistencyPercentage, 1),
     getMicBleedDetected(result),
     formatNumber(result.micBleed?.new?.severityScore, 1),
     formatNumber(result.digitalSilencePercentage, 1)
@@ -241,9 +239,6 @@ const QUALITY_THRESHOLDS = {
     OLD_THRESHOLD_DB: -60,        // > -60 dB old method
     NEW_THRESHOLD_PERCENTAGE: 0.5, // > 0.5% new method
     SEVERE_SCORE: 70              // > 70 severity score is severe
-  },
-  channelConsistency: {
-    PERFECT: 100                  // < 100% is flagged
   }
 } as const;
 
@@ -589,17 +584,6 @@ export function analyzeFailuresWithRecommendations(
       qualityIssues.push(`Speech overlap: ${percentage.toFixed(1)}%`);
       issueCount++;
       recommendations.push(generateDynamicRecommendation('speechOverlap', severity, percentage, null));
-    }
-  }
-
-  // Channel Consistency Analysis (aligned with UI thresholds)
-  if (result.conversationalAnalysis?.consistency) {
-    const percentage = result.conversationalAnalysis.consistency.consistencyPercentage;
-    if (percentage < QUALITY_THRESHOLDS.channelConsistency.PERFECT) {
-      qualityIssues.push(`Channel consistency: ${percentage.toFixed(1)}%`);
-      issueCount++;
-      // Use speechOverlap recommendation for now (should be similar guidance)
-      recommendations.push(generateDynamicRecommendation('speechOverlap', 'high', percentage, null));
     }
   }
 
