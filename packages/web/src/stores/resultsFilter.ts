@@ -34,7 +34,7 @@ resultsFilterStore.subscribe((filterValue) => {
 
 // Reset filter when preset changes
 let previousPresetId: string | null = null;
-currentPresetId.subscribe((presetId) => {
+const unsubPreset = currentPresetId.subscribe((presetId) => {
   if (previousPresetId !== null && presetId !== previousPresetId) {
     resultsFilterStore.set(null);
   }
@@ -43,7 +43,7 @@ currentPresetId.subscribe((presetId) => {
 
 // Reset filter when analysis mode changes
 let previousAnalysisMode: string | null = null;
-analysisMode.subscribe((mode) => {
+const unsubMode = analysisMode.subscribe((mode) => {
   if (previousAnalysisMode !== null && mode !== previousAnalysisMode) {
     resultsFilterStore.set(null);
   }
@@ -52,12 +52,19 @@ analysisMode.subscribe((mode) => {
 
 // Reset filter when tab changes
 let previousTab: string | null = null;
-currentTab.subscribe((tab) => {
+const unsubTab = currentTab.subscribe((tab) => {
   if (previousTab !== null && tab !== previousTab) {
     resultsFilterStore.set(null);
   }
   previousTab = tab;
 });
+
+// Cleanup function (exported for testing or manual cleanup if needed)
+export function cleanup() {
+  unsubPreset();
+  unsubMode();
+  unsubTab();
+}
 
 export const resultsFilter = {
   subscribe: resultsFilterStore.subscribe,

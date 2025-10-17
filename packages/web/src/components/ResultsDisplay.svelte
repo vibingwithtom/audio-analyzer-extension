@@ -39,9 +39,14 @@
   // Filter results based on active filter
   $: filteredResults = !$resultsFilter
     ? enrichedResults
-    : enrichedResults.filter(r =>
-        r.status !== 'error' && r.computedStatus === $resultsFilter
-      );
+    : enrichedResults.filter(r => {
+        // Handle error filter separately (errors bypass experimental status computation)
+        if ($resultsFilter === 'error') {
+          return r.status === 'error';
+        }
+        // For other filters, exclude errors and check computed status
+        return r.status !== 'error' && r.computedStatus === $resultsFilter;
+      });
 
   // Helper function to get experimental metric status
   function getExperimentalStatus(result: AudioResults): 'pass' | 'warning' | 'fail' | 'error' {
