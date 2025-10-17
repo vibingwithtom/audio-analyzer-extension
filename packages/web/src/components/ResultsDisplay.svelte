@@ -81,19 +81,21 @@
     }
 
     // Check silence metrics
+    // Leading/Trailing: < 5s = success, 5-10s = warning, >= 10s = error
     if (result.leadingSilence !== undefined) {
-      if (result.leadingSilence < 1) statuses.push('success');
-      else if (result.leadingSilence <= 3) statuses.push('warning');
+      if (result.leadingSilence < 5) statuses.push('success');
+      else if (result.leadingSilence < 10) statuses.push('warning');
       else statuses.push('error');
     }
     if (result.trailingSilence !== undefined) {
-      if (result.trailingSilence < 1) statuses.push('success');
-      else if (result.trailingSilence <= 3) statuses.push('warning');
+      if (result.trailingSilence < 5) statuses.push('success');
+      else if (result.trailingSilence < 10) statuses.push('warning');
       else statuses.push('error');
     }
+    // Max silence gap: < 5s = success, 5-10s = warning, >= 10s = error
     if (result.longestSilence !== undefined) {
-      if (result.longestSilence < 2) statuses.push('success');
-      else if (result.longestSilence <= 5) statuses.push('warning');
+      if (result.longestSilence < 5) statuses.push('success');
+      else if (result.longestSilence < 10) statuses.push('warning');
       else statuses.push('error');
     }
 
