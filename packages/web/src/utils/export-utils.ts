@@ -1,7 +1,21 @@
 import type { AudioResults } from '../types';
-import type { AudioCriteria } from '../settings/types';
+import type { AudioCriteria, PresetConfig } from '../settings/types';
 import { formatDuration, formatSampleRate as formatSampleRateUI, formatBytes, formatChannels, formatBitDepth } from './format-utils';
 import { analyticsService } from '../services/analytics-service';
+import { CriteriaValidator } from '@audio-analyzer/core';
+
+// Type definitions for validation results from CriteriaValidator
+interface StereoValidationResult {
+  status: 'pass' | 'fail';
+  message: string;
+}
+
+interface SpeechOverlapValidationResult {
+  status: 'pass' | 'warning' | 'fail';
+  message: string;
+  percentage: number;
+  longestSegment: number;
+}
 
 export interface ExportOptions {
   mode: 'standard' | 'experimental' | 'metadata-only';
@@ -22,6 +36,7 @@ export interface FailureAnalysis {
 export interface EnhancedExportOptions extends ExportOptions {
   includeFilenameValidation: boolean;
   currentPresetCriteria?: AudioCriteria | null;
+  currentPreset?: PresetConfig | null;
   analysisMode: 'standard' | 'experimental' | 'metadata-only';
   includeFailureAnalysis?: boolean;
   includeRecommendations?: boolean;
@@ -115,7 +130,7 @@ function generateHeaders(mode: ExportOptions['mode']): string[] {
     'Stereo Type',
     'Stereo Confidence (%)',
     'Speech Overlap (%)',
-    'Channel Consistency (%)',
+    'Speech Overlap Max Duration (s)',
     'Mic Bleed Detected',
     'Mic Bleed Severity',
     'Digital Silence (%)'
@@ -184,7 +199,7 @@ function extractDataRow(result: AudioResults, mode: ExportOptions['mode']): stri
     result.stereoSeparation?.stereoType || 'N/A',
     formatNumber(result.stereoSeparation?.stereoConfidence ? result.stereoSeparation.stereoConfidence * 100 : undefined, 1),
     formatNumber(result.conversationalAnalysis?.overlap?.overlapPercentage, 1),
-    formatNumber(result.conversationalAnalysis?.consistency?.consistencyPercentage, 1),
+    formatNumber(getLongestOverlapDuration(result), 1),
     getMicBleedDetected(result),
     formatNumber(result.micBleed?.new?.severityScore, 1),
     formatNumber(result.digitalSilencePercentage, 1)
@@ -224,9 +239,6 @@ const QUALITY_THRESHOLDS = {
     OLD_THRESHOLD_DB: -60,        // > -60 dB old method
     NEW_THRESHOLD_PERCENTAGE: 0.5, // > 0.5% new method
     SEVERE_SCORE: 70              // > 70 severity score is severe
-  },
-  channelConsistency: {
-    PERFECT: 100                  // < 100% is flagged
   }
 } as const;
 
@@ -540,25 +552,38 @@ export function analyzeFailuresWithRecommendations(
     recommendations.push(generateDynamicRecommendation('micBleed', severity, null, null));
   }
 
-  // Speech Overlap Analysis (aligned with UI thresholds)
-  if (result.conversationalAnalysis?.overlap) {
+  // Stereo Type Validation (preset-based, binary: pass/fail)
+  if (options.currentPreset && options.currentPreset.stereoType) {
+    const stereoValidation = CriteriaValidator.validateStereoType(result.stereoSeparation, options.currentPreset) as StereoValidationResult | null;
+    if (stereoValidation && stereoValidation.status === 'fail') {
+      qualityIssues.push(`Stereo type: ${stereoValidation.message}`);
+      issueCount++;
+      recommendations.push(`File must have ${options.currentPreset.stereoType.join(' or ')} stereo separation pattern.`);
+    }
+  }
+
+  // Speech Overlap Analysis (preset-based thresholds)
+  if (options.currentPreset && result.conversationalAnalysis) {
+    const overlapValidation = CriteriaValidator.validateSpeechOverlap(result.conversationalAnalysis, options.currentPreset) as SpeechOverlapValidationResult | null;
+    if (overlapValidation) {
+      if (overlapValidation.status === 'warning') {
+        qualityIssues.push(`Speech overlap: ${overlapValidation.message}`);
+        issueCount++;
+        recommendations.push(generateDynamicRecommendation('speechOverlap', 'high', overlapValidation.percentage, null));
+      } else if (overlapValidation.status === 'fail') {
+        qualityIssues.push(`Speech overlap: ${overlapValidation.message}`);
+        issueCount++;
+        recommendations.push(generateDynamicRecommendation('speechOverlap', 'excessive', overlapValidation.percentage, null));
+      }
+    }
+  } else if (result.conversationalAnalysis?.overlap) {
+    // Fallback to generic thresholds if no preset is provided
     const percentage = result.conversationalAnalysis.overlap.overlapPercentage;
     if (percentage > QUALITY_THRESHOLDS.speechOverlap.WARNING_PERCENTAGE) {
       const severity = percentage > QUALITY_THRESHOLDS.speechOverlap.CRITICAL_PERCENTAGE ? 'excessive' : 'high';
       qualityIssues.push(`Speech overlap: ${percentage.toFixed(1)}%`);
       issueCount++;
       recommendations.push(generateDynamicRecommendation('speechOverlap', severity, percentage, null));
-    }
-  }
-
-  // Channel Consistency Analysis (aligned with UI thresholds)
-  if (result.conversationalAnalysis?.consistency) {
-    const percentage = result.conversationalAnalysis.consistency.consistencyPercentage;
-    if (percentage < QUALITY_THRESHOLDS.channelConsistency.PERFECT) {
-      qualityIssues.push(`Channel consistency: ${percentage.toFixed(1)}%`);
-      issueCount++;
-      // Use speechOverlap recommendation for now (should be similar guidance)
-      recommendations.push(generateDynamicRecommendation('speechOverlap', 'high', percentage, null));
     }
   }
 
@@ -680,6 +705,7 @@ function generateEnhancedHeaders(options: EnhancedExportOptions): string[] {
     'Longest Silence (s)',
     'Channel Layout',
     'Speech Overlap (%)',
+    'Speech Overlap Max Duration (s)',
     'Mic Bleed Detected'
   ];
 
@@ -771,6 +797,7 @@ function extractEnhancedDataRow(
     formatNumber(result.longestSilence),
     formatChannelLayout(result),
     formatNumber(result.conversationalAnalysis?.overlap?.overlapPercentage, 1),
+    formatNumber(getLongestOverlapDuration(result), 1),
     getMicBleedDetected(result)
   ];
 
@@ -789,6 +816,17 @@ function extractEnhancedDataRow(
   }
 
   return row;
+}
+
+/**
+ * Helper to get longest overlap segment duration
+ */
+function getLongestOverlapDuration(result: AudioResults): number | undefined {
+  const overlap = result.conversationalAnalysis?.overlap as any;
+  if (!overlap?.overlapSegments || overlap.overlapSegments.length === 0) {
+    return undefined;
+  }
+  return Math.max(...overlap.overlapSegments.map((seg: any) => seg.duration));
 }
 
 /**
@@ -943,7 +981,8 @@ export function exportResultsEnhanced(
   presetId?: string,
   analysisMode?: string,
   currentPresetCriteria?: AudioCriteria | null,
-  filename?: string
+  filename?: string,
+  currentPreset?: PresetConfig | null
 ): void {
   const exportStartTime = Date.now();
 
@@ -973,6 +1012,7 @@ export function exportResultsEnhanced(
       dateFormat: options.dateFormat,
       includeFilenameValidation,
       currentPresetCriteria,
+      currentPreset,
       analysisMode: options.mode as 'standard' | 'experimental' | 'metadata-only',
       includeFailureAnalysis: options.includeFailureAnalysis,
       includeRecommendations: options.includeRecommendations

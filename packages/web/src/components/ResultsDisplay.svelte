@@ -1,7 +1,7 @@
 <script lang="ts">
   import ResultsTable from './ResultsTable.svelte';
   import { analysisMode, setAnalysisMode, type AnalysisMode } from '../stores/analysisMode';
-  import { currentPresetId, currentCriteria, enableIncludeFailureAnalysis, enableIncludeRecommendations } from '../stores/settings';
+  import { currentPresetId, currentCriteria, selectedPreset, enableIncludeFailureAnalysis, enableIncludeRecommendations } from '../stores/settings';
   import { isSimplifiedMode } from '../stores/simplifiedMode';
   import type { AudioResults } from '../types';
   import { exportResultsToCsv, exportResultsEnhanced, type ExportOptions } from '../utils/export-utils';
@@ -119,14 +119,6 @@
         else if (overlapPct <= 15) statuses.push('warning');
         else statuses.push('error');
       }
-
-      // Check channel consistency
-      if (result.conversationalAnalysis.consistency) {
-        const consistencyPct = result.conversationalAnalysis.consistency.consistencyPercentage;
-        if (consistencyPct >= 100) statuses.push('success');
-        else if (consistencyPct >= 90) statuses.push('warning');
-        else statuses.push('error');
-      }
     }
 
     // Determine worst status
@@ -224,7 +216,9 @@
           exportOpts,
           $currentPresetId,
           $analysisMode,
-          $currentCriteria
+          $currentCriteria,
+          undefined, // filename - use default
+          $selectedPreset
         );
       } else {
         exportResultsToCsv(

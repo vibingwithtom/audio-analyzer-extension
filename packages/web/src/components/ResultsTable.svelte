@@ -2,6 +2,8 @@
   import StatusBadge from './StatusBadge.svelte';
   import { formatSampleRate, formatDuration, formatBitDepth, formatChannels, formatBytes } from '../utils/format-utils';
   import type { AudioResults, ValidationResults } from '../types';
+  import { selectedPreset } from '../stores/settings';
+  import { CriteriaValidator } from '@audio-analyzer/core';
 
   import { onMount } from 'svelte';
 
@@ -193,12 +195,59 @@
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
 
-  // Helper functions for conversational audio analysis
-  function getOverlapClass(overlapPercentage: number | undefined): string {
-    if (overlapPercentage === undefined) return '';
-    if (overlapPercentage < 5) return 'success';      // Good: < 5%
-    if (overlapPercentage <= 15) return 'warning';    // Warning: 5-15%
-    return 'error';                                    // Issue: > 15%
+  // Helper functions for conversational audio analysis using preset-aware validation
+  function getOverlapClass(result: AudioResults): string {
+    if (!$selectedPreset || !result.conversationalAnalysis) return '';
+
+    const validation = CriteriaValidator.validateSpeechOverlap(
+      result.conversationalAnalysis,
+      $selectedPreset
+    );
+
+    if (!validation) return ''; // No validation needed for this preset
+
+    if (validation.status === 'pass') return 'success';
+    if (validation.status === 'warning') return 'warning';
+    return 'error';
+  }
+
+  // Helper to get color class for overlap percentage only
+  function getOverlapPercentageClass(result: AudioResults): string {
+    if (!$selectedPreset || !result.conversationalAnalysis?.overlap) return '';
+    if ($selectedPreset.maxOverlapWarning === undefined || $selectedPreset.maxOverlapFail === undefined) return '';
+
+    const overlapPct = result.conversationalAnalysis.overlap.overlapPercentage;
+
+    if (overlapPct > $selectedPreset.maxOverlapFail) return 'error';
+    if (overlapPct > $selectedPreset.maxOverlapWarning) return 'warning';
+    return 'success';
+  }
+
+  // Helper to get color class for overlap segment duration only
+  function getOverlapSegmentClass(result: AudioResults): string {
+    if (!$selectedPreset || !result.conversationalAnalysis?.overlap) return '';
+    if ($selectedPreset.maxOverlapSegmentWarning === undefined || $selectedPreset.maxOverlapSegmentFail === undefined) return '';
+
+    const longestSegment = getLongestOverlapDuration(result);
+    if (longestSegment === null || longestSegment === 0) return 'success';
+
+    if (longestSegment > $selectedPreset.maxOverlapSegmentFail) return 'error';
+    if (longestSegment > $selectedPreset.maxOverlapSegmentWarning) return 'warning';
+    return 'success';
+  }
+
+  // Helper to get stereo type validation class
+  function getStereoTypeClass(result: AudioResults): string {
+    if (!$selectedPreset) return '';
+
+    const validation = CriteriaValidator.validateStereoType(
+      result.stereoSeparation,
+      $selectedPreset
+    );
+
+    if (!validation) return ''; // No validation needed for this preset
+
+    return validation.status === 'pass' ? 'success' : 'error';
   }
 
   function getClippingSeverity(clippingAnalysis: any): { level: string; label: string; eventCount: number } {
@@ -224,6 +273,83 @@
 
   function getClippingClass(clippingAnalysis: any): string {
     return getClippingSeverity(clippingAnalysis).level;
+  }
+
+  // Helper to determine worst status across all experimental metrics for row background color
+  function getExperimentalRowStatus(result: AudioResults): 'pass' | 'warning' | 'fail' {
+    let worstStatus: 'pass' | 'warning' | 'fail' = 'pass';
+
+    // Helper to update worst status
+    const updateWorst = (status: string) => {
+      if (status === 'error' || status === 'fail') {
+        worstStatus = 'fail';
+      } else if (status === 'warning' && worstStatus === 'pass') {
+        worstStatus = 'warning';
+      }
+    };
+
+    // Check validation status (preset criteria)
+    if (result.status && result.status !== 'pass') {
+      updateWorst(result.status);
+    }
+
+    // Check normalization
+    const normClass = getNormalizationClass(result.normalizationStatus);
+    updateWorst(normClass);
+
+    // Check clipping
+    const clippingClass = getClippingClass(result.clippingAnalysis);
+    updateWorst(clippingClass);
+
+    // Check noise floor
+    const noiseClass = getNoiseFloorClass(result.noiseFloorDb);
+    updateWorst(noiseClass);
+
+    // Check reverb
+    if (result.reverbInfo) {
+      const reverbClass = getReverbClass(result.reverbInfo.label);
+      updateWorst(reverbClass);
+    }
+
+    // Check silence (leading, trailing, max)
+    if (result.leadingSilence !== undefined) {
+      const leadClass = getSilenceClass(result.leadingSilence, 'lead-trail');
+      updateWorst(leadClass);
+    }
+    if (result.trailingSilence !== undefined) {
+      const trailClass = getSilenceClass(result.trailingSilence, 'lead-trail');
+      updateWorst(trailClass);
+    }
+    if (result.longestSilence !== undefined) {
+      const maxClass = getSilenceClass(result.longestSilence, 'max');
+      updateWorst(maxClass);
+    }
+
+    // Check stereo type
+    const stereoClass = getStereoTypeClass(result);
+    updateWorst(stereoClass);
+
+    // Check speech overlap
+    const overlapClass = getOverlapClass(result);
+    updateWorst(overlapClass);
+
+    // Check mic bleed
+    if (result.micBleed) {
+      const micBleedClass = getUnifiedMicBleedClass(result.micBleed);
+      updateWorst(micBleedClass);
+    }
+
+    return worstStatus;
+  }
+
+  // Helper to get the longest overlap segment duration
+  function getLongestOverlapDuration(result: AudioResults): number | null {
+    if (!result.conversationalAnalysis?.overlap?.overlapSegments) return null;
+
+    const segments = result.conversationalAnalysis.overlap.overlapSegments;
+    if (segments.length === 0) return null;
+
+    return Math.max(...segments.map(seg => seg.duration));
   }
 </script>
 
@@ -519,7 +645,8 @@
         </thead>
         <tbody>
           {#each results as result}
-            <tr>
+            {@const rowStatus = getExperimentalRowStatus(result)}
+            <tr class:status-pass={rowStatus === 'pass'} class:status-warning={rowStatus === 'warning'} class:status-fail={rowStatus === 'fail'}>
               <td>{result.filename}</td>
               <td>{result.peakDb !== undefined ? result.peakDb.toFixed(1) + ' dB' : 'N/A'}</td>
               <td>
@@ -708,10 +835,14 @@
               </td>
               <td>
                 {#if result.stereoSeparation}
-                  {result.stereoSeparation.stereoType}
+                  <span class="value-{getStereoTypeClass(result)}">
+                    {result.stereoSeparation.stereoType}
+                  </span>
                   <span class="subtitle">{Math.round(result.stereoSeparation.stereoConfidence * 100)}% conf</span>
                 {:else}
-                  Mono file
+                  <span class="value-{getStereoTypeClass(result)}">
+                    Mono file
+                  </span>
                 {/if}
               </td>
               <!-- Speech Overlap -->
@@ -744,9 +875,13 @@
                 })() : 'Speech overlap analysis only runs for Conversational Stereo files'}
               >
                 {#if result.conversationalAnalysis?.overlap}
-                  <span class="value-{getOverlapClass(result.conversationalAnalysis.overlap.overlapPercentage)}">
-                    {result.conversationalAnalysis.overlap.overlapPercentage.toFixed(1)}%
-                  </span>
+                  {@const longestDuration = getLongestOverlapDuration(result)}
+                  <div>
+                    <span class="subtitle">%: <span class="value-{getOverlapPercentageClass(result)}">{result.conversationalAnalysis.overlap.overlapPercentage.toFixed(1)}%</span></span>
+                    {#if longestDuration !== null && $selectedPreset?.maxOverlapSegmentWarning !== undefined}
+                      <span class="subtitle">Max: <span class="value-{getOverlapSegmentClass(result)}">{longestDuration.toFixed(1)}s</span></span>
+                    {/if}
+                  </div>
                 {:else}
                   N/A
                 {/if}

@@ -415,7 +415,17 @@ export class LevelAnalyzer {
   }
 
   async estimateReverb(channelDataArray, channels, length, sampleRate, noiseFloorDb, progressCallback = null) { // Renamed channelData to channelDataArray
-    const minDbAboveNoise = 10;
+    // Handle edge case: if noise floor is -Infinity (digital silence), use absolute threshold
+    let onsetThresholdDb;
+    if (noiseFloorDb === -Infinity || !isFinite(noiseFloorDb)) {
+      // Fallback: Use absolute threshold at -50 dB
+      // This handles files with significant digital silence
+      onsetThresholdDb = -50;
+    } else {
+      // Normal case: Onset threshold = noise floor + 10 dB (peaks above noise)
+      onsetThresholdDb = noiseFloorDb + 10;
+    }
+
     const onsetThreshold = 1.5;
     const onsetWindowSize = 1024;
     const decayWindowSize = Math.floor(sampleRate * 0.02); // 20ms windows for decay
@@ -462,7 +472,7 @@ export class LevelAnalyzer {
 
         const peakDb = 20 * Math.log10(peakAmplitude);
 
-        if (peakDb > noiseFloorDb + minDbAboveNoise) {
+        if (peakDb > onsetThresholdDb) {
           let decayEndSample = -1;
           const MAX_DECAY_LOOP_ITERATIONS = 1000; // Emergency brake
           let decayLoopCount = 0; // New counter
@@ -1147,11 +1157,11 @@ export class LevelAnalyzer {
    * Unified conversational audio analysis (single-pass optimization).
    * Analyzes overlapping speech and channel consistency.
    * @param {AudioBuffer} audioBuffer The audio buffer to analyze.
-   * @param {number} noiseFloorDb Noise floor in dB.
+   * @param {object} noiseFloorData Noise floor data with overall and per-channel values.
    * @param {number} peakDb Peak level in dB.
    * @returns {object|null} Combined analysis results, or null if not stereo.
    */
-  analyzeConversationalAudio(audioBuffer, noiseFloorDb, peakDb) {
+  analyzeConversationalAudio(audioBuffer, noiseFloorData, peakDb) {
     // Validate inputs
     if (!audioBuffer || audioBuffer.numberOfChannels !== 2) {
       return null;
@@ -1192,26 +1202,51 @@ export class LevelAnalyzer {
       rmsBlocks.push({ rmsLeft, rmsRight, startSample: i, endSample: blockEnd });
     }
 
-    // Run both analyses using the same RMS data
-    const overlap = this.analyzeOverlappingSpeech(noiseFloorDb, rmsBlocks);
-    const consistency = this.analyzeChannelConsistency(rmsBlocks);
+    // Run speech overlap analysis
+    const overlap = this.analyzeOverlappingSpeech(noiseFloorData, rmsBlocks);
 
     return {
-      overlap,
-      consistency
+      overlap
     };
   }
 
   /**
    * Analyzes overlapping speech in conversational stereo audio.
-   * @param {number} noiseFloorDb Noise floor in dB.
+   * @param {object} noiseFloorData Noise floor data with overall and per-channel values.
    * @param {Array} rmsBlocks Pre-calculated RMS blocks.
    * @returns {object} Overlap analysis results.
    */
-  analyzeOverlappingSpeech(noiseFloorDb, rmsBlocks) {
-    // Speech threshold: noise floor + 20 dB (active speech level)
-    const speechThresholdDb = noiseFloorDb + 20;
-    const speechThresholdLinear = Math.pow(10, speechThresholdDb / 20);
+  analyzeOverlappingSpeech(noiseFloorData, rmsBlocks) {
+    // Extract per-channel noise floors (or use overall as fallback)
+    const leftNoiseFloorDb = noiseFloorData?.perChannel?.[0]?.noiseFloorDb ?? noiseFloorData?.overall ?? -Infinity;
+    const rightNoiseFloorDb = noiseFloorData?.perChannel?.[1]?.noiseFloorDb ?? noiseFloorData?.overall ?? -Infinity;
+
+    // Calculate per-channel speech thresholds
+    let leftThresholdDb, leftThresholdLinear;
+    let rightThresholdDb, rightThresholdLinear;
+
+    // Left channel threshold
+    if (leftNoiseFloorDb === -Infinity || !isFinite(leftNoiseFloorDb)) {
+      // Digital silence: use absolute threshold at -60 dB (conservative for silence detection)
+      leftThresholdDb = -60;
+      leftThresholdLinear = Math.pow(10, -60 / 20);
+    } else {
+      // Normal case: Speech threshold = noise floor + 20 dB (active speech level)
+      leftThresholdDb = leftNoiseFloorDb + 20;
+      leftThresholdLinear = Math.pow(10, leftThresholdDb / 20);
+    }
+
+    // Right channel threshold
+    if (rightNoiseFloorDb === -Infinity || !isFinite(rightNoiseFloorDb)) {
+      // Digital silence: use absolute threshold at -60 dB (conservative for silence detection)
+      rightThresholdDb = -60;
+      rightThresholdLinear = Math.pow(10, -60 / 20);
+    } else {
+      // Normal case: Speech threshold = noise floor + 20 dB (active speech level)
+      rightThresholdDb = rightNoiseFloorDb + 20;
+      rightThresholdLinear = Math.pow(10, rightThresholdDb / 20);
+    }
+
     const blockDuration = 0.25; // 250ms per block
     const minOverlapDuration = 0.5; // 500ms minimum to count as significant overlap (filters brief interjections)
     const minOverlapBlocks = Math.ceil(minOverlapDuration / blockDuration); // 2 blocks
@@ -1234,9 +1269,9 @@ export class LevelAnalyzer {
       const block = rmsBlocks[i];
       const { rmsLeft, rmsRight, startSample, endSample } = block;
 
-      // Check if BOTH channels have active speech
-      const leftActive = rmsLeft > speechThresholdLinear;
-      const rightActive = rmsRight > speechThresholdLinear;
+      // Check if BOTH channels have active speech using per-channel thresholds
+      const leftActive = rmsLeft > leftThresholdLinear;
+      const rightActive = rmsRight > rightThresholdLinear;
 
       if (leftActive || rightActive) {
         totalActiveBlocks++;
@@ -1309,7 +1344,8 @@ export class LevelAnalyzer {
       totalActiveBlocks,
       overlapBlocks,
       overlapPercentage,
-      speechThresholdDb,
+      leftSpeechThresholdDb: leftThresholdDb,
+      rightSpeechThresholdDb: rightThresholdDb,
       overlapSegments,
       minOverlapDuration
     };
@@ -1372,171 +1408,6 @@ export class LevelAnalyzer {
       const upper = this.quickSelect([...copy], mid);
       return (lower + upper) / 2;
     }
-  }
-
-  /**
-   * Analyzes channel consistency (detects channel swapping).
-   * @param {Array} rmsBlocks Pre-calculated RMS blocks.
-   * @returns {object} Consistency analysis results.
-   */
-  analyzeChannelConsistency(rmsBlocks) {
-    const dominanceRatioThreshold = 2.0;
-    const silenceThreshold = 0.001;
-    const swapConfidenceThreshold = 0.5;
-    const segmentDuration = 15; // 15 seconds per segment
-    const blockDuration = 0.25; // 250ms per block
-    const blocksPerSegment = Math.floor(segmentDuration / blockDuration); // 60 blocks
-
-    // Pass 1: Collect volume profiles from all segments
-    // Segment by TIME, not by active speech blocks
-    const segmentProfiles = [];
-    const allSegmentsStatus = [];
-
-    for (let segmentStart = 0; segmentStart < rmsBlocks.length; segmentStart += blocksPerSegment) {
-      if (segmentStart % LevelAnalyzer.CANCELLATION_CHECK_INTERVALS.SEGMENT_LOOP === 0 && !this.analysisInProgress) {
-        throw new AnalysisCancelledError('Analysis cancelled', 'channel-consistency');
-      }
-      const segmentEnd = Math.min(segmentStart + blocksPerSegment, rmsBlocks.length);
-      const leftRms = [];
-      const rightRms = [];
-
-      // Process all blocks in this time segment
-      for (let i = segmentStart; i < segmentEnd; i++) {
-        const block = rmsBlocks[i];
-        const { rmsLeft, rmsRight } = block;
-
-        // Skip silent blocks when collecting RMS
-        if (rmsLeft < silenceThreshold && rmsRight < silenceThreshold) {
-          continue;
-        }
-
-        // Check dominance and collect RMS values
-        const ratio = rmsLeft > 0 && rmsRight > 0 ? rmsLeft / rmsRight : 0;
-        if (ratio > dominanceRatioThreshold) {
-          leftRms.push(rmsLeft);
-        } else if (ratio > 0 && ratio < 1 / dominanceRatioThreshold) {
-          rightRms.push(rmsRight);
-        }
-      }
-
-      // Add segment status
-      allSegmentsStatus.push({ status: 'NoClearDominance' });
-
-      // Only create profile if segment has speech
-      if (leftRms.length > 0 || rightRms.length > 0) {
-        segmentProfiles.push({
-          l: this.median(leftRms),
-          r: this.median(rightRms),
-          segmentIndex: allSegmentsStatus.length - 1,
-          startBlock: segmentStart,
-          endBlock: segmentEnd - 1
-        });
-      }
-    }
-
-    // Need at least 2 segments to compare
-    if (segmentProfiles.length < 2) {
-      return {
-        isConsistent: true,
-        consistencyPercentage: 100,
-        totalSegments: allSegmentsStatus.length,
-        totalSegmentsChecked: 0,
-        inconsistentSegments: 0,
-        severityScore: 0,
-        avgConfidence: 0,
-        baselineProfile: { left: 0, right: 0 },
-        segments: allSegmentsStatus,
-        inconsistentSegmentDetails: []
-      };
-    }
-
-    // Pass 2: Determine majority baseline (voting between two hypotheses)
-    let totalL = 0, totalR = 0;
-    segmentProfiles.forEach(p => {
-      totalL += p.l;
-      totalR += p.r;
-    });
-    const avgL = totalL / segmentProfiles.length;
-    const avgR = totalR / segmentProfiles.length;
-
-    const hypothesisA = { l: avgL, r: avgR };
-    const hypothesisB = { l: avgR, r: avgL }; // Swapped
-
-    let votesA = 0, votesB = 0;
-    segmentProfiles.forEach(p => {
-      const distA = Math.abs(p.l - hypothesisA.l) + Math.abs(p.r - hypothesisA.r);
-      const distB = Math.abs(p.l - hypothesisB.l) + Math.abs(p.r - hypothesisB.r);
-      if (distA < distB) {
-        votesA++;
-      } else {
-        votesB++;
-      }
-    });
-
-    const majorityBaseline = votesA > votesB ? hypothesisA : hypothesisB;
-    const minorityBaseline = votesA > votesB ? hypothesisB : hypothesisA;
-
-    // Pass 3: Identify inconsistent segments
-    let inconsistentSegments = 0;
-    const inconsistentSegmentDetails = [];
-
-    segmentProfiles.forEach(p => {
-      const distMajority = Math.abs(p.l - majorityBaseline.l) + Math.abs(p.r - majorityBaseline.r);
-      const distMinority = Math.abs(p.l - minorityBaseline.l) + Math.abs(p.r - minorityBaseline.r);
-
-      if (distMinority < distMajority * swapConfidenceThreshold) {
-        // Calculate confidence
-        const distRatio = distMinority / distMajority;
-        const confidence = Math.min(100, ((swapConfidenceThreshold - distRatio) / swapConfidenceThreshold) * 100);
-
-        // Calculate timestamps (approximate based on block positions)
-        const startTime = p.startBlock * blockDuration;
-        const endTime = p.endBlock * blockDuration;
-
-        allSegmentsStatus[p.segmentIndex].status = 'Inconsistent';
-        allSegmentsStatus[p.segmentIndex].confidence = confidence;
-        allSegmentsStatus[p.segmentIndex].startTime = startTime;
-        allSegmentsStatus[p.segmentIndex].endTime = endTime;
-
-        inconsistentSegments++;
-        inconsistentSegmentDetails.push({
-          segmentNumber: p.segmentIndex + 1,
-          startTime,
-          endTime,
-          confidence,
-          profile: { left: p.l, right: p.r }
-        });
-      } else {
-        allSegmentsStatus[p.segmentIndex].status = 'Consistent';
-      }
-    });
-
-    const totalSegmentsChecked = segmentProfiles.length;
-    const consistencyPercentage = totalSegmentsChecked > 0
-      ? ((totalSegmentsChecked - inconsistentSegments) / totalSegmentsChecked) * 100
-      : 100;
-
-    // Calculate overall severity score
-    const avgConfidence = inconsistentSegmentDetails.length > 0
-      ? inconsistentSegmentDetails.reduce((sum, seg) => sum + seg.confidence, 0) / inconsistentSegmentDetails.length
-      : 0;
-    const severityScore = (inconsistentSegments / totalSegmentsChecked) * avgConfidence;
-
-    return {
-      isConsistent: inconsistentSegments === 0,
-      consistencyPercentage,
-      totalSegments: allSegmentsStatus.length,
-      totalSegmentsChecked,
-      inconsistentSegments,
-      severityScore,
-      avgConfidence,
-      baselineProfile: {
-        left: majorityBaseline.l,
-        right: majorityBaseline.r
-      },
-      segments: allSegmentsStatus,
-      inconsistentSegmentDetails
-    };
   }
 
   /**

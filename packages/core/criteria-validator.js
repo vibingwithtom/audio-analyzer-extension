@@ -236,4 +236,115 @@ export class CriteriaValidator {
 
     return formatted;
   }
+
+  /**
+   * Validates stereo type against preset requirements (binary: pass/fail)
+   * @param {object} stereoSeparation - Stereo separation analysis results
+   * @param {object} preset - Selected preset configuration
+   * @returns {object|null} { status: 'pass'|'fail', message: string } or null if no validation needed
+   */
+  static validateStereoType(stereoSeparation, preset) {
+    // Skip if preset doesn't define stereoType requirement
+    if (!preset.stereoType || preset.stereoType.length === 0) {
+      return null; // No validation needed
+    }
+
+    // Skip if file isn't stereo
+    if (!stereoSeparation) {
+      return { status: 'fail', message: 'Not a stereo file' };
+    }
+
+    const detectedType = stereoSeparation.stereoType;
+
+    if (preset.stereoType.includes(detectedType)) {
+      return { status: 'pass', message: detectedType };
+    } else {
+      return {
+        status: 'fail',
+        message: `Expected ${preset.stereoType.join(' or ')}, found ${detectedType}`
+      };
+    }
+  }
+
+  /**
+   * Validates speech overlap against preset thresholds (pass/warning/fail)
+   * Checks both percentage-based AND segment duration-based thresholds
+   * @param {object} conversationalAnalysis - Conversational audio analysis results
+   * @param {object} preset - Selected preset configuration
+   * @returns {object|null} { status: 'pass'|'warning'|'fail', message: string, percentage: number, longestSegment: number } or null if no validation needed
+   */
+  static validateSpeechOverlap(conversationalAnalysis, preset) {
+    // Skip if preset doesn't define overlap thresholds
+    if (preset.maxOverlapWarning === undefined || preset.maxOverlapFail === undefined) {
+      return null; // No validation needed
+    }
+
+    // Skip if no overlap data
+    if (!conversationalAnalysis?.overlap) {
+      return null;
+    }
+
+    const overlapPct = conversationalAnalysis.overlap.overlapPercentage;
+
+    // Calculate longest overlap segment duration
+    let longestSegment = 0;
+    if (conversationalAnalysis.overlap.overlapSegments && conversationalAnalysis.overlap.overlapSegments.length > 0) {
+      longestSegment = Math.max(...conversationalAnalysis.overlap.overlapSegments.map(seg => seg.duration));
+    }
+
+    // Evaluate percentage-based status
+    let pctStatus = 'pass';
+    if (overlapPct > preset.maxOverlapFail) {
+      pctStatus = 'fail';
+    } else if (overlapPct > preset.maxOverlapWarning) {
+      pctStatus = 'warning';
+    }
+
+    // Evaluate segment duration-based status (if thresholds are defined)
+    let segmentStatus = 'pass';
+    if (preset.maxOverlapSegmentWarning !== undefined && preset.maxOverlapSegmentFail !== undefined) {
+      if (longestSegment > preset.maxOverlapSegmentFail) {
+        segmentStatus = 'fail';
+      } else if (longestSegment > preset.maxOverlapSegmentWarning) {
+        segmentStatus = 'warning';
+      }
+    }
+
+    // Determine overall status (worst of the two)
+    let overallStatus = 'pass';
+    if (pctStatus === 'fail' || segmentStatus === 'fail') {
+      overallStatus = 'fail';
+    } else if (pctStatus === 'warning' || segmentStatus === 'warning') {
+      overallStatus = 'warning';
+    }
+
+    // Build message indicating which criteria triggered warning/fail
+    let message = `${overlapPct.toFixed(1)}% overlap`;
+    const issues = [];
+
+    if (pctStatus === 'fail') {
+      issues.push(`>${preset.maxOverlapFail}%`);
+    } else if (pctStatus === 'warning') {
+      issues.push(`>${preset.maxOverlapWarning}%`);
+    }
+
+    if (preset.maxOverlapSegmentWarning !== undefined && preset.maxOverlapSegmentFail !== undefined) {
+      if (segmentStatus === 'fail') {
+        issues.push(`max segment ${longestSegment.toFixed(1)}s >${preset.maxOverlapSegmentFail}s`);
+      } else if (segmentStatus === 'warning') {
+        issues.push(`max segment ${longestSegment.toFixed(1)}s >${preset.maxOverlapSegmentWarning}s`);
+      }
+    }
+
+    if (issues.length > 0) {
+      message += ` (${issues.join(', ')})`;
+    }
+
+    return {
+      status: overallStatus,
+      message: message,
+      percentage: overlapPct,
+      longestSegment: longestSegment
+    };
+  }
 }

@@ -29,6 +29,11 @@ export interface PresetConfig {
   supportsFilenameValidation?: boolean;
   filenameValidationType?: 'script-match' | 'bilingual-pattern';
   gdriveOnly?: boolean;
+  stereoType?: string[];                // Required stereo types for this preset
+  maxOverlapWarning?: number;           // Overlap percentage threshold for warning (optional)
+  maxOverlapFail?: number;              // Overlap percentage threshold for failure (optional)
+  maxOverlapSegmentWarning?: number;    // Longest overlap segment duration (seconds) for warning (optional)
+  maxOverlapSegmentFail?: number;       // Longest overlap segment duration (seconds) for failure (optional)
 }
 
 /**
@@ -139,7 +144,12 @@ export const DEFAULT_PRESETS: PresetConfigurations = {
     sampleRate: ['44100', '48000'],
     bitDepth: ['16', '24'],
     channels: ['2'],
-    minDuration: ''
+    minDuration: '',
+    stereoType: ['Conversational Stereo'],
+    maxOverlapWarning: 3,
+    maxOverlapFail: 8,
+    maxOverlapSegmentWarning: 2,
+    maxOverlapSegmentFail: 5
   },
   'p2b2-pairs-mixed': {
     name: 'P2B2 Pairs (Mixed)',
@@ -147,7 +157,14 @@ export const DEFAULT_PRESETS: PresetConfigurations = {
     sampleRate: ['44100', '48000'],
     bitDepth: ['16', '24'],
     channels: ['1', '2'],
-    minDuration: ''
+    minDuration: '',
+    // Note: stereoType validation only applies to 2-channel files
+    // Mono files (1 channel) skip stereo validation entirely
+    stereoType: ['Conversational Stereo'],
+    maxOverlapWarning: 3,
+    maxOverlapFail: 8,
+    maxOverlapSegmentWarning: 2,
+    maxOverlapSegmentFail: 5
   },
   'three-hour': {
     name: 'Three Hour',
@@ -168,7 +185,12 @@ export const DEFAULT_PRESETS: PresetConfigurations = {
     channels: ['2'],
     minDuration: '',
     supportsFilenameValidation: true,
-    filenameValidationType: 'bilingual-pattern' // Validates [ConversationID]-[LangCode]-user-[UserID]-agent-[AgentID]
+    filenameValidationType: 'bilingual-pattern', // Validates [ConversationID]-[LangCode]-user-[UserID]-agent-[AgentID]
+    stereoType: ['Conversational Stereo'],
+    maxOverlapWarning: 5,
+    maxOverlapFail: 10,
+    maxOverlapSegmentWarning: 2,
+    maxOverlapSegmentFail: 5
   },
   'custom': {
     name: 'Custom'

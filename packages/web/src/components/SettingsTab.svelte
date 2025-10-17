@@ -493,6 +493,33 @@
             <dt>Min Duration:</dt>
             <dd>{Math.floor(parseInt($selectedPreset.minDuration) / 60)}m {parseInt($selectedPreset.minDuration) % 60}s</dd>
           {/if}
+          {#if $selectedPreset.stereoType && $selectedPreset.stereoType.length > 0}
+            <dt>Stereo Type:</dt>
+            <dd>{$selectedPreset.stereoType.join(', ')}</dd>
+          {/if}
+          {#if $selectedPreset.maxOverlapWarning !== undefined}
+            <dt>Speech Overlap:</dt>
+            <dd>
+              <strong>Percentage:</strong>
+              <br/>
+              ✓ Pass: ≤{$selectedPreset.maxOverlapWarning}%
+              <br/>
+              ⚠️ Warning: >{$selectedPreset.maxOverlapWarning}% - ≤{$selectedPreset.maxOverlapFail}%
+              <br/>
+              ❌ Fail: >{$selectedPreset.maxOverlapFail}%
+
+              {#if $selectedPreset.maxOverlapSegmentWarning !== undefined}
+                <br/><br/>
+                <strong>Max Segment Duration:</strong>
+                <br/>
+                ✓ Pass: ≤{$selectedPreset.maxOverlapSegmentWarning}s
+                <br/>
+                ⚠️ Warning: >{$selectedPreset.maxOverlapSegmentWarning}s - ≤{$selectedPreset.maxOverlapSegmentFail}s
+                <br/>
+                ❌ Fail: >{$selectedPreset.maxOverlapSegmentFail}s
+              {/if}
+            </dd>
+          {/if}
           {#if $selectedPreset.supportsFilenameValidation}
             <dt>Filename Validation:</dt>
             <dd>✓ Enabled</dd>
