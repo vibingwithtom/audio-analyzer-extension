@@ -104,6 +104,12 @@
 
     window.addEventListener('box-auth-complete', handleBoxAuthComplete as EventListener);
 
+    // Register update listener BEFORE starting periodic checks
+    // This ensures the listener is ready when the first check completes
+    versionCheckService.onUpdateAvailable(() => {
+      updateAvailable = true;
+    });
+
     // Initialize version checking
     versionCheckService.initialize().then(() => {
       // Update build info with current version
@@ -112,11 +118,6 @@
 
       // Start checking for updates every 30 minutes
       versionCheckService.startPeriodicCheck(30);
-
-      // Listen for update notifications
-      versionCheckService.onUpdateAvailable(() => {
-        updateAvailable = true;
-      });
 
       // Expose to console for testing (beta builds only for security)
       if (import.meta.env.MODE === 'beta') {
