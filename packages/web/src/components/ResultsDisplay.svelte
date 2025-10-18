@@ -7,6 +7,7 @@
   import { analyticsService } from '../services/analytics-service';
   import type { AudioResults } from '../types';
   import { exportResultsToCsv, exportResultsEnhanced, type ExportOptions } from '../utils/export-utils';
+  import { formatDuration } from '../utils/format-utils';
 
   // Props
   export let results: AudioResults | AudioResults[] | null = null;
@@ -179,9 +180,7 @@
     const filesToInclude = batchResults.filter(r => r.status === 'pass' || r.status === 'warning');
     const total = filesToInclude.reduce((sum, r) => sum + (r.duration || 0), 0);
 
-    const minutes = Math.floor(total / 60);
-    const seconds = Math.floor(total % 60);
-    return `${minutes}m ${seconds}s`;
+    return formatDuration(total);
   })();
 
   // Format results mode for display
