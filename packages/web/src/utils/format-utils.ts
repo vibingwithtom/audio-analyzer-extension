@@ -18,10 +18,10 @@ export function formatSampleRate(sampleRate: number | string): string {
 
 /**
  * Format duration to human-readable format
- * @example 65.5 → "1m:05s"
- * @example 120 → "2m:00s"
+ * @example 65.5 → "1m 05s"
+ * @example 120 → "2m 00s"
  * @example 45 → "45s"
- * @example 3665 → "1h:01m:05s"
+ * @example 3665 → "1h 01m 05s"
  * @example "Unknown" → "Unknown"
  */
 export function formatDuration(seconds: number | string): string {
@@ -33,9 +33,9 @@ export function formatDuration(seconds: number | string): string {
   const secs = Math.floor(seconds % 60);
 
   if (hours > 0) {
-    return `${hours}h:${minutes.toString().padStart(2, '0')}m:${secs.toString().padStart(2, '0')}s`;
+    return `${hours}h ${minutes.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
   } else if (minutes > 0) {
-    return `${minutes}m:${secs.toString().padStart(2, '0')}s`;
+    return `${minutes}m ${secs.toString().padStart(2, '0')}s`;
   } else {
     return `${secs}s`;
   }

@@ -192,9 +192,11 @@ export class CriteriaValidator {
     const secs = Math.floor(seconds % 60);
 
     if (hours > 0) {
-      return `${hours}h:${minutes.toString().padStart(2, '0')}m:${secs.toString().padStart(2, '0')}s`;
+      return `${hours}h ${minutes.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${secs.toString().padStart(2, '0')}s`;
     } else {
-      return `${minutes}m:${secs.toString().padStart(2, '0')}s`;
+      return `${secs}s`;
     }
   }
 

@@ -368,23 +368,23 @@ describe('CriteriaValidator', () => {
 
   describe('formatDuration', () => {
     it('should format seconds only', () => {
-      expect(CriteriaValidator.formatDuration(45)).toBe('0m:45s');
+      expect(CriteriaValidator.formatDuration(45)).toBe('45s');
     });
 
     it('should format minutes and seconds', () => {
-      expect(CriteriaValidator.formatDuration(125)).toBe('2m:05s');
+      expect(CriteriaValidator.formatDuration(125)).toBe('2m 05s');
     });
 
     it('should format hours, minutes, and seconds', () => {
-      expect(CriteriaValidator.formatDuration(7325)).toBe('2h:02m:05s');
+      expect(CriteriaValidator.formatDuration(7325)).toBe('2h 02m 05s');
     });
 
     it('should pad zeros', () => {
-      expect(CriteriaValidator.formatDuration(3661)).toBe('1h:01m:01s');
+      expect(CriteriaValidator.formatDuration(3661)).toBe('1h 01m 01s');
     });
 
     it('should handle zero duration', () => {
-      expect(CriteriaValidator.formatDuration(0)).toBe('0m:00s');
+      expect(CriteriaValidator.formatDuration(0)).toBe('0s');
     });
   });
 
@@ -405,7 +405,7 @@ describe('CriteriaValidator', () => {
       expect(formatted.sampleRate).toBe('48.0 kHz');
       expect(formatted.bitDepth).toBe('16-bit');
       expect(formatted.channels).toBe('2 (Stereo)');
-      expect(formatted.duration).toBe('2m:00s');
+      expect(formatted.duration).toBe('2m 00s');
       expect(formatted.fileSize).toBe('1.95 MB');
     });
 

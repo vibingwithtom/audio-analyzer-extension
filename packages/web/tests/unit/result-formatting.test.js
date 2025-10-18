@@ -14,32 +14,32 @@ describe('Result Formatting', () => {
   describe('formatDuration', () => {
     it('should format 0 seconds', () => {
       const formatted = CriteriaValidator.formatDuration(0);
-      expect(formatted).toBe('0m:00s');
+      expect(formatted).toBe('0s');
     });
 
     it('should format seconds only', () => {
       const formatted = CriteriaValidator.formatDuration(45);
-      expect(formatted).toBe('0m:45s');
+      expect(formatted).toBe('45s');
     });
 
     it('should format minutes and seconds', () => {
       const formatted = CriteriaValidator.formatDuration(125);
-      expect(formatted).toBe('2m:05s');
+      expect(formatted).toBe('2m 05s');
     });
 
     it('should pad single-digit seconds', () => {
       const formatted = CriteriaValidator.formatDuration(65);
-      expect(formatted).toBe('1m:05s');
+      expect(formatted).toBe('1m 05s');
     });
 
     it('should handle fractional seconds (floor)', () => {
       const formatted = CriteriaValidator.formatDuration(45.7);
-      expect(formatted).toBe('0m:45s');
+      expect(formatted).toBe('45s');
     });
 
     it('should handle very long durations with hours', () => {
-      const formatted = CriteriaValidator.formatDuration(3661); // 1h:01m:01s
-      expect(formatted).toBe('1h:01m:01s');
+      const formatted = CriteriaValidator.formatDuration(3661); // 1h 01m 01s
+      expect(formatted).toBe('1h 01m 01s');
     });
   });
 
@@ -190,7 +190,7 @@ describe('Result Formatting', () => {
       it('should format duration using formatDuration', () => {
         const results = { duration: 125, fileSize: 0 };
         const formatted = CriteriaValidator.formatDisplayText(results);
-        expect(formatted.duration).toBe('2m:05s');
+        expect(formatted.duration).toBe('2m 05s');
       });
 
       it('should handle unknown duration', () => {
@@ -216,7 +216,7 @@ describe('Result Formatting', () => {
         expect(formatted).toHaveProperty('sampleRate', '48.0 kHz');
         expect(formatted).toHaveProperty('bitDepth', '16-bit');
         expect(formatted).toHaveProperty('channels', '2 (Stereo)');
-        expect(formatted).toHaveProperty('duration', '2m:00s');
+        expect(formatted).toHaveProperty('duration', '2m 00s');
         expect(formatted).toHaveProperty('fileSize', '1.95 MB');
       });
     });
@@ -269,7 +269,7 @@ describe('Result Formatting', () => {
       expect(() => formatFn(results)).not.toThrow();
 
       const formatted = formatFn(results);
-      expect(formatted.duration).toBe('2m:00s');
+      expect(formatted.duration).toBe('2m 00s');
       expect(formatted.sampleRate).toBe('48.0 kHz');
     });
 
@@ -280,12 +280,12 @@ describe('Result Formatting', () => {
       }
 
       const results = {
-        duration: 3661, // 1h:01m:01s
+        duration: 3661, // 1h 01m 01s
         fileSize: 1024000
       };
 
       const formatted = renderWithFormatter(results, CriteriaValidator.formatDisplayText);
-      expect(formatted.duration).toBe('1h:01m:01s');
+      expect(formatted.duration).toBe('1h 01m 01s');
     });
   });
 });
